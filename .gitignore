@@ -1,15 +1,13 @@
 #
 # Ignore all folders by default, except these
 #
-/*/
+/*
 !Commands/
 !Terminal/
 
 # 
 # Custom
 # 
-
-/*
 !/.gitignore
 !/.gitconfig
 !/.profile

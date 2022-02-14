@@ -1,0 +1,1 @@
+../../../bash/events/rc/01_00_linux_keybindings.bash
