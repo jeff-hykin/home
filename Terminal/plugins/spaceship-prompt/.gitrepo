@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = https://github.com/spaceship-prompt/spaceship-prompt.git
+	branch = master
+	commit = e391619e253ce1503686243670db546c2e3e1a48
+	parent = 9026ac29bd81790a12d0bd3c2364a86874f3fbad
+	method = merge
+	cmdver = 0.4.1
