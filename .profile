@@ -1,11 +1,3 @@
-
-
-
-
-
-# if running a command like scp (non-interative) return to prevent errors
-[ -z "$PS1" ] && return
-
 # 
 # shell-agnostic setup
 # 
@@ -15,6 +7,28 @@ export SHELL_STANDARD_ENV_VERSION_MAJOR="0"
 export SHELL_STANDARD_ENV_VERSION_MINOR="0"
 export SHELL_STANDARD_ENV_VERSION_PATCH="1"
 export SHELL_STANDARD_ENV_PROFILE_WAS_INITILIZED="true"
+# settings
+if [ -n "$(cat "$SHELL_STANDARD_ENV_SOURCE/settings/debug")" ]
+then
+    export SHELL_STANDARD_ENV_DEBUG="true"
+fi
+
+# 
+# debug check
+# 
+if [ "$SHELL_STANDARD_ENV_DEBUG" = "true" ]
+then
+    echo "[.profile] enabling debugging because"
+    echo "[.profile]     $SHELL_STANDARD_ENV_SOURCE/settings/debug"
+    echo "[.profile] was non-empty"
+    echo "[.profile] "
+    echo "[.profile] created SHELL_STANDARD_ENV variables"
+    echo "[.profile] "
+    echo "[.profile] (note: this debugging text itself may cause tools like scp to fail)"
+fi
+
+# if running a command like scp (non-interative) return to prevent errors
+[ -z "$PS1" ] && return
 
 #
 # add commands to path
