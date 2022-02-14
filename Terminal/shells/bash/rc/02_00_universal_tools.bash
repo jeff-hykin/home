@@ -359,8 +359,8 @@ __temp_set_exa_colors () {
 }
 __temp_set_exa_colors # done with a to () prevent large namespace pollution
 
-unset ll
-unalias ll
+unset ll &> /dev/null
+unalias ll &> /dev/null
 ll () {
     # if exa is not available, start going with backup plans
     if ! command -v "exa" &> /dev/null
