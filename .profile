@@ -78,17 +78,12 @@ fi
     
     
 # if zsh is available, run that instead of the normal shell
-if command -v "zsh" &> /dev/null
+if ! [ -n "$(command -v "zsh")" ]
 then
     if [[ "$(basename "$SHELL")" != "zsh" ]]
     then
         export SHELL="$(which zsh)"
-        
-        # mac needs more than just the variable to be set
-        if [[ "$OSTYPE" == "darwin"* ]] 
-        then
-            "$SHELL" "$@"
-            exit
-        fi
+        "$SHELL" "$@"
+        exit
     fi
 fi
