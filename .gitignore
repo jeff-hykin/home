@@ -1,6 +1,7 @@
 # Ignore all folders by default
 /*/
 !Commands/
+!Terminal/
 
 # 
 # Custom
