@@ -1,1 +1,0 @@
-../../bash/rc/05_04_rust.bash

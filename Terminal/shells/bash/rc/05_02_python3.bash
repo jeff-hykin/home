@@ -1,3 +1,0 @@
-python () {
-    "$(which python3)" "$@"
-}

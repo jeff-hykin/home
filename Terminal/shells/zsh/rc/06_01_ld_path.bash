@@ -1,1 +1,0 @@
-../../bash/rc/06_01_ld_path.bash
