@@ -78,7 +78,7 @@ fi
     
     
 # if zsh is available, run that instead of the normal shell
-if ! [ -n "$(command -v "zsh")" ]
+if [ -n "$(command -v "zsh")" ]
 then
     if [[ "$(basename "$SHELL")" != "zsh" ]]
     then
