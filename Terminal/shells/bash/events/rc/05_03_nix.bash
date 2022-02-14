@@ -25,3 +25,9 @@ else
     fi
     unset __temp_var__default_nix_bin
 fi
+
+# set nix path
+if [ -z "$NIX_PATH" ]
+then
+    export NIX_PATH="${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels"
+fi
