@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# this command does nothing except run as sudo
+sudo "$@"

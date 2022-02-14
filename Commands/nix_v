@@ -1,0 +1,32 @@
+#!/usr/bin/ruby
+def get_versions_and_hashes(package_name)
+    puts "looking up archived versions now..."
+    result = `curl --silent 'https://lazamar.co.uk/nix-versions/\?channel\=nixpkgs-unstable\&package\=#{package_name}'`.match(/<table class="pure-table-bordered pure-table"[\w\W]+?<\/table/)
+    output = []
+    if result
+        versions = result[0].split(/<tr>/).map do |each|
+            # example html
+            #     <tr>
+            # <td>nodejs</td>
+            # <td>14.4.0</td>
+            # <td><a href="./?package=nodejs&amp;revision=fa54dd346fe5e73d877f2068addf6372608c820b&amp;channel=nixpkgs-unstable#instructions" title="Click for installation instructions">fa54dd346fe5e73d877f2068addf6372608c820b</a></td>
+            version_and_hash = each.match(/<td>[\w\W]*?<td>(.+?)<\/td>[\w\W]*title="Click for installation instructions">(\w+)/)
+            if version_and_hash
+                [version_and_hash[1], version_and_hash[2]]
+            else
+                nil
+            end
+        end
+        # removes nil's
+        output = versions.compact
+    end
+    puts "main versions (takes a sec...)"
+    puts `nix-env -q --available '#{package_name}' | cat`.gsub(/(\A|\n)/, "\n    ")
+    return output
+end
+
+def get_versions(package_name)
+    return get_versions_and_hashes(package_name).map{|each| each[0] }
+end
+
+puts get_versions(ARGV[0])

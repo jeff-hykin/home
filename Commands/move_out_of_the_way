@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+function move_out_of_the_way {
+    if [[ -e "$1" ]]
+    then
+        # if something is in the way, move it out of the way
+        # (recursively)
+        if [[ -e "$1.old" ]]
+        then
+            move_out_of_the_way "$1.old"
+        fi
+        
+        # now that anything that would be in the way has been moved
+        mv "$1" "$1.old" || sudo mv "$1" "$1.old"
+    fi
+}
+
+move_out_of_the_way "$@"

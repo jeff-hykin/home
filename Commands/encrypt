@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+file_or_folder="$1"
+tar cz "$file_or_folder"
+openssl enc -aes-256-cbc -e > "$file_or_folder".enc
