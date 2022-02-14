@@ -52,6 +52,31 @@ done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTE
 # Pick the shell
 # 
 
+# if nix not exists
+if ! [ -n "$(command -v "nix")" ]
+then
+    # 
+    # manual fallback attempt
+    # 
+
+    # per-user 
+    __temp_var__user_nix_bin="/nix/var/nix/profiles/per-user/$(whoami)/profile/bin/"
+    if [ -d "$__temp_var__user_nix_bin" ]
+    then
+        export PATH="$PATH:$__temp_var__user_nix_bin"
+    fi
+    unset __temp_var__user_nix_bin
+
+    # default
+    __temp_var__default_nix_bin="/nix/var/nix/profiles/default/bin/nix"
+    if [ -d "$__temp_var__default_nix_bin" ]
+    then
+        export PATH="$PATH:$__temp_var__default_nix_bin"
+    fi
+    unset __temp_var__default_nix_bin
+fi
+    
+    
 # if zsh is available, run that instead of the normal shell
 if command -v "zsh" &> /dev/null
 then
