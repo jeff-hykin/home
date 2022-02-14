@@ -1,4 +1,6 @@
-# Ignore all folders by default
+#
+# Ignore all folders by default, except these
+#
 /*/
 !Commands/
 !Terminal/
@@ -7,18 +9,31 @@
 # Custom
 # 
 
+/*
+!/.gitignore
+!/.gitconfig
+!/.profile
+!/.bashrc
+!/.bash_profile
+!/.bash_login
+!/.bash_logout
+!/.zshrc
+!/.zshenv
+!/.zprofile
+!/.zlogout
+!/.zlogin
+!/.irbrc
+!/package.json
+
+#
+# Saftey precautions
+#
+
 # (contains auth stuff)
 .vsce
 .npmrc
 .Xauthority
 kaggle.json
-
-#
-# irrelevent
-#
-.bash_history
-.zsh_history
-.zcompdump
 
 # 
 # standard
