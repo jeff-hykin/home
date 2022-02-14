@@ -1,0 +1,1 @@
+../../bash/rc/03_03_add_local_bin_to_path.bash

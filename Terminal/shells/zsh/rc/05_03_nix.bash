@@ -1,0 +1,1 @@
+../../bash/rc/05_03_nix.bash
