@@ -1,7 +1,7 @@
 # always run the .profile first
-if [[ "$SHELL_STANDARD_ENV_PROFILE_WAS_INITILIZED" != "true" ]]
+if [ "$SHELL_STANDARD_ENV_PROFILE_WAS_INITILIZED" != "true" ]
 then
-    source "$HOME/.profile"
+    . "$HOME/.profile"
 fi
 
 # 
