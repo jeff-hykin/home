@@ -76,14 +76,3 @@ then
     unset __temp_var__default_nix_bin
 fi
     
-    
-# if zsh is available, run that instead of the normal shell
-if [ -n "$(command -v "zsh")" ]
-then
-    if [[ "$(basename "$SHELL")" != "zsh" ]]
-    then
-        export SHELL="$(which zsh)"
-        "$SHELL" "$@"
-        exit
-    fi
-fi
