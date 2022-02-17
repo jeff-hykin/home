@@ -1,9 +1,13 @@
 export NIXPKGS_ALLOW_UNFREE=1
 
-# do the sourcing check if file exists
-if [ -f "/etc/profile.d/nix.sh" ]
+if [ -e "/home/$(whoami)/.nix-profile/etc/profile.d/nix.sh" ]
+then
+    . "/home/$(whoami)/.nix-profile/etc/profile.d/nix.sh"
+
+elif [ -f "/etc/profile.d/nix.sh" ]
 then
     . /etc/profile.d/nix.sh
+
 else
     # 
     # manual fallback
@@ -29,5 +33,13 @@ fi
 # set nix path
 if [ -z "$NIX_PATH" ]
 then
-    export NIX_PATH="${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/$(whoami)/channels"
+    if [ -d "$HOME/.nix-defexpr/channels" ]
+    then
+        export NIX_PATH="$NIX_PATH:$HOME/.nix-defexpr/channels"
+    fi
+    
+    if [ -d "/nix/var/nix/profiles/per-user/$(whoami)/channels" ]
+    then
+        export NIX_PATH="$NIX_PATH:/nix/var/nix/profiles/per-user/$(whoami)/channels"
+    fi
 fi
