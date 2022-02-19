@@ -1,0 +1,1 @@
+../../../bash/events/rc/01_01_enable_globbing.bash
