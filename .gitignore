@@ -4,8 +4,6 @@
 /*
 !Commands/
 !Terminal/
-!.ssh/
-.ssh/*
 
 # 
 # Custom
@@ -23,11 +21,32 @@
 !/.zlogout
 !/.zlogin
 !/.irbrc
+!/package.json
+
+#
+# complicated
+#
+
+# public stuff from ssh
+!/.ssh/
+/.ssh/*
 !/.ssh/authorized_keys
 !/.ssh/known_hosts
 !/.ssh/config
 !/.ssh/*.pub
-!/package.json
+
+# misc config items
+!/.config/
+/.config/*
+!/.config/nixpkgs/
+!/.config/alacritty/
+!/.config/fish/
+!/.config/Code/
+/.config/Code/*
+!/.config/Code/User
+/.config/Code/User/*
+!/.config/Code/User/settings.json
+!/.config/Code/User/snippets
 
 #
 # Saftey precautions
