@@ -4,6 +4,8 @@
 /*
 !Commands/
 !Terminal/
+!.ssh/
+.ssh/*
 
 # 
 # Custom
@@ -21,6 +23,10 @@
 !/.zlogout
 !/.zlogin
 !/.irbrc
+!/.ssh/authorized_keys
+!/.ssh/known_hosts
+!/.ssh/config
+!/.ssh/*.pub
 !/package.json
 
 #
@@ -28,6 +34,7 @@
 #
 
 # (contains auth stuff)
+.ssh/id_rsa
 .vsce
 .npmrc
 .Xauthority
