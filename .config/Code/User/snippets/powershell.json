@@ -1,0 +1,173 @@
+{
+	// Place your snippets for powershell here. Each snippet is defined under a snippet name and has a prefix, body and 
+	// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:
+	// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. Placeholders with the 
+	// same ids are connected.
+	// Example:
+    "out": {
+        "prefix": "out",
+        "body": "echo '$0: '\"$$0\"",
+        "description": "output variable"
+    },
+    "print": {
+        "prefix": "print",
+        "body": "echo \"${0:message}\"",
+        "description": "print"
+    },
+    "execute": {
+        "prefix": "execute",
+        "body": [
+            "# execute 'echo' 'hello \"world\"' 'I am free \"finally don''t need to worry about escaping\"' ",
+            "# fixes: https://github.com/PowerShell/PowerShell/issues/3049",
+            
+            "function execute {",
+            "    # ",
+            "    # argument processing",
+            "    # ",
+            "    # if given a list, then assume that is the command name followed by arguments",
+            "    if (\\$args[0] -is [array]) {",
+            "        \\$all_args = \\$args[0]",
+            "    # otherwise use all of the arguments",
+            "    } else {",
+            "        # get all the arguments in a list",
+            "        \\$all_args = \\$PsBoundParameters.Values + \\$args",
+            "    }",
+            "    ",
+            "    # ",
+            "    # escape all of them",
+            "    # ",
+            "    \\$escaped_arg_string = \"&\"",
+            "    \\$partly_escaped_arg = \"&\"",
+            "    \\$is_first_arg = \\$true",
+            "    ForEach (\\$item in \\$args) {",
+            "        # single quotes escape everything... everything except ",
+            "        \\$escaped_item = \\$item",
+            "        \\$escaped_item = (\\$escaped_item -replace \"'\", \"''\")",
+            "        \\$escaped_twice_item = (\\$escaped_item -replace '\"', '\"\"')",
+            "        ",
+            "        # the command name/path is handled different",
+            "        if (\\$is_first_arg) {",
+            "            \\$is_first_arg = \\$false",
+            "            ",
+            "            \\$command_path = \\$item",
+            "            # ",
+            "            # if not absolute/relative (just a name)",
+            "            # ",
+            "            \\$is_absolute_path = [System.IO.Path]::IsPathRooted(\\$command_path)",
+            "            \\$is_relative_path = (                  `",
+            "                (\\$command_path[0] -eq '.')         `",
+            "                -and  (                            `",
+            "                    (\\$command_path[1] -eq '/')     `",
+            "                    -or                            `",
+            "                    (\\$command_path[1] -eq '\\')     `",
+            "                )                                  `",
+            "            )",
+            "            if (-not(\\$is_absolute_path -or \\$is_relative_path)) {",
+            "                ",
+            "                # if there is an executable (not just alias/function) version of the command",
+            "                \\$result = (Get-Command -CommandType \"Application\" -Name \\$item -ErrorAction SilentlyContinue).Source",
+            "                if (\\$result) {",
+            "                    # NOTE: if there are multiple values on the path it will return an array",
+            "                    # so we have to handle that case",
+            "                    if (\\$result -is [array]) {",
+            "                        # use the one that is highest on the path",
+            "                        \\$command_path = \\$result[0]",
+            "                    } else {",
+            "                        \\$command_path = \\$result",
+            "                    }",
+            "                }",
+            "            }",
+            "            ",
+            "            \\$escaped_item = \\$command_path",
+            "            \\$escaped_item = (\\$escaped_item -replace \"'\", \"''\") ",
+            "            \\$escaped_twice_item = \\$escaped_item",
+            "            # ^powershell doens't escape the double quotes of the command name",
+            "            # so we dont double escape them this one time",
+            "        }",
+            "        \\$escaped_arg_string = \\$escaped_arg_string + \" '\" + \\$escaped_twice_item + \"'\"",
+            "        # post-7.1",
+            "        \\$partly_escaped_arg = \\$partly_escaped_arg + \" '\" + \\$escaped_item + \"'\"",
+            "    }",
+            "    ",
+            "    # if on older version",
+            "    if ((\\$PSVersionTable.PSVersion) -lt ([version]\"7.1.0\")) {",
+            "        # use the fix",
+            "        return (Invoke-Expression \\$escaped_arg_string)",
+            "    # if on newer version",
+            "    } else {",
+            "        return (Invoke-Expression \\$partly_escaped_arg)",
+            "    }",
+            "}",
+        ],
+        "description": "print"
+    },
+	"command exists": {
+		"prefix": "command exists",
+		"body": [
+            "if (Get-Command ${1:cmdName} -errorAction SilentlyContinue) {",
+            "    $2",
+            "}",
+		],
+	},
+	"all args": {
+		"prefix": "all args",
+		"body": [
+            "$all_args = $PsBoundParameters.Values + $args",
+		],
+	},
+	"sed": {
+		"prefix": "sed",
+		"body": [
+            "$escaped_item = ($escaped_item -replace \"'\", \"''\")",
+		],
+	},
+	"powershell_version": {
+		"prefix": "powershell_version",
+		"body": [
+            "if (($PSVersionTable.PSVersion) -lt ([version]\"7.1.0\")) {",
+            "    $2",
+            "}",
+		],
+	},
+	"if_array": {
+		"prefix": "if_array",
+		"body": [
+            "if (${1:VAR} -is [array]) {",
+            "    $2",
+            "}",
+		],
+	},
+	"if_file": {
+		"prefix": "if_file",
+		"body": [
+            "if (Test-Path -Path ${1:file} -PathType Leaf) {",
+            "    $2",
+            "}",
+		],
+	},
+	"if_not_file": {
+		"prefix": "if_not_file",
+		"body": [
+            "if (-not(Test-Path -Path ${1:file} -PathType Leaf)) {",
+            "    $2",
+            "}",
+		],
+	},
+	"function": {
+		"prefix": "function",
+		"body": [
+            "function ${1:FUNC_NAME} {",
+            "    $all_args = $PsBoundParameters.Values + $args",
+            "    $2",
+            "}",
+		],
+	},
+    "foreach": {
+		"prefix": "foreach",
+		"body": [
+            "ForEach ($item in ${2:array}) {",
+            "    $2",
+            "}",
+		],
+    }
+}

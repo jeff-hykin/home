@@ -1,0 +1,1219 @@
+{
+        "C_Cpp.enhancedColorization": "Disabled",
+        "editor.minimap.enabled": false,
+        "terminal.integrated.scrollback": 100000,
+        "workbench.sideBar.location": "right",
+        "editor.fontSize": 12.5,
+        "editor.selectionHighlight": false,
+        "editor.mouseWheelScrollSensitivity": 0.5,
+        "editor.fontFamily": "XD Normal, Iosevka Custom, Input Mono, SFMono-UltraLight, SourceCodePro-Light, Menlo, Monaco, 'Courier New', monospace",
+        "editor.fontWeight": "200",
+        "editor.renderWhitespace": "none",
+        "editor.renderLineHighlight": "all",
+        "editor.suggestSelection": "recentlyUsedByPrefix", // maybe change this
+        "explorer.sortOrder": "filesFirst",
+        "javascript.showUnused" : false,
+        "javascript.suggestionActions.enabled" : true,
+        "javascript.validate.enable" :false,
+        "editor.cursorBlinking": "expand",
+        "editor.cursorSurroundingLines": 500,
+        "editor.copyWithSyntaxHighlighting" : false,
+        "editor.stopRenderingLineAfter": -1,
+        "editor.cursorSmoothCaretAnimation" : true,
+        "editor.showFoldingControls" :"mouseover",
+        "extensions.autoCheckUpdates": false,
+        "update.mode": "none",
+        "editor.suggest.showWords": true,
+        "editor.wordBasedSuggestions": true,
+        "editor.suggestOnTriggerCharacters": true,
+        "editor.suggest.snippetsPreventQuickSuggestions": false,
+        "editor.suggest.localityBonus": true,
+        "editor.suggest.shareSuggestSelections": true,
+        "editor.snippetSuggestions": "inline",
+        "explorer.compactFolders": false,
+        "explorer.openEditors.visible": 0,
+        "files.watcherExclude":{
+            "**/.git/objects/**": true,
+            "**/.git/subtree-cache/**": true,
+            "**/node_modules/**": true,
+            "**/settings/home/**": true,
+            "**/*.dont-sync*": true,
+            "**/*.nosync*": true,
+            "**/*.cache/**": true,
+            "**/*.dist/**": true,
+            "**/*.pdf": true,
+            "**/.hg/store/**": true
+        },
+        "files.restoreUndoStack": true,
+        "files.hotExit": "onExitAndWindowClose",
+        "files.simpleDialog.enable": true,
+        "jupyter.useNotebookEditor": false,
+        "jupyter.disableJupyterAutoStart": true,
+    //
+    // Long term settings
+    //
+        // maybe change:
+        "terminal.integrated.allowWorkspaceConfiguration": true,
+        "terminal.integrated.cursorStyle": "line",
+        "terminal.integrated.environmentChangesIndicator": "on",
+        "terminal.integrated.fontFamily": "XD Normal, Iosevka Custom, Input Mono, SFMono-UltraLight, SourceCodePro-Light, Menlo, Monaco, 'Courier New', monospace",
+        "terminal.integrated.letterSpacing": 1.0,
+        "terminal.integrated.fontWeight": "200",
+        "terminal.integrated.fontWeightBold": "400",
+        "editor.lineHeight": 0,
+        "editor.autoIndent": false,
+        "editor.foldingStrategy": "indentation",
+        "editor.codeLens": false,
+        "editor.trimAutoWhitespace": false, // trim is on, but language-specific
+        "editor.smoothScrolling": true,
+        "editor.renderControlCharacters": true,
+        "editor.fontLigatures": true,
+        "workbench.startupEditor": "newUntitledFile",
+        "editor.wordSeparators": "`~!@#$%^&*()-=+[{]}\\|;.:'\",<>/?",
+        "extensions.ignoreRecommendations": true,
+        "editor.find.autoFindInSelection": false,
+        "workbench.view.alwaysShowHeaderActions": true,
+        "window.titleBarStyle":"custom",
+        // never change:
+        "editor.wordWrap": "off",
+        "editor.quickSuggestionsDelay": 0,
+        "editor.multiCursorModifier": "ctrlCmd",
+        "zenMode.centerLayout": false,
+        "workbench.activityBar.visible": true,
+        "editor.detectIndentation": false,
+        "editor.find.seedSearchStringFromSelection": false,
+        "workbench.statusBar.feedback.visible": false,
+        "workbench.iconTheme": "material-icon-theme",
+        "vscode_custom_css.imports": ["file:///Users/jeffhykin/Documents/_Programming/Standard Install/vs code/styles.css"],
+        "workbench.colorCustomizations": {
+            "[XD Theme]": {
+                // "focusBorder": "#00aeffe7",
+                // "sideBar.border": "#00000030",
+                // "sideBar.border": "#2670a1",
+                
+                // "scrollbarSlider.background": "#e100ffc0",
+                // "scrollbar.shadow": "#e100ffc0"
+                // "quickInput.foreground": "#2670a1",
+                // "quickInput.background": "#ff0000"
+                
+            },
+            // colors 
+            //      slate blue       = 0a5375
+            //      slate            = 242938
+            //      off white        = eeefff 
+            //      off white2       = C8C8C8
+            //      off white3       = ffffff4e
+            //      whitespace color = 2a3f4f
+            //      idk-gray         = 2e3e49
+            //      idk-sidebar      = 617396
+            //      idk-panel-bakgnd = 353749
+        
+            // atom red #E06C75
+            // atom blue #61AFEF
+            // atom brown/orange #D19A66
+            // atom yellow #E5C07B
+            // atom light-blue #56B6C2
+            // atom purple #C678DD
+            
+            
+            // "syntax.type": "#26A69A",
+            // "syntax.namespace": "#00897B",
+            // "syntax.storage_modifier": "#00897B",
+            // "syntax.function": "#00BCD4",
+            // "syntax.variable": "#42A5F5",
+            // "syntax.string": "#90A4AE",
+            // "syntax.number": "#90A4AE",
+            // "syntax.punctuation": "#A1887F",
+            // "syntax.comment": "#546E7A",
+            // "syntax.keyword_constant": "#A89F9B",
+            // "syntax.keyword_directive": "#7E57C2",
+            // "syntax.keyword_operator": "#9575CD",
+            // "syntax.keyword_control": "#7986CB",
+        },
+        // changes to default theme
+        // "editor.tokenColorCustomizations" : 
+        //     {
+        //         "textMateRules": [
+                    
+        //                 {
+        //                     "name": "pink",
+        //                     "scope": [
+        //                         "punctuation",
+        //                         "keyword.operator"
+        //                         ],
+        //                     "settings": {
+        //                         "foreground": "#66737e",
+        //                     }
+        //                 },
+        //                 {
+        //                     "name": "pink",
+        //                     "scope": [
+        //                         // "variable.parameter",
+        //                         "entity.name.function",
+        //                         "punctuation.section.parameters.begin.bracket.round",
+        //                         "punctuation.section.parameters.end.bracket.round",
+        //                         "punctuation.section.arguments.begin.bracket.round",
+        //                         "punctuation.section.arguments.end.bracket.round",
+        //                         "punctuation.section.angle-brackets.begin.template.call",
+        //                         "punctuation.section.angle-brackets.end.template.call"
+        //                         ],
+        //                     "settings": {
+        //                         "foreground": "#C586C0",
+        //                     }
+        //                 },
+        //                 {
+        //                     "name": "light blue",
+        //                     "scope": [
+        //                         "punctuation.definition.directive",
+        //                         "keyword.operator.wordlike",
+        //                         "keyword.control",
+        //                         "storage.type.modifier.access.control",
+        //                         "keyword.other"
+        //                         ],
+        //                     "settings": {
+        //                         "foreground": "#9cdcfe",
+        //                     }
+        //                 },
+        //                 {
+        //                     "name": "brown",
+        //                     "scope": [
+        //                         "punctuation.definition.string.begin",
+        //                         "punctuation.definition.string.end"
+        //                         ],
+        //                     "settings": {
+        //                         "foreground": "#ce9178",
+        //                     }
+        //                 },
+        //         ]
+        //     },
+        "editor.tokenColorCustomizations" : 
+            {
+                // "[XD Theme]": {
+                    // colors  
+                    //     gray       = 698098
+                    //     off white  = c7cbcd
+                    //     light blue = 89ddff
+                    //     blue
+                    //     purple     = c792eaff
+                    //     dim green  = 80CBC4
+                    //     lime green = 80CBC4
+                    //     orange     = F78C6C
+                    //     red        = ff5572
+                    // rust = ce9178
+                    // alt less-dim green  = 4EC9B0
+                    "textMateRules": [
+                            {
+                                "name": "slateee",
+                                "scope": [
+                                    ],
+                                "settings": {
+                                    "foreground": "#64bac5", 
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "rust",
+                                "scope": [
+                                    ],
+                                "settings": {
+                                    "foreground": "#ce9178",  // palenight = 697098
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "rust bold",
+                                "scope": [
+                                    ],
+                                "settings": {
+                                    "foreground": "#ce9178",  // palenight = 697098
+                                    "fontStyle": "bold"
+                                }
+                            },
+                        // 
+                        // gray
+                        // 
+                            {
+                                "name": "gray",
+                                "scope": [
+                                    // "source.cpp keyword.operator.cast.c keyword.operator.cast",
+                                    // "source.cpp keyword.operator.cast.c",
+                                    // "source.cpp keyword.operator.cast.c storage.type.cpp",
+                                    // "source.cpp keyword.operator.cast.c storage.type.built-in",
+                                    // "source.cpp keyword.operator.cast.c storage.modifier",
+                                    // "source.cpp keyword.operator.cast.c storage.type.built-in.primitive",
+                                    ],
+                                "settings": {
+                                    "foreground": "#698098",  // palenight = 697098
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "gray with underline",
+                                "scope": [
+                                    ],
+                                "settings": {
+                                    "foreground": "#698098",  // palenight = 697098
+                                    "fontStyle": "underline"
+                                }
+                            },
+                        // 
+                        // Pure white
+                        // 
+                            {
+                                "name": "pure white",
+                                "scope":[
+                                    ],
+                                "settings": {
+                                    "foreground": "#FFFFFF",
+                                    "fontStyle": ""
+                                }
+                            },
+                        // 
+                        // off white
+                        // 
+                            {
+                                "name": "off white",
+                                "scope":[
+                                    
+                                    ],
+                                "settings": {
+                                    "foreground": "#c7cbcd",
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "off white with underline",
+                                "scope":[
+                                    
+                                    ],
+                                "settings": {
+                                    "foreground": "#c7cbcd",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                        // 
+                        // Slate blue
+                        // 
+                            {
+                                "name": "slate bold",
+                                "scope": [
+                                    
+                                ],
+                                "settings": {
+                                    "foreground": "#3f848d",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                            {
+                                "name": "slate",
+                                "scope": [
+                                    "source.txt"
+                                ],
+                                "settings": {
+                                    "foreground": "#64bac5",
+                                    "fontStyle": ""
+                                }
+                            },
+                        // 
+                        // light blue
+                        // 
+                            {
+                                "name":"light blue",
+                                "scope":[
+                                    ],
+                                "settings": {
+                                    "foreground": "#89ddff",
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name":"light blue italic",
+                                "scope":[
+                                    ],
+                                "settings": {
+                                    "foreground": "#89ddff",
+                                    "fontStyle": "italic"
+                                }
+                            },
+                            {
+                                "name":"light blue underline",
+                                "scope":[
+                                    ],
+                                "settings": {
+                                    "foreground": "#89ddff",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name":"light blue bold",
+                                "scope":[
+                                    "keyword.operator.or.regexp"
+                                    ],
+                                "settings": {
+                                    "foreground": "#89ddff",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                        //
+                        // pink
+                        //
+                            {
+                                "name": "pink",
+                                "scope" : [
+                                    // "source.xdata storage.type",
+                                ],
+                                "settings": {
+                                    "foreground": "#e57eb3",
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "pink underline",
+                                "scope" : [
+                                ],
+                                "settings": {
+                                    "foreground": "#e57eb3",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "pink bold",
+                                "scope" : [
+                                    "keyword.control.anchor.regexp"
+                                ],
+                                "settings": {
+                                    "foreground": "#e57eb3",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                            {
+                                "name": "pink italic",
+                                "scope" : [
+                                    // "source.txt entity.name.function.txt",
+                                ],
+                                "settings": {
+                                    "foreground": "#e57eb3",
+                                    "fontStyle": "italic"
+                                }
+                            },
+                        
+                        // 
+                        // purple
+                        // 
+                            {
+                                "name": "purple",
+                                "scope" : [
+                                    ],
+                                "settings": {
+                                    "foreground": "#c792eaff",
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "purple cursive",
+                                "scope" : [
+                                    ],
+                                "settings": {
+                                    "foreground": "#c792eaff",
+                                    "fontStyle": "italic"
+                                }
+                            },
+                            {
+                                "name": "purple underline",
+                                "scope" : [
+                                    ],
+                                "settings": {
+                                    "foreground": "#c792eaff",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "purple bold",
+                                "scope" : [
+                                    ],
+                                "settings": {
+                                    "foreground": "#c792eaff",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                            
+                        // 
+                        // blue
+                        // 
+                            // alt blue = #569cd6
+                            {
+                                "name": "blue",
+                                "scope" : [
+                                    "punctuation.accessor"
+                                    // "variable",
+                                    // "source.cython variable",
+                                    // "source.cython variable.legacy",
+                                    // "source.cython variable.legacy.builtin.cython",
+                                    
+                                    // "text.ignore.slugignore string.directory.content.ignore", // basic ignore name
+                                    // "text.ignore.slugignore constant.character.directory.ignore", // folder indicator 
+                                    ],
+                                "settings": {
+                                    "foreground": "#82AAFF",
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "blue underline",
+                                "scope" : [
+                                    // "source.xdata punctuation.section.interpolation",
+                                    // "source.xdata meta.reference constant.language.atom",
+                                    // "source.xdata meta.reference constant.numeric",
+                                    // "source.xdata meta.reference variable.other.property",
+                                ],
+                                "settings": {
+                                    "foreground": "#82AAFF",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "blue bold",
+                                "scope" : [
+                                ],
+                                "settings": {
+                                    "foreground": "#82AAFF",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                            {
+                                "name": "blue italics",
+                                "scope" : [
+                                    // "support.function.builtin",
+                                ],
+                                "settings": {
+                                    "foreground": "#82AAFF",
+                                    "fontStyle": "italic"
+                                }
+                            },
+                            {
+                                "name": "blue bold",
+                                "scope" : [
+                                ],
+                                "settings": {
+                                    "foreground": "#82AAFF",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                            
+                            
+                        // 
+                        // dim green
+                        // 
+                            {
+                                "name": "dim green",
+                                "scope":[
+                                    
+                                    ],
+                                "settings": {
+                                    "foreground": "#80CBC4",
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "dim green with underline",
+                                "scope": [
+                                    "string.regexp constant.character.escape",
+                                    // "source.xdata punctuation.separator.key-value",
+                                    ],
+                                "settings": {
+                                    "foreground": "#80CBC4",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "dim green with italics",
+                                "scope": [
+                                    ],
+                                "settings": {
+                                    "foreground": "#80CBC4",
+                                    "fontStyle": "italic"
+                                }
+                            },
+                        //
+                        // green
+                        //
+                            {
+                                "name": "green",
+                                "scope": [
+                                    "source.nix variable.other",
+                                    ],
+                                "settings": {
+                                    "foreground": "#4EC9B0",
+                                    "fontStyle": "none"
+                                }
+                            },
+                            {
+                                "name": "green bold",
+                                "scope": [
+                                ],
+                                "settings": {
+                                    "foreground": "#04d895",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                            {
+                                "name": "green underline",
+                                "scope": [
+                                ],
+                                "settings": {
+                                    "foreground": "#04d895",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "green italic",
+                                "scope": [
+                                    
+                                ],
+                                "settings": {
+                                    "foreground": "#04d895",
+                                    "fontStyle": "italic"
+                                }
+                            },
+                        // 
+                        // lime green
+                        //
+                            {
+                                "name": "lime green",
+                                "scope":[
+                                ],
+                                "settings": {
+                                    "foreground": "#C3E88D",
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "lime green with underline",
+                                "scope":[
+                                    // "source.xdata meta.reference string.quoted.single",
+                                ],
+                                "settings": {
+                                    "foreground": "#C3E88D",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                        
+                        //
+                        // Orange
+                        // 
+                            {
+                                "name": "orange",
+                                "scope": [
+                                    
+                                    ],
+                                "settings": {
+                                    "foreground": "#F78C6C",
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "orange underline",
+                                "scope": [
+                                    // "source.xdata meta.key constant.language.atom"
+                                    ],
+                                "settings": {
+                                    "foreground": "#F78C6C",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "orange bold",
+                                "scope": [
+                                        
+                                    ],
+                                "settings": {
+                                    "foreground": "#F78C6C",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                            {
+                                "name": "orange italics",
+                                "scope": [
+                                    
+                                    ],
+                                "settings": {
+                                    "foreground": "#F78C6C",
+                                    "fontStyle": "italic"
+                                }
+                            },
+                            
+                        // 
+                        // Golden Yellow 
+                        // 
+                            {
+                                "name": "yellow cursive",
+                                "scope": [
+                                    
+                                    ],
+                                "settings": {
+                                    "foreground": "#fec355",
+                                    "fontStyle": "italic"
+                                }
+                            },
+                            {
+                                "name": "yellow",
+                                "scope": [
+                                    // "source.c meta.function.definition.parameters",
+                                    // "source.c meta.function.definition.parameters keyword.operator",
+                                    ],
+                                "settings": {
+                                    "foreground": "#fec355",
+                                    "fontStyle": "none",
+                                }
+                            },
+                            {
+                                "name": "yellow underline",
+                                "scope": [
+                                    // "source.txt entity.name.type.txt"
+                                    ],
+                                "settings": {
+                                    "foreground": "#fec355",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "yellow bold",
+                                "scope": [
+                                    
+                                    ],
+                                "settings": {
+                                    "foreground": "#fec355",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                        //
+                        // pastel yellow
+                        //
+                            {
+                                "name": "Bananna yellow",
+                                "scope": [
+                                    // "source.cpp meta.body meta.function.definition meta.body.function meta.template.call meta.qualified_type entity.name.type",
+                                    ],
+                                "settings": {
+                                    "foreground": "#ddd790",
+                                }
+                            },
+                            {
+                                "name": "Bananna yellow underline",
+                                "scope": [
+                                    ],
+                                "settings": {
+                                    "foreground": "#ddd790",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "Bananna yellow bold",
+                                "scope": [
+                                    
+                                    ],
+                                "settings": {
+                                    "foreground": "#ddd790",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                            {
+                                "name": "Bananna yellow italic",
+                                "scope": [
+                                    ],
+                                "settings": {
+                                    "foreground": "#ddd790",
+                                    "fontStyle": "italic"
+                                }
+                            },
+                            
+                        // 
+                        // Red 
+                        //
+                            {
+                                "name": "red",
+                                "scope":[
+                                    
+                                    ],
+                                "settings": {
+                                    "foreground": "#ff5572",
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "red bold",
+                                "scope":[
+                                    ],
+                                "settings": {
+                                    "foreground": "#ff5572",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                            {
+                                "name": "red underline",
+                                "scope":[
+                                    ],
+                                "settings": {
+                                    "foreground": "#ff5572",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "soft red",
+                                "scope":[
+                                    ],
+                                "settings": {
+                                    "foreground": "#E06C75",
+                                    "fontStyle": ""
+                                }
+                            },
+                            {
+                                "name": "soft red underline",
+                                "scope":[
+                                    
+                                    ],
+                                "settings": {
+                                    "foreground": "#E06C75",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "soft red bold",
+                                "scope":[
+                                    "constant.other.character-class.regexp"
+                                    ],
+                                "settings": {
+                                    "foreground": "#E06C75",
+                                    "fontStyle": "bold"
+                                }
+                            },
+                            {
+                                "name": "soft red underline",
+                                "scope":[
+                                    ],
+                                "settings": {
+                                    "foreground": "#E06C75",
+                                    "fontStyle": "underline"
+                                }
+                            },
+                            {
+                                "name": "softer red",
+                                "scope":[
+                                    ],
+                                "settings": {
+                                    "foreground": "#dd858c",
+                                }
+                            },
+                        // 
+                        // underline
+                        // 
+                            {
+                                "name": "underline",
+                                "scope":[
+                                        // "source.shell string",
+                                        // "source.shell string.unquoted.argument",
+                                        // "source.shell string.interpolated",
+                                        // "source.shell string.interpolated entity.name.command",
+                                        // "source.shell string.interpolated punctuation.definition.string.begin",
+                                        // "source.shell string.interpolated punctuation.definition.string.end",
+                                        // "source.shell string.interpolated punctuation.definition.evaluation",
+                                        // "source.shell string.interpolated constant.other.option",
+                                        // "source.shell string.interpolated string.quoted.single",
+                                        // "source.shell string.interpolated string.unquoted.argument",
+                                        // "source.shell string.interpolated string.quoted.double",
+                                        // "entity.name.command",
+                                    ],
+                                "settings": {
+                                    "fontStyle": "underline"
+                                }
+                            },
+                    ],
+                // },
+            },
+            "workbench.colorCustomizations": {
+                // "terminal.background":"#131212",
+                // "terminal.foreground":"#dddad6",
+                "terminal.ansiBlack":"#242938"
+            },
+            // whitespace char: 2a3f47
+        "code-eol.newlineCharacter":"¬",
+        "code-eol.returnCharacter":"↵",
+        "code-eol.crlfCharacter"  :"←",
+
+
+    //
+    // Advanced
+    //
+        "[markdown]": {
+            "editor.quickSuggestions": {
+                "other": true,
+                "comments": true,
+                "strings": true,
+            }
+        },
+        "editor.quickSuggestions": {
+            "other": true,
+            "comments": true,
+            "strings": true
+        },
+        "files.exclude": {
+            "**/.git": false,
+            "**/.svn": false,
+            "**/.hg": false,
+            "**/.DS_Store": false,
+        },
+        "search.exclude": {
+            "**/.git": true,
+            "**/node_modules": true,
+            "**/bower_components": true,
+            "**/venv": true,
+            "**/dist": true,
+            "**/.cache": true,
+        },
+        "files.associations": {
+            "*.c": "cpp",
+            "*.lock": "toml",
+            "*.m": "objective-c"
+        },
+        "[javascript]": {
+            "editor.autoIndent": false,
+            "editor.trimAutoWhitespace": true,
+            "editor.defaultFormatter": "esbenp.prettier-vscode",
+        },
+        "[ruby]": {
+            "editor.autoIndent": false,
+        },
+        "[yaml]": {
+            "editor.tabSize" : 4,
+        },
+        "[html]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[vue]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+    //
+    // App settings
+    //
+        // 
+            "blockhighlight.background": [
+                "0",
+                "0",
+                "0",
+                ".1"
+            ],
+        // GitDiff
+            "githd.blameView.enabled": false,
+            "githd.logView.expressMode": true,
+            "githd.traceLevel": "silent",
+        // Code runner 
+            "code-runner.runInTerminal": true,
+            "code-runner.clearPreviousOutput": true,
+            "code-runner.ignoreSelection": true,
+            "code-runner.executorMap": {
+                "cpp": "builtin cd $dir; (ls makefile &>/dev/null) && make;(ls makefile &>/dev/null) || g++ -std=c++14 \"$fileName\" -o $fileNameWithoutExt && $dir$fileNameWithoutExt"
+            },
+        
+        // C++ formatter (clang-format)
+            "clang-format.language.cpp.enable": true,
+            "clang-format.language.javascript.enable": false,
+            "clang-format.style": "WebKit",
+            
+        // git
+            "git.autofetch": true,
+            "git.confirmSync": false,
+            "git.enableSmartCommit": true,
+            // "git.bin"
+            "git.path": "/nix/var/nix/profiles/per-user/jeffhykin/profile/bin//git",
+
+        // prettier settings
+            "prettier.printWidth": 99999999999999,
+            "prettier.jsxBracketSameLine": false,
+            "prettier.tabWidth": 4,
+            "prettier.trailingComma": "es5",
+            "prettier.useTabs": false,
+            "prettier.semi": false,
+        
+        // git lens
+            "gitlens.codeLens.scopes": [],
+            "gitlens.hovers.annotations.over": "annotation",
+            "gitlens.recentChanges.highlight.locations": [
+                "gutter",
+                "overview"
+            ],
+            "gitlens.currentLine.enabled": false,
+            "gitlens.hovers.currentLine.over": "line",
+            "gitlens.codeLens.authors.command": "gitlens.showQuickCommitDetails",
+            "gitlens.advanced.messages": {
+                "suppressGitDisabledWarning": true,
+                "suppressShowKeyBindingsNotice": true
+            },
+            "gitlens.views.fileHistory.enabled": true,
+            "gitlens.views.lineHistory.enabled": false,
+            "gitlens.historyExplorer.enabled": true,
+            "gitlens.views.search.files.layout": "list",
+            "gitlens.views.search.enabled": false,
+            "gitlens.views.compare.location": "scm",
+            "gitlens.settings.mode": "advanced",
+        
+        // rainbow brackets
+            "indentRainbow.colors": [
+                "rgba(25,59,63,0.4)",
+                "rgba(25,44,63,0.4)",
+                "rgba(25,25,63,0.4)",
+                "rgba(44,25,63,0.4)",
+                "rgba(63,25,63,0.4)",
+                "rgba(63,25,44,0.4)",
+                "rgba(63,44,25,0.4)",
+                "rgba(63,63,25,0.4)",
+                "rgba(25,63,44,0.4)",
+            ],
+            "indentRainbow.errorColor": "rgba(128,32,32,0.0)",
+        
+        // clang
+            "clang.completion.maxBuffer": 838860,
+            "clang.completion.enable": false,
+            "clang.completion.completeMacros": false,
+            "clang.diagnostic.delay": 5000,
+        
+        // python 
+            // "python.pythonPath": "/usr/local/bin/python3",
+            "python.languageServer": "None",
+            "python.linting.pylintEnabled": false,
+            "python.disableInstallationCheck": true,
+            "python.analysis.autoImportCompletions": false,
+            "python.analysis.diagnosticMode": "openFilesOnly",
+            "python.analysis.completeFunctionParens": true,
+            "python.analysis.memory.keepLibraryAst": true,
+            "python.analysis.symbolsHierarchyDepthLimit": 2,
+            "python.autoUpdateLanguageServer": false,
+            "python.linting.maxNumberOfProblems": 1,
+            "python.workspaceSymbols.enabled": true,
+            "python.analysis.autoSearchPaths": false,
+            "python.analysis.disabled": ["all"],
+        
+        // glsl markings
+            "glsllint.glslangValidatorPath": "/usr/local/Cellar/glslang/7.10.2984/bin/glslangValidator",
+            "javascript.updateImportsOnFileMove.enabled": "always",
+        
+        // code coverage
+            "vscode-coverage-highlighter.defaultState": "enable",
+        
+        // standard.js
+            "standard.autoFixOnSave": true,
+            "showMusicMetrics": false,
+            "showGitMetrics": false,
+            "showWeeklyRanking": false,
+            "terminal.integrated.rendererType": "dom",
+            "markdown.preview.breaks": true,
+            "breadcrumbs.enabled": true,
+            "[json]": {
+                "editor.defaultFormatter": "vscode.json-language-features"
+            },
+        // alignment
+            "alignment.chars": {
+                ":": {
+                    "spaceBefore": 0,
+                    "spaceAfter": 1
+                },
+                "::": {
+                    "spaceBefore": 0,
+                    "spaceAfter": 0
+                },
+                "=": {
+                    "spaceBefore": 1,
+                    "spaceAfter": 1
+                },
+                "===": {
+                    "spaceBefore": 1,
+                    "spaceAfter": 1
+                },
+                "==": {
+                    "spaceBefore": 1,
+                    "spaceAfter": 1
+                },
+                "=>": {
+                    "spaceBefore": 1,
+                    "spaceAfter": 1
+                },
+                "+=": {
+                    "spaceBefore": 1,
+                    "spaceAfter": 1
+                },
+                "-=": {
+                    "spaceBefore": 1,
+                    "spaceAfter": 1
+                },
+                "*=": {
+                    "spaceBefore": 1,
+                    "spaceAfter": 1
+                },
+                "/=": {
+                    "spaceBefore": 1,
+                    "spaceAfter": 1
+                },
+                ",": {
+                    "spaceBefore": 0,
+                    "spaceAfter": 1
+                }
+            },
+        // formatting
+            "python.formatting.provider": "black",
+            "python.formatting.yapfArgs": ["--style", "{based_on_style: chromium, indent_width: 4, column_limit: 999999, arithmetic_precedence_indication: true, dedent_closing_brackets: false, disable_ending_comma_heuristic: false, each_dict_entry_on_separate_line: true, join_multiple_lines: false, split_arguments_when_comma_terminated: true }"],
+        // project
+            "projectManager.groupList": false,
+            "projectManager.sortList": "Saved",
+        // macros
+            "macros": {
+                "GitSync" : [
+                    {
+                        "javascript": "window.showInformationMessage(`Syncing..`)"
+                    },
+                    {
+                        "injections" : [
+                            { "replace": "$currentFolder", "withResultOf": "vscode.workspace.rootPath" }
+                        ],
+                        "hiddenConsole" :  [
+                            "bash <<CMD",
+                            "source ~/.bash_profile",
+                            "cd \"$currentFolder\"",
+                            "gp",
+                            "CMD"
+                        ]
+                    },
+                    {
+                        "javascript": "window.showInformationMessage(`Git Synced`)"
+                    }
+                ],
+                "yapf" : [
+                    // format some python
+                    {
+                        "injections" : [
+                            { "replace": "$currentFile", "withResultOf": "window.activeTextEditor.document.uri.fsPath" },
+                            { "replace": "$currentFolder", "withResultOf": "vscode.workspace.rootPath" },
+                        ],
+                        "command": "workbench.action.terminal.sendSequence",
+                        // this is a really dumb indirect way of doing it but the normal way doesn't work and replaces it with 2 empty lines
+                        "args": { "text": "yapf '$currentFile' --style='{based_on_style: chromium, indent_width: 4, column_limit: 9, arithmetic_precedence_indication: true, dedent_closing_brackets: true, disable_ending_comma_heuristic: false, each_dict_entry_on_separate_line: false, join_multiple_lines: false, split_arguments_when_comma_terminated: true }' > .formatted.txt && mv .formatted.txt '$currentFile'\n", }
+                    },
+                ],
+                "SelectLocal" : [
+                    // grab the current word
+                    "actions.findWithSelection",
+                    // select the whole line
+                    "expandLineSelection",
+                    // the select the block/scope
+                    "editor.action.smartSelect.expand",
+                    // find the word inside that block
+                    "toggleFindInSelection",
+                    // place cursor on every match
+                    "editor.action.selectAllMatches",
+                ],
+                "exampleMacro2" : [
+                    // a simple command to open a new terminal
+                    "workbench.action.terminal.new",
+                    // combine javascript and commands
+                    {
+                        "injections" : [
+                            { "replace": "$currentFile", "withResultOf": "window.activeTextEditor.document.uri.fsPath" },
+                            { "replace": "$currentFolder", "withResultOf": "vscode.workspace.rootPath" },
+                        ],
+                        "command": "workbench.action.terminal.sendSequence",
+                        "args": { "text": "echo the current file is: $currentFile\necho the current folder is: $currentFolder\n" }
+                    },
+                ],
+            },
+        // docker
+            "docker.images.label": "RepositoryName",
+            "docker.images.description": [
+                "CreatedTime",
+                "RepositoryName"
+            ],
+        // bookmarks
+            "bookmarks.label.suggestion": "useWhenSelected",
+            "bookmarks.showCommandsInContextMenu": false,
+            "bookmarks.saveBookmarksInProject": true,
+            "bookmarks.sideBar.expanded": true,
+        // 
+            "footsteps.maxNumberOfChangesToHighlight": 1,
+            "footsteps.doHighlightCurrentlyFocusedChunk": false,
+        // other
+            "terminal.integrated.defaultProfile.osx": "zsh",
+            "todo-tree.tree.showScanModeButton": false,
+            "gitlens.views.compare.files.layout": "tree",
+            "workbench.enableExperiments": false,
+            "telemetry.enableCrashReporter": false,
+            "telemetry.enableTelemetry": false,
+            "workbench.settings.enableNaturalLanguageSearch": false,
+            "gitlens.views.repositories.location": "scm",
+            "editor.maxTokenizationLineLength": 1500,
+            "workbench.tree.indent": 24,
+            "debug.onTaskErrors": "abort",
+            "[typescript]": {
+                "editor.defaultFormatter": "esbenp.prettier-vscode"
+            },
+            "remote.extensionKind": {
+                "ms-azuretools.vscode-docker": "workspace"
+            },
+            "diffEditor.ignoreTrimWhitespace": false,
+            "javascript.suggest.completeFunctionCalls": true,
+            "standard.enable": false,
+            "typescript.suggest.completeFunctionCalls": true,
+            "window.restoreWindows": "one",
+            "explorer.confirmDragAndDrop": false,
+            "gitlens.views.repositories.enabled": true,
+            "explorer.confirmDelete": false,
+            "projectManager.git.baseFolders": [
+                "/Users/jeffhykin/repos",
+                "/home/jeffhykin/repos"
+            ],
+            "jupyter.alwaysTrustNotebooks": true,
+            "[jsonc]": {
+                "editor.defaultFormatter": "esbenp.prettier-vscode"
+            },
+            "python.showStartPage": false,
+            "[css]": {
+                "editor.defaultFormatter": "esbenp.prettier-vscode"
+            },
+            "workbench.editorAssociations": {
+                "*.ipynb": "jupyter-notebook"
+            },
+            "omnisharp.useGlobalMono": "always",
+            "terminal.integrated.commandsToSkipShell": [
+                "workbench.action.terminal.sendSequence",
+                "workbench.action.terminal.copySelection",
+                "workbench.action.terminal.paste",
+                "workbench.action.terminal.scrollToPreviousCommand",
+                "workbench.action.terminal.scrollToNextCommand"
+            ],
+            "[cpp]": {
+                "editor.wordBasedSuggestions": true,
+                "editor.semanticHighlighting.enabled": false,
+            },
+            "[javascriptreact]": {
+                "editor.defaultFormatter": "esbenp.prettier-vscode"
+            },
+            "jupyter.askForKernelRestart": false,
+            "notebook.cellToolbarLocation": {
+                "default": "right",
+                "jupyter-notebook": "left"
+            },
+            "security.workspace.trust.untrustedFiles": "open",
+            "emmet.excludeLanguages": [
+            
+            ],
+            "emmet.includeLanguages": {
+                // "javascript": "javascriptreact",
+            },
+            "emmet.showSuggestionsAsSnippets": true,
+            "terminal.integrated.env.osx": {
+                "FIG_NEW_SESSION": "1"
+            },
+            "gitlens.codeLens.enabled": false,
+            "gitlens.heatmap.locations": [
+                "gutter",
+                "overview"
+            ],
+            "workbench.colorTheme": "XD Theme - MixItUp",
+            "window.zoomLevel": 1,
+}

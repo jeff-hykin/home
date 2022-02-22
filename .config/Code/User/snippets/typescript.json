@@ -1,0 +1,75 @@
+{
+    /*
+    // Place your snippets for JavaScript here. Each snippet is defined under a snippet name and has a prefix, body and 
+    // description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:
+    // $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. Placeholders with the 
+    // same ids are connected.
+    // Example:
+    "Print to console": {
+        "prefix": "log",
+        "body": [
+            "console.log('$1');",
+            "$2"
+        ],
+        "description": "Log output to console"
+    }
+*/
+    "promise": {
+        "prefix": "Promise",
+        "body": [
+            "new Promise((resolve, reject)=>{",
+            "    $0",
+            "})"
+        ],
+        "description": "creates a promise"
+    },
+    "override the function snippet": {
+        "prefix": "function",
+        "body": [
+            "function$0"
+        ],
+        "description": "just types function"
+    },
+    "Print to console": {
+        "prefix": "print",
+        "body": [
+            "console.log(`$0`)"
+        ],
+        "description": "Log output to console"
+    },
+    "output a var": {
+        "prefix": "out",
+        "body": [
+            "console.log(`$0 is:`,$0)"
+        ],
+        "description": "Log output to console"
+    },
+    "Show some output": {
+        "prefix": "show",
+        "body": [
+            "show(`$0`)"
+        ],
+        "description": "Log output using the (custom) show function"
+    },
+    "import react": {
+        "prefix": "impre",
+        "body": [
+            "import React from 'react'$0"
+        ],
+        "description": "imports react"
+    },
+    "import materialize": {
+        "prefix": "impmat",
+        "body": [
+            "import {$1} from 'react-materialize'$2"
+        ],
+        "description": "imports stuff from react-materialize"
+    },
+    "create smart component": {
+        "prefix": "class",
+        "body": [
+            "\nclass $1 extends React.Component {\n    constructor (props) {\n        super(props)\n        this.state ={}\n    }\n    \n    render() {$2\n        return <div></div>\n    }\n}\nexport default $1"
+        ],
+        "description": "blah it makes a smart component"
+    }
+}

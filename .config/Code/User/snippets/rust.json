@@ -1,0 +1,163 @@
+{
+	// Place your snippets for rust here. Each snippet is defined under a snippet name and has a prefix, body and 
+	// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:
+	// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. Placeholders with the 
+	// same ids are connected.
+	
+    "print": {
+		"prefix": "print",
+		"body": [
+            "println!(\"{}\", \"$0\");",
+		],
+		"description": "Print a string"
+	},
+	
+    "out": {
+		"prefix": "out",
+		"body": [
+            "println!(\"$0 {:?}\", $0);",
+		],
+		"description": "Output a variable to the console"
+	},
+    
+    "try": {
+		"prefix": "try",
+		"body": [
+            "// try",
+            "let do_steps = || -> Result<(), MyError> {",
+            "    do_step_1()?;",
+            "    do_step_2()?;",
+            "    do_step_3()?;",
+            "    Ok(())",
+            "};",
+            "// catch",
+            "if let Err(_err) = do_steps() {",
+            "    println!(\"Failed to perform necessary steps\");",
+            "}",
+		],
+	},
+    
+    "switch": {
+		"prefix": "switch",
+		"body": [
+            "match value {",
+            "    Some(String) => assert!(value.is_string()),",
+            "    None => println!(\"null\"),",
+            "    _ => (),",
+            "}",
+        ],
+	},
+    
+    "forkey": {
+		"prefix": "forkey",
+		"body": [
+            "for (key, value) in ${1:map}.iter() {",
+            "    ",
+            "}",
+		],
+	},
+    
+    "foreach": {
+		"prefix": "foreach",
+		"body": [
+            "for each in ${1:list}.iter() {",
+            "    ",
+            "}",
+		],
+		"description": "Iterate over a list"
+	},
+    
+    "type_of": {
+		"prefix": "type_of",
+		"body": [
+            "fn print_type_of<T>(_: &T) { println!(\"{}\", std::any::type_name::<T>() };",
+            "print_type_of(${1:thing});",
+		],
+		"description": "print the type of a variable"
+	},
+    
+    "vec": {
+		"prefix": "vec",
+		"body": [
+            "let mut ${1:a_vec} = vec![];",
+            "elements.insert(\"foo\");"
+		],
+	},
+    
+    "function": {
+		"prefix": "function",
+		"body": [
+            "fn ${1:funcName}(${2:x: isize, y: isize}) -> (${3:isize, isize}) {",
+            "    ${4:(x + y, x - y)}",
+            "}",
+		],
+		"description": "Create a new function"
+	},
+    
+    "main": {
+		"prefix": "main",
+		"body": [
+            "use std::error::Error;",
+            "fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {",
+            "    $0",
+            "    Ok(())",
+            "}",
+		],
+		"description": "Create a main"
+	},
+    
+    "json_parse" : {
+        "prefix": "json_parse",
+        "body": [
+            "use serde_json::{Value};",
+            "let data: Value = serde_json::from_str(&${1:string_var})?;",
+        ],
+    },
+    
+    "json_stringify" : {
+        "prefix": "json_stringify",
+        "body": [
+            "use serde_json;",
+            "let as_string: String = serde_json::to_string(&${1:value})?;",
+        ],
+    },
+    
+    "json_value_as_string" : {
+        "prefix": "json_value_as_string",
+        "body": [
+            "use serde_json;",
+            "let as_string: String = ${1:value}.as_str().unwrap();",
+        ],
+    },
+    
+    "run import string(stdout,stdout) + nothrow + sync": {
+		"prefix": "run import sync",
+		"body": [
+            "use std::process::Command;",
+            "fn run(command: &'static str) -> (String, String) {",
+            "    // ",
+            "    // run a child proces an check if it failed",
+            "    // ",
+            "    // use std::process::Command;",
+            "    let a = 10;",
+            "    let output = if cfg!(target_os = \"windows\") {",
+            "        Command::new(\"cmd\").args(&[\"/C\", command]).output().expect(\"failed to create a cmd process\")",
+            "    } else {",
+            "        Command::new(\"sh\").arg(\"-c\").arg(command).output().expect(\"failed to create a new bash process\")",
+            "    };",
+            "    let mut stdout = String::new(); stdout = String::from_utf8(output.stdout).unwrap();",
+            "    let mut stderr = String::new(); stderr = String::from_utf8(output.stderr).unwrap();",
+            "    (stdout, stderr)",
+            "}",
+		],
+		"description": "Create a run function for subprocess"
+	},
+    
+    "run string(stdout,stdout) + nothrow + sync": {
+		"prefix": "run _ sync",
+		"body": [
+            "let (stdout, stderr) = run(\"echo hello\");",
+		],
+		"description": "Run a subprocess"
+	},
+}

@@ -1,0 +1,661 @@
+{
+    // Place your snippets for shellscript here. Each snippet is defined under a snippet name and has a prefix, body and 
+    // description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:
+    // $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. Placeholders with the 
+    // same ids are connected.
+    // Example:
+    // "Print to console": {
+    // 	"prefix": "log",
+    // 	"body": [
+    // 		"console.log('$1');",
+    // 		"$2"
+    // 	],
+    // 	"description": "Log output to console"
+    // }
+    "bash": {
+        "prefix": "bash",
+        "body": "#!/usr/bin/env bash\n",
+        "description": "executer"
+    },
+    "echo": {
+        "prefix": "echo",
+        "body": "echo ${0:message}",
+        "description": "echo message"
+    },
+    "chmod": {
+        "prefix": "chmod",
+        "body": "chmod u=${2:rwx},g=${2:r},o=${2:r} ${1:myfile}",
+    },
+    "chown": {
+        "prefix": "chown",
+        "body": "chown ${1:user} ${2:path/to/file_or_directory}",
+    },
+    "zip": {
+        "prefix": "zip",
+        "body": "zip $name_of_output.zip -r $path_to_folder",
+        "description": "zip a folder"
+    },
+    "scp": {
+        "prefix": "scp",
+        "body": "scp $file username@ipaddress:absolute_file_path",
+        "description": "server copy"
+    },
+    "print": {
+        "prefix": "print",
+        "body": "echo \"${0:message}\"",
+        "description": "print"
+    },
+    "out": {
+        "prefix": "out",
+        "body": "echo '$0: '\"$$0\"",
+        "description": "output variable"
+    },
+    "read": {
+        "prefix": "read",
+        "body": "read ${0:VAR}",
+        "description": "read input"
+    },
+    "heredoc": {
+        "prefix": "heredoc",
+        "body": [
+            "read -r -d '' ${1:$VAR} <<'HEREDOC_NAME'",
+            "${2:string contents}",
+            "HEREDOC_NAME",
+        ],
+        "description": "read input"
+    },
+    "temp": {
+        "prefix": "temp",
+        "body": [
+            "__temp_var__$1=\"\"",
+            "",
+            "unset __temp_var__$1",
+        ],
+        "description": "create a POSIX-friendly temp variable"
+    },
+    "prev_command": {
+        "prefix": "prev_command",
+        "body": [
+            "prev_command_successful () {",
+            "    return $?",
+            "}",
+        ],
+    },
+    "if_is_mounted": {
+        "prefix": "if mounted",
+        "body": [
+            "if mountpoint -q \"$mountpoint\"; then",
+            "    echo \"its mounted\"",
+            "fi"
+        ],
+    },
+    "blue": {
+        "prefix": "blue",
+        "body": [
+            "blue=\"\\e[0;94m\"",
+            "echo \"\\$blue\"",
+        ],
+        "description": "color text blue"
+    },
+    "cyan": {
+        "prefix": "cyan",
+        "body": [
+            "cyan=\"\\e[0;36m\"",
+            "echo \"\\$cyan\"",
+        ],
+        "description": "color text cyan"
+    },
+    "red": {
+        "prefix": "red",
+        "body": [
+            "red=\"\\e[0;31m\"",
+            "echo \"\\$red\"",
+        ],
+        "description": "color text red"
+    },
+    "light_red": {
+        "prefix": "light_red",
+        "body": [
+            "light_red=\"\\e[0;1;31m\"",
+            "echo \"\\$light_red\"",
+        ],
+        "description": "color text light_red"
+    },
+    "light_green": {
+        "prefix": "light_green",
+        "body": [
+            "light_green=\"\\e[0;1;32m\"",
+            "echo \"\\$light_green\"",
+        ],
+        "description": "color text light_green"
+    },
+    "light_yellow": {
+        "prefix": "light_yellow",
+        "body": [
+            "light_yellow=\"\\e[0;1;33m\"",
+            "echo \"\\$light_yellow\"",
+        ],
+        "description": "color text light_yellow"
+    },
+    "light_purple": {
+        "prefix": "light_purple",
+        "body": [
+            "light_purple=\"\\e[0;1;35m\"",
+            "echo \"\\$light_purple\"",
+        ],
+        "description": "color text light_purple"
+    },
+    "white": {
+        "prefix": "white",
+        "body": [
+            "white=\"\\e[0;1;37m\"",
+            "echo \"\\$white\"",
+        ],
+        "description": "color text white"
+    },
+    "color_reset": {
+        "prefix": "color_reset",
+        "body": [
+            "color_reset=\"\\e[0m\"",
+            "echo \"\\$color_reset\"",
+        ],
+        "description": "reset all coloring/style"
+    },
+    "if": {
+        "prefix": "if",
+        "body": "if [ ${1:\"$?\" = \"0\"} ]\nthen\n    ${2}\nfi",
+        "description": "if"
+    },
+    "elseif": {
+        "prefix": "elseif",
+        "body": "elif [ ${0:\"$?\" -eq \"1\"} ] \nthen\n    ${1}",
+        "description": "elseif"
+    },
+    "else": {
+        "prefix": "else",
+        "body": "else\n    ${0}",
+        "description": "else"
+    },
+    "for_each_arg": {
+        "prefix": "for_each_arg",
+        "body": [
+            "# for each argument (in a argument-might-have-spaces friendly way)",
+            "for arg in \"$@\"; do",
+            "    ${1:echo \"\\$arg\"}",
+            "done",
+        ],
+    },
+    "for_in": {
+        "prefix": "for_in",
+        "body": [
+            "# this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash",
+            "for_each_item_in=\"${1:YOUR_FOLDER}\"; [ -z \"\\$__NESTED_WHILE_COUNTER\" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER=\"\\$((__NESTED_WHILE_COUNTER + 1))\"; trap 'rm -rf \"\\$__temp_var__temp_folder\"' EXIT; __temp_var__temp_folder=\"\\$(mktemp -d)\"; mkfifo \"\\$__temp_var__temp_folder/pipe_for_while_\\$__NESTED_WHILE_COUNTER\"; (find \"\\$for_each_item_in\" -maxdepth 1 ! -path \"\\$for_each_item_in\" -print0 2>/dev/null | sort -z > \"\\$__temp_var__temp_folder/pipe_for_while_\\$__NESTED_WHILE_COUNTER\" &); while read -d $'\\0' each",
+            "do",
+            "    echo \"\\$each\"",
+            "done < \"\\$__temp_var__temp_folder/pipe_for_while_\\$__NESTED_WHILE_COUNTER\";__NESTED_WHILE_COUNTER=\"\\$((__NESTED_WHILE_COUNTER - 1))\"",
+        ],
+        "description": "for each file in a folder"
+    },
+    "for_i": {
+        "prefix": "for_i",
+        "body": [
+            "index=-1 ; while [ \"\\$index\" -lt ${1:INCLUSIVE_MAX} ]; do",
+            "    index=$((index+1))",
+            "    ${2:echo \"\\$index\"}",
+            "done",
+            "unset index",
+        ],
+        "description": "for loop by index"
+    },
+    "ask_confirm": {
+        "prefix": "ask_confirm",
+        "body": "echo \"Are you sure?\";read ANSWER;echo\nif [ ! \"\\$ANSWER\" =~ ^[Yy] ]\nthen\n    exit 1\nfi",
+        "description": "prompt for confirmation"
+    },
+    "ask_yes_no": {
+        "prefix": "ask_yes_no",
+        "body": "question=\"${1:question}? [y/n]\";answer=''\nwhile true; do\n    echo \"\\$question\"; read response\n    case \"\\$response\" in\n        [Yy]* ) answer='yes'; break;;\n        [Nn]* ) answer='no'; break;;\n        * ) echo \"Please answer yes or no.\";;\n    esac\ndone\n\nif [ \"\\$answer\" = 'yes' ]; then\n    ${2:do_something}\nelse\n    ${3:do_something_else}\nfi\n",
+        "description": "prompt the user for yes/no"
+    },
+    "ask_string": {
+        "prefix": "ask_string",
+        "body": "echo \"${1:question}?\"\nread ${2:answer}",
+        "description": "prompt the user for entering a message"
+    },
+    "ask_select": {
+        "prefix": "ask_select",
+        "body": "echo \"${1:question}?\"\nselect answer in \"Yes\" \"No\"\ncase $answer in\n    Yes ) ${2:option1};;\n    No ) ${3:option2};;\nesac",
+        "description": "prompt the user for selecting an option"
+    },
+    "forlines": {
+        "prefix": "forlines",
+        "body": "while IFS= read -r line; do\n    echo \"$${2:line}\"\ndone <<< \"${1:list}\"\n",
+        "description": "iterate over lines in a $list variable"
+    },
+    "until": {
+        "prefix": "until",
+        "body": "until ${0:condition} \ndo\n\t${1}\ndone\n",
+        "description": "until loop by condition"
+    },
+    "function": {
+        "prefix": "function",
+        "body": [
+            "${1:func_name} () {",
+            "    cat - | read stdin # puts standard input inside of a variable",
+            "    arg1=\"\\$1\"",
+            "    args=\"\\$@\"",
+            "    ${2}",
+            "}"
+        ],
+        "description": "define a function"
+    },
+    "case": {
+        "prefix": "case",
+        "body": "case $${1:VAR} in\n\t${1:1}) echo 1\n\t;;\n\t${2:2|3}) echo 2 or 3\n\t;;\n\t*) echo default\n\t;;\nesac\n",
+        "description": "switch case"
+    },
+    "break": {
+        "prefix": "break",
+        "body": "break ${0}",
+        "description": "break loop or (n) loops"
+    },
+    "expr": {
+        "prefix": "expr",
+        "body": "expr ${0:1 + 1}",
+        "description": "calculate numbers"
+    },
+    "git_sync": {
+        "prefix": "gp",
+        "body": "git add -A && git commit -m '- init' &&  git push",
+        "description": "git sync"
+    },
+    "alias": {
+        "prefix": "alias",
+        "body": "alias $1=\"$2\"",
+        "description": "create an alias"
+    },
+    "path": {
+        "prefix": "export PATH",
+        "body": "export PATH=\"$$PATH:$0\"",
+        "description": "add to the end of the path"
+    },
+    "export": {
+        "prefix": "export",
+        "body": "export $0=\"$1\"",
+        "description": "export a variable"
+    },
+    "apt": {
+        "prefix": "sudo apt-get install -y",
+        "body": "sudo apt-get update && sudo apt-get install -y $0",
+        "description": "install something on debian"
+    },
+    "link": {
+        "prefix": "ln",
+        "body": "ln \"${1:the_file_that_exist}\" \"${2:the_file_that_doesnt}\"",
+        "description": "hardlink files"
+    },
+    "unrar": {
+        "prefix": "unrar",
+        "body": "# sudo apt-get install unrar\nunrar x ${1:rarfile}",
+        "description": "unrars files"
+    },
+    "untar": {
+        "prefix": "untar",
+        "body": "tar -xvf \"${1:file.tar}\"",
+    },
+    "tar": {
+        "prefix": "tar",
+        "body": "tar -cvzf \"${2:output_file}.tar.gz\" \"${1:file_or_folder}\"",
+    },
+    "sed": {
+        "prefix": "sed",
+        "body": "sed -E 's/thing$/otherThing/g'",
+        "description": "find and replace"
+    },
+    "sed_perl": {
+        "prefix": "sed_perl",
+        "body": "perl -p -e 's/${1:FIND}/${2:REPLACE}/g'",
+        "description": "find and replace"
+    },
+    "perl": {
+        "prefix": "perl",
+        "body": "perl -p -e 's/${1:FIND}/${2:REPLACE}/g'",
+        "description": "find and replace"
+    },
+    "dev_null": {
+        "prefix": "dev",
+        "body": "2>/dev/null",
+        "description": "errors not shown"
+    },
+    "ignore_errors": {
+        "prefix": "ignore_errors",
+        "body": "2>/dev/null",
+        "description": "errors not shown"
+    },
+    "silent": {
+        "prefix": "silent",
+        "body": "1>/dev/null 2>/dev/null",
+        "description": "command prints nothing"
+    },
+    "escape": {
+        "prefix": "escape",
+        "body": "printf '%q' 'hello\\world'",
+        "description": "command prints nothing"
+    },
+    // 
+    // ifs
+    // 
+    "if_os": {
+        "prefix": "if os",
+        "body": [
+            "case \"\\$(uname -s).\\$(uname -m)\" in",
+            "    Linux.x86_64)  system=x86_64-linux;   echo \"you're using \\$system\";;",
+            "    Linux.i?86)    system=i686-linux;     echo \"you're using \\$system\";;",
+            "    Linux.aarch64) system=aarch64-linux;  echo \"you're using \\$system\";;",
+            "    Darwin.x86_64) system=x86_64-darwin;  echo \"you're using \\$system\";;",
+            "    Darwin.arm64)  system=aarch64-darwin; echo \"you're using \\$system\";;",
+            "    *) oops \"sorry, I have no idea what OS you're using\";;",
+            "esac",
+        ],
+        "description": "POSIX OS switch statement"
+    },
+    "if_mac_os": {
+        "prefix": "if mac_os",
+        "body": "if [ \"\\$(uname)\" = \"Darwin\" ] \nthen\n    $0\nfi",
+        "description": "if mac_os"
+    },
+    "if_linux": {
+        "prefix": "if linux",
+        "body": "if [ \"$$OSTYPE\" = \"linux-gnu\" ] \nthen\n    $0\nfi",
+        "description": "if linux"
+    },
+    "if_debian": {
+        "prefix": "if debian",
+        "body": "if [ -f /etc/debian_version ] \nthen\n    $0\nfi",
+        "description": "if linux"
+    },
+    "if_command_exists": {
+        "prefix": "if command exist",
+        "body": [
+            "# if ${1:name_of_command} exists",
+            "if [ -n \"$(command -v \"${1:name_of_command}\")\" ]",
+            "then",
+            "    ",
+            "fi",
+        ],
+        "description": "check for the existance of a command"
+    },
+    "if_command_not_exist": {
+        "prefix": "if command not exist",
+        "body": [
+            "# if ${1:name_of_command} doesnt exist",
+            "if [ -z \"$(command -v \"${1:name_of_command}\")\" ]",
+            "then",
+            "    ",
+            "fi",
+        ],
+        "description": "if something is a not command"
+    },
+    "if_previous_command_succeeded": {
+        "prefix": "if last",
+        "body": "if [ \"$?\" -eq 0 ] \nthen\n    $0\nfi",
+        "description": "if previous command succeeded"
+    },
+    "if_string_empty": {
+        "prefix": "if string empty",
+        "body": "if [ -z \"$${1:VAR}\" ]\nthen\n    ${2}\nfi",
+        "description": "if string empty"
+    },
+    "if_string_equal": {
+        "prefix": "if string equal",
+        "body": "if [ \"$${1:VAR1}\" = \"$${2:VAR2}\" ]\nthen\n    ${2}\nfi",
+        "description": "if string equal"
+    },
+    "if_string_not_empty": {
+        "prefix": "if string not_empty",
+        "body": "if [ -n \"$${1:VAR}\" ]\nthen\n    ${2}\nfi",
+        "description": "if string not empty"
+    },
+    "if_string_not_equal": {
+        "prefix": "if string not_equal",
+        "body": "if [ \"$${1:VAR1}\" != \"$${2:VAR2}\" ]\nthen\n    ${2}\nfi",
+        "description": "if string not equal"
+    },
+    "if_int_equal": {
+        "prefix": "if int_equal",
+        "body": "if [ \"$${1:VAR1}\" -eq \"$${2:VAR2}\" ]\nthen\n    ${2}\nfi",
+        "description": "if int equal"
+    },
+    "if_int_great_equal": {
+        "prefix": "if int_great_equal",
+        "body": "if [ \"$${1:VAR1}\" -ge \"$${2:VAR2}\" ]\nthen\n    ${2}\nfi",
+        "description": "if int great equal"
+    },
+    "if_int_great_than": {
+        "prefix": "if int_great_than",
+        "body": "if [ \"$${1:VAR1}\" -gt \"$${2:VAR2}\" ]\nthen\n    ${2}\nfi",
+        "description": "if int great than"
+    },
+    "if_int_less_equal": {
+        "prefix": "if int_less_equal",
+        "body": "if [ \"$${1:VAR1}\" -le \"$${2:VAR2}\" ]\nthen\n    ${3}\nfi",
+        "description": "if int less equal"
+    },
+    "if_int_less_than": {
+        "prefix": "if int_less_than",
+        "body": "if [ \"$${1:VAR1}\" -lt \"$${2:VAR2}\" ]\nthen\n    ${3}\nfi",
+        "description": "if int less than"
+    },
+    "if_int_not_equal": {
+        "prefix": "if int_not_equal",
+        "body": "if [ \"$${1:VAR1}\" -ne \"$${2:VAR2}\" ]\nthen\n    ${3}\nfi",
+        "description": "if int not equal"
+    },
+    "if_exist": {
+        "prefix": "if exist",
+        "body": "if [ -e \"${1}\" ]\nthen\n    ${2}\nfi",
+        "description": "if exist"
+    },
+    "if_exist_file": {
+        "prefix": "if file exists",
+        "body": "# check if file exists\nif [ -f \"${1}\" ]\nthen\n    ${2}\nfi",
+        "description": "if exist file"
+    },
+    "if_exist_directory": {
+        "prefix": "if dir exists",
+        "body": "if [ -d \"$${1:VAR}\" ]\nthen\n    ${2}\nfi",
+        "description": "if exist directory"
+    },
+    "if_exist_folder": {
+        "prefix": "if folder exists",
+        "body": "if [ -d \"$${1:VAR}\" ]\nthen\n    ${2}\nfi",
+        "description": "if exist directory"
+    },
+    "if_exist_readable": {
+        "prefix": "if read permission",
+        "body": "if [ -r \"$${1:VAR}\" ]\nthen\n    ${2}\nfi",
+        "description": "if exist readable"
+    },
+    "if_exist_writeable": {
+        "prefix": "if write permission",
+        "body": "if [ -w \"$${1:VAR}\" ]\nthen\n    ${2}\nfi",
+        "description": "if exist writeable"
+    },
+    "if_exist_executable": {
+        "prefix": "if execute permission",
+        "body": "if [ -x \"$${1:VAR}\" ]\nthen\n    ${2}\nfi",
+        "description": "if exist executable"
+    },
+    "if_exist_link": {
+        "prefix": "if hard link",
+        "body": "if [ -h \"$${1:VAR}\" ]\nthen\n    ${2}\nfi",
+        "description": "if exist link"
+    },
+    "if_file_equal": {
+        "prefix": "if file equal",
+        "body": "if [ \"$${1:VAR}\" -ef \"$${2:VAR}\" ]\nthen\n    ${3}\nfi",
+        "description": "if two files are the same hardlink"
+    },
+    "if_file_new_than": {
+        "prefix": "if file newer than",
+        "body": "if [ \"$${1:VAR}\" -nt \"$${2:VAR}\" ]\nthen\n    ${3}\nfi",
+        "description": "if file new than"
+    },
+    "if_file_old_than": {
+        "prefix": "if file older than",
+        "body": "if [ \"$${1:VAR}\" -ot \"$${2:VAR}\" ]\nthen\n    ${3}\nfi",
+        "description": "if file old than"
+    },
+    "absolute_path": {
+        "prefix": "absolute path",
+        "body": [
+            "absolute_path () {",
+            "    echo \"\\$(builtin cd \"\\$(dirname \"\\$1\")\"; pwd)/\\$(basename \"\\$1\")\"",
+            "}",
+        ],
+    },
+    "escape_grep_regex": {
+        "prefix": "escape_grep_regex",
+        "body": "sed 's/[][\\.|$(){}?+*^]/\\\\&/g' <<< \"$*\"",
+        "description": "escape basic grep regex (not extended)"
+    },
+    "move": {
+        "prefix": "move_out_of_the_way",
+        "body": [
+            "move_out_of_the_way () {",
+            "    if [[ -e \"\\$1\" ]]",
+            "    then",
+            "        # if something is in the way, move it out of the way",
+            "        # (recursively)",
+            "        if [[ -e \"\\$1.old\" ]]",
+            "        then",
+            "            move_out_of_the_way \"\\$1.old\"",
+            "        fi",
+            "        ",
+            "        # now that anything that would be in the way has been moved",
+            "        mv \"\\$1\" \"\\$1.old\"",
+            "    fi",
+            "}",
+        ],
+        
+    },
+    "walk_up_to_find": {
+        "prefix": "walk_up_to_find",
+        "body": [
+            "path_to_file=\"\"",
+            "file_name=\"${1:.gitignore}\"",
+            "folder_to_look_in=\"${2:\\$PWD}\"",
+            "while :",
+            "do",
+            "    # check if file exists",
+            "    if [ -f \"\\$folder_to_look_in/\\$file_name\" ]",
+            "    then",
+            "        path_to_file=\"\\$folder_to_look_in/\\$file_name\"",
+            "        break",
+            "    else",
+            "        if [ \"\\$folder_to_look_in\" = \"/\" ]",
+            "        then",
+            "            break",
+            "        else",
+            "            folder_to_look_in=\"\\$(dirname \"\\$folder_to_look_in\")\"",
+            "        fi",
+            "    fi",
+            "done",
+            "if [ -z \"\\$path_to_file\" ]",
+            "then",
+            "    #",
+            "    # what to do if file never found",
+            "    #",
+            "    ${3:do_something}",
+            "fi",
+            "echo \"found the nearest file: \\$path_to_file\"",
+            "${4:do_something_else}",
+        ],
+    },
+    "find_projectr_core": {
+        "prefix": "find_projectr_core",
+        "body": [
+            "path_to_file=\"\"",
+            "file_name=\"settings/projectr_core\"",
+            "folder_to_look_in=\"\\$PWD\"",
+            "while :",
+            "do",
+            "    # check if file exists",
+            "    if [ -f \"\\$folder_to_look_in/\\$file_name\" ]",
+            "    then",
+            "        path_to_file=\"\\$folder_to_look_in/\\$file_name\"",
+            "        break",
+            "    else",
+            "        if [ \"\\$folder_to_look_in\" = \"/\" ]",
+            "        then",
+            "            break",
+            "        else",
+            "            folder_to_look_in=\"\\$(dirname \"\\$folder_to_look_in\")\"",
+            "        fi",
+            "    fi",
+            "done",
+            "if [ -z \"\\$path_to_file\" ]",
+            "then",
+            "    #",
+            "    # what to do if file never found",
+            "    #",
+            "    echo \"Im a script running with a pwd of:\\$PWD\"",
+            "    echo \"Im looking for settings/projectr_core in a parent folder\"",
+            "    echo \"Im exiting now because I wasnt able to find it\"",
+            "    echo \"thats all the information I have\"",
+            "    exit",
+            "fi",
+            "path_to_file",
+        ],
+    },
+    "escape_shell_argument": {
+        "prefix": "escape_shell_argument",
+        "body": [
+            "printf '%s' \"'\\$(printf '%s' \"${1:var}\" | sed 's/'\"'\"'/'\"'\"'\"'\"'\"'\"'\"'\"'/g')'\""
+        ],
+    },
+    "relative_link": {
+        "prefix": "relative_link",
+        "body": [
+            "relative_link__file_to__() {",
+            "    existing_filepath=\"\\$1\"",
+            "    target_filepath=\"\\$2\"",
+            "    ",
+            "    # ",
+            "    # make existing_filepath absolute",
+            "    # ",
+            "    case \"\\$existing_filepath\" in",
+            "        # if absolute",
+            "        /*) : ;;",
+            "        # if relative",
+            "        *) existing_filepath=\"\\$FORNIX_FOLDER/\\$existing_filepath\" ;;",
+            "    esac",
+            "    ",
+            "    # ",
+            "    # make target_filepath absolute",
+            "    # ",
+            "    case \"\\$target_filepath\" in",
+            "        # if absolute",
+            "        /*) : ;;",
+            "        # if relative",
+            "        *) target_filepath=\"\\$FORNIX_FOLDER/\\$target_filepath\" ;;",
+            "    esac",
+            "    ",
+            "    # remove existing things in the way",
+            "    rm -f \"\\$target_filepath\" 2>/dev/null",
+            "    rm -rf \"\\$target_filepath\" 2>/dev/null",
+            "    # make sure parent folder exists",
+            "    mkdir -p \"\\$(dirname \"\\$target_filepath\")\"",
+            "    __temp_var__relative_part=\"\\$(realpath \"\\$(dirname \"\\$existing_filepath\")\" --relative-to=\"\\$(dirname \"\\$target_filepath\")\" --canonicalize-missing)\"",
+            "    __temp_var__relative_path=\"\\$__temp_var__relative_part/\\$(basename \"\\$existing_filepath\")\"",
+            "    # link using the relative path",
+            "    ln -s \"\\$__temp_var__relative_path\" \"\\$target_filepath\"",
+            "    unset __temp_var__relative_path",
+            "    unset __temp_var__relative_part",
+            "    unset existing_filepath",
+            "    unset target_filepath",
+            "}",
+        ],
+    },
+    
+}
