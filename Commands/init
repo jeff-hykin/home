@@ -32,4 +32,4 @@ nix-env -i zellij-0.23.0 -f https://github.com/NixOS/nixpkgs/archive/c82b4641340
 # vs code extensions
 code --install-extension jeff-hykin.swe-starter-pack
 code --install-extension jeff-hykin.xd-theme
-code --install-extension jeff-hykin.PKief.material-icon-theme
+code --install-extension PKief.material-icon-theme
