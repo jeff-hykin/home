@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-all
 const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/sprinter@0.3.1/index.js`)
-const { FileSystem, Console } = await import(`https://deno.land/x/file_system_js@0.0.21/main/deno.js`)
+const { FileSystem, Console } = await import(`https://deno.land/x/file_system_js@0.0.22/main/deno.js`)
 const { vibrance } = (await import('https://cdn.skypack.dev/vibrance@v0.1.33')).default
 
 const sshFolder = `${FileSystem.home}/.ssh/`
