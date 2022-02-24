@@ -23,10 +23,11 @@ nix-env -iA nixpkgs.git
 nix-env -iA nixpkgs.dua    # for cleaning disk space
 nix-env -iA nixpkgs.curl
 nix-env -iA nixpkgs.fd     # for finding things
+nix-env -iA nixpkgs.exa
+nix-env -iA nixpkgs.xplr
 nix-env -iA nixpkgs.bottom # "btm" better than top
 nix-env -iA nixpkgs.vscode
 nix-env -i ssh-copy-id -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
-nix-env -i xplr-0.15.2 -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz   # file explorer
 nix-env -i zellij-0.23.0 -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz # detachable sessions
 
 # vs code extensions
