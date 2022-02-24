@@ -45,14 +45,14 @@ SPACESHIP_NODE_COLOR="yellow"
 #     # kubectl       # Kubectl context section
 # )
 
-# __temp_var__plugin_name="spaceship"
-# __temp_var__z_functions_folder="$SHELL_STANDARD_ENV_SOURCE/shells/zsh/zfunctions"
+__temp_var__plugin_name="spaceship"
+__temp_var__z_functions_folder="$SHELL_STANDARD_ENV_SOURCE/shells/zsh/zfunctions"
 
-# # add functions folder so that spaceship is accessible
-# fpath=(
-#     $fpath
-#     "$__temp_var__z_functions_folder"
-# )
+# add functions folder so that spaceship is accessible
+fpath=(
+    $fpath
+    "$__temp_var__z_functions_folder"
+)
 
 # # make sure spaceship prompt is in the functions folder
 # # link it into the functions folder
@@ -61,9 +61,9 @@ SPACESHIP_NODE_COLOR="yellow"
 #     ln -sf ../../../plugins/spaceship-prompt/spaceship.zsh  "$__temp_var__z_functions_folder/prompt_spaceship_setup"
 # fi
 
-# # Set Spaceship ZSH as a prompt
-# autoload -U promptinit; promptinit
-# prompt "$__temp_var__plugin_name" &>/dev/null
+# Set Spaceship ZSH as a prompt
+autoload -U promptinit; promptinit
+prompt "$__temp_var__plugin_name" &>/dev/null
 
 # unset __temp_var__plugin_name
 # unset __temp_var__z_functions_folder
