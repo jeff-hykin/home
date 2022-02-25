@@ -76,6 +76,7 @@ then
         exit
     fi
 fi
+
 #       
 # MacOS 
 #
@@ -143,7 +144,6 @@ else
             curl -Lk https://releases.nixos.org/nix/nix-2.3.7/install | sh -s
         fi
     fi
-fi
 fi
 
 # if nix was not installed
