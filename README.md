@@ -28,5 +28,5 @@ A bunch of tools I use for setting up new machines. Mostly Debian-based and MacO
 
 ### Setting up ZeroTier
 ```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server)
+. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_zerotier || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_zerotier)
 ```
