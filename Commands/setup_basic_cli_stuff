@@ -1,0 +1,27 @@
+# (assumes nix is installed)
+
+#
+# installing basic tools
+#
+nix-env -i deno-1.17.1 -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz
+nix-env -iA nixpkgs.git -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
+nix-env -iA nixpkgs.dua -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz     # for cleaning disk space
+nix-env -iA nixpkgs.curl -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
+nix-env -iA nixpkgs.fd  -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz     # for finding things
+nix-env -iA nixpkgs.exa -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
+nix-env -iA nixpkgs.xplr -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
+nix-env -iA nixpkgs.bottom -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  # "btm" better than top
+nix-env -iA nixpkgs.zsh -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
+nix-env -iA nixpkgs.alacritty -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
+nix-env -iA nixpkgs.vscode -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
+nix-env -i ssh-copy-id -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
+nix-env -i zellij-0.23.0 -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz # detachable sessions
+
+# get nixGL (fixes alacritty on nvidia-driven stuf)
+nix-channel --add https://github.com/guibou/nixGL/archive/main.tar.gz nixgl && nix-channel --update
+nix-env -iA nixgl.auto.nixGLDefault   # or replace `nixGLDefault` with your desired wrapper
+
+# vs code extensions
+code --install-extension jeff-hykin.swe-starter-pack
+code --install-extension jeff-hykin.xd-theme
+code --install-extension PKief.material-icon-theme

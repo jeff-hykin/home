@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+cd # go home
+rm -rf ~/home
+git clone https://github.com/jeff-hykin/home && mv ./home/.git ./.git && git stash
