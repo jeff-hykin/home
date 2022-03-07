@@ -1,0 +1,17 @@
+!
+! Exchange Control and Super
+!
+! remove mod1 = Control_L
+! remove mod4 = Super_L
+! add mod1 = Super_L
+! add mod4 = Control_L
+
+!
+! make Caps_Lock be the same as Control_R
+!
+remove Lock = Caps_Lock
+remove Control = Control_R
+keysym Control_R = Caps_Lock
+keysym Caps_Lock = Control_R
+add Lock = Caps_Lock
+add Control = Control_R
