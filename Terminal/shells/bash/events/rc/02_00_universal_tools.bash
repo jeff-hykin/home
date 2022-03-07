@@ -94,8 +94,11 @@ then
     __XD_builtin_rm="$(which rm)"
 fi
 rm () {
+    # if symlink
+    if [ -L "$1" ]; then
+        "$__XD_builtin_rm" "$@"
     # if folder then delete recursively
-    if [[ -d "$1" ]]
+    elif [ -d "$1" ]
     then
         "$__XD_builtin_rm" -rf "$1"
     else
