@@ -73,7 +73,7 @@ async function verifyAndSetupSshFolderStructure() {
     }
     // following: https://superuser.com/a/925859/399438
 
-    // SSH folder on the server needs 700 permissions: chmod 700 /home/$USER/.ssh
+    // SSH folder on the server needs 700 permissions: chmod 700 $HOME/.ssh
     await FileSystem.addPermissions({
         path: sshFolder,
         permissions: {
@@ -95,7 +95,11 @@ async function verifyAndSetupSshFolderStructure() {
             }
         },
     })
-    // authorized_keys file needs 644 permissions: chmod 644 /home/$USER/.ssh/authorized_keys
+    
+    // sudo chmod 600 ~/.ssh/config
+    // TODO: handle config permissions
+
+    // authorized_keys file needs 644 permissions: chmod 644 $HOME/.ssh/authorized_keys
     await FileSystem.addPermissions({
         path: authorizedKeysPath,
         permissions: {
