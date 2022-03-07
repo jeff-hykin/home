@@ -1,0 +1,41 @@
+# https://www.jertype.com/upgrading-glibc/
+_version="2.19" # min version needed by deno 1.18
+_install_location="$HOME/local/opt"
+mkdir -p "$HOME/temp_workspace/glibc_install_$_version"; cd "$HOME/temp_workspace/glibc_install_$_version"
+wget http://ftp.gnu.org/gnu/glibc/glibc-$_version.tar.gz
+tar zxvf glibc-$_version.tar.gz
+cd glibc-$_version
+mkdir -p "$_install_location"
+mkdir -p build
+cd build
+../configure --prefix="$_install_location/glibc-$_version"
+make -j4
+make install
+
+# fix timezone issues
+ln -sf /etc/localtime "$_install_location/glibc-$_version"/etc/localtime
+
+
+
+
+mkdir -p "$HOME/temp_workspace/glibc_install_$_version"; cd "$HOME/temp_workspace/glibc_install_$_version"
+_version="2.27" # min version needed by deno 1.18
+_install_location="$HOME/local/opt"
+wget http://ftp.gnu.org/gnu/glibc/glibc-$_version.tar.gz
+tar zxvf glibc-$_version.tar.gz
+cd glibc-$_version
+mkdir -p "$_install_location"
+mkdir -p build
+cd build
+../configure --prefix="$_install_location/glibc-$_version"
+make -j4
+make install
+
+# fix timezone issues
+ln -sf /etc/localtime "$_install_location/glibc-$_version"/etc/localtime
+
+
+LD_PRELOAD="/opt/glibc-2.14/lib/libc.so.6" ./app
+
+# install deno version
+# curl -fsSL https://deno.land/x/install/install.sh | sh -s v1.0.0
