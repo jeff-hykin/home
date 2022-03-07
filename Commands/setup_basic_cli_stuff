@@ -18,6 +18,7 @@ nix-env -iA alacritty -f https://github.com/NixOS/nixpkgs/archive/c82b46413401ef
 nix-env -iA vscode -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
 nix-env -i ssh-copy-id -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
 nix-env -i zellij-0.23.0 -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz # detachable sessions
+nix-env -iA nodePackages.ungit -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
 
 # get nixGL (fixes alacritty on nvidia-driven stuf)
 nix-channel --add https://github.com/guibou/nixGL/archive/main.tar.gz nixgl && nix-channel --update
