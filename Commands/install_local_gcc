@@ -15,7 +15,10 @@ make install
 # fix timezone issues
 ln -sf /etc/localtime "$_install_location/glibc-$_version"/etc/localtime
 
-
+# segfaults on both :(
+LD_PRELOAD="$_install_location/glibc-$_version/lib/libc.so.6" bash
+LD_LIBRARY_PATH="$_install_location/glibc-$_version/lib/" deno
+LD_PRELOAD="$_install_location/glibc-$_version/lib/libc.so.6" deno # deno: relocation error: /lib64/libm.so.6: symbol __strtold_nan, version GLIBC_PRIVATE not defined in file libc.so.6 with link time reference
 
 
 mkdir -p "$HOME/temp_workspace/glibc_install_$_version"; cd "$HOME/temp_workspace/glibc_install_$_version"
