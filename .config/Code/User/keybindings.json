@@ -198,6 +198,9 @@
         { "key": "cmd+t cmd+=", "command": "alignment.align", "when": "editorHasSelection && isMac" },
         { "key": "ctrl+t ctrl+=", "command": "alignment.align", "when": "editorHasSelection && !isMac" },
         
+        { "key": "cmd+' cmd+j", "command": "yo1dog.cursor-align.alignCursors", "when": "isMac" },
+        { "key": "ctrl+' ctrl+j", "command": "yo1dog.cursor-align.alignCursors", "when": "!isMac" },
+        
         // TODO: sort
         
         
@@ -209,6 +212,10 @@
     // 
     // 
     // 
+        // reopen closed tab
+        { "key": "cmd+shift+t", "command": "workbench.action.reopenClosedEditor", "when": "isMac" },
+        { "key": "ctrl+shift+t", "command": "workbench.action.reopenClosedEditor", "when": "!isMac" },
+        
         // open settings
         { "key": "cmd+,", "command": "workbench.action.openSettingsJson", "when": "isMac" },
         { "key": "ctrl+,", "command": "workbench.action.openSettingsJson", "when": "!isMac" },
