@@ -29,7 +29,7 @@ git_commit_hashes () {
 }
 
 git_log () {
-    git log --oneline
+    git log --first-parent --date=short --pretty=format:"%Cblue%ad %H%Cgreen %s"
 }
 
 git_current_commit_hash () {
@@ -39,6 +39,12 @@ git_current_commit_hash () {
 
 git_oldest_commit_hash () {
     git log --reverse --oneline | head -n1 | sed -e 's/ .*//' 
+}
+
+git_squash_to () {
+    commit_hash="$1"
+    git reset --soft "$commit_hash"
+    git add -A
 }
 
 git_squash_all () {
