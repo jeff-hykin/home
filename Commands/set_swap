@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+if [ "$OSTYPE" = "linux-gnu" ] 
+then
+    echo "How many gigs of swap you want? (integer then press enter)"
+    read GB_OF_SWAP
+
+
+    # 
+    # actual commands
+    # 
+    echo "this is probably going to take a long time, just fyi"
+    sudo dd if=/dev/zero of=/swapfile bs=1G count="$GB_OF_SWAP" && \
+    sudo chmod 600 /swapfile && \
+    sudo mkswap /swapfile && \
+    sudo swapon /swapfile && \
+    echo "
+        We need to edit the /etc/fstab to make this permanent
+        
+        I'll open up the editor, so copy this line:
+            /swapfile swap swap defaults 0 0
+        
+        You're editing it (instead of it being automated) so 
+        you can check for duplicates or anything else that seems fishy
+        
+    " && \
+    echo "Press enter to continue" && read ANSWER && \
+    sudo nano /etc/fstab && \
+    sudo swapon --show
+fi
