@@ -1,9 +1,6 @@
 # version 2.0 is at least the minimum (may have a higher minimum)
 # sed, grep, bash/zsh required
 
-# version 2.0 is at least the minimum (may have a higher minimum)
-# sed, grep, bash/zsh required
-
 git_checkout () {
     # 
     # if its a branch, then use switch
@@ -50,6 +47,12 @@ git_oldest_commit_hash () {
 
 git_squash_all () {
     git reset --soft $(git_oldest_commit_hash)
+}
+
+git_squash_to () {
+    commit_hash="$1"
+    commit_message="$2"
+    git reset --soft "$commit_hash" && git add -A && git commit -m "$commit_message" && echo "squash complete"
 }
 
 # 
