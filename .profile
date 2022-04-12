@@ -1,3 +1,8 @@
+# do nothing if non-iteractive (otherwise scp breaks)
+if [ -z "$PS1" ]; then
+    return
+fi
+
 # 
 # shell-agnostic setup
 # 
