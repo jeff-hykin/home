@@ -1,5 +1,7 @@
 # do nothing if non-iteractive (otherwise scp breaks)
-if [ -z "$PS1" ]; then
+test -t 0
+if ! [ $? -eq 0 ]
+then
     return
 fi
 
