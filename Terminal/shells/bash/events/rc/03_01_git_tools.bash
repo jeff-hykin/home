@@ -1,6 +1,9 @@
 # version 2.0 is at least the minimum (may have a higher minimum)
 # sed, grep, bash/zsh required
 
+# version 2.0 is at least the minimum (may have a higher minimum)
+# sed, grep, bash/zsh required
+
 git_checkout () {
     # 
     # if its a branch, then use switch
@@ -39,6 +42,14 @@ git_log () {
 git_current_commit_hash () {
     # https://stackoverflow.com/questions/949314/how-to-retrieve-the-hash-for-the-current-commit-in-git
     git rev-parse HEAD
+}
+
+git_oldest_commit_hash () {
+    git log --reverse --oneline | head -n1 | sed -e 's/ .*//' 
+}
+
+git_squash_all () {
+    git reset --soft $(git_oldest_commit_hash)
 }
 
 # 
