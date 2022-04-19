@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+file_or_folder="$1"
+openssl enc -aes-256-cbc -d -in "$file_or_folder" | tar xz
