@@ -143,10 +143,10 @@
         // 
         
         // all instances
-        { "key": "cmd+enter", "command": "editor.action.changeAll", "when": "editorTextFocus && !editorReadonly && isMac" },
-        { "key": "ctrl+enter", "command": "editor.action.changeAll", "when": "editorTextFocus && !editorReadonly && !isMac" },
-        { "key": "shift+cmd+enter",   "command": "macros.SelectLocal", "when": "!editorHasRenameProvider && editorTextFocus && !editorReadonly && isMac" },
-        { "key": "shift+ctrl+enter", "command": "macros.SelectLocal", "when": "!editorHasRenameProvider && editorTextFocus && !editorReadonly && !isMac" },
+        { "key": "cmd+enter",        "command": "editor.action.changeAll", "when": "editorTextFocus && !editorReadonly && isMac"                              },
+        { "key": "ctrl+enter",       "command": "editor.action.changeAll", "when": "editorTextFocus && !editorReadonly && !isMac"                             },
+        { "key": "shift+cmd+enter",  "command": "macros.SelectLocal"     , "when": "!editorHasRenameProvider && editorTextFocus && !editorReadonly && isMac"  },
+        { "key": "shift+ctrl+enter", "command": "macros.SelectLocal"     , "when": "!editorHasRenameProvider && editorTextFocus && !editorReadonly && !isMac" },
         
         // Switch to Next Match
         { "key": "cmd+g", "command": "editor.action.nextMatchFindAction", "when": "editorFocus || findInputFocused && isMac" },
@@ -198,8 +198,8 @@
         { "key": "cmd+t cmd+=", "command": "alignment.align", "when": "editorHasSelection && isMac" },
         { "key": "ctrl+t ctrl+=", "command": "alignment.align", "when": "editorHasSelection && !isMac" },
         
-        { "key": "cmd+' cmd+j", "command": "yo1dog.cursor-align.alignCursors", "when": "isMac" },
-        { "key": "ctrl+' ctrl+j", "command": "yo1dog.cursor-align.alignCursors", "when": "!isMac" },
+        { "key": "ctrl+q ctrl+j", "command": "yo1dog.cursor-align.alignCursors", "when": "isMac" },
+        { "key": "cmd+q cmd+j", "command": "yo1dog.cursor-align.alignCursors", "when": "!isMac"  },
         
         // TODO: sort
         
