@@ -1,3 +1,20 @@
-#!/usr/bin/env bash
-file_or_folder="$1"
-openssl enc -aes-256-cbc -d -in "$file_or_folder" | tar xz
+#!/usr/bin/env -S deno run --allow-all
+import { Console, blue } from "https://deno.land/x/quickr@0.3.14/main/console.js"
+import { FileSystem } from "https://deno.land/x/quickr@0.3.14/main/file_system.js"
+import { run, Stdout, returnAsString, Overwrite, Cwd } from "https://deno.land/x/quickr@0.3.14/main/run.js"
+
+// 
+// args
+// 
+let [ fileOrFolder ] = Deno.args
+
+// 
+// interactive 
+// 
+const info = await FileSystem.info(fileOrFolder)
+if (info.doesntExist) {
+    throw Error(`File/Folder doesnt seem to exist: ${fileOrFolder}`)
+}
+const outputPath = `${fileOrFolder}.dec`
+await FileSystem.clearAPathFor(outputPath)
+const {success} = await run`gpg --decrypt ${Stdout(Overwrite(outputPath))}`.outcome
