@@ -69,10 +69,7 @@ async function getFingerprint(path=defaultPublicKeyPath) {
 }
 
 async function verifyAndSetupSshFolderStructure() {
-    console.debug(`sshFolder is:`,sshFolder)
     await FileSystem.ensureIsFolder(sshFolder)
-    const sshFolderInfo = await FileSystem.info(sshFolder)
-    console.debug(`sshFolderInfo is:`,sshFolderInfo)
     const authInfo = await FileSystem.info(authorizedKeysPath)
     if (!authInfo.exists) {
         await Deno.writeTextFile(authorizedKeysPath, "")
@@ -104,8 +101,7 @@ async function verifyAndSetupSshFolderStructure() {
     
     // sudo chmod 600 ~/.ssh/config
     const configInfo = await FileSystem.info(configPath)
-    console.debug(`configInfo is:`,configInfo)
-    if (configInfo.doesntExist) {
+    if (!configInfo.exists) {
         await FileSystem.write({
             data: `# Read more about SSH config files: https://linux.die.net/man/5/ssh_config\n# Host alias\n#     HostName hostname\n#     User user\n`,
             path: configPath,
