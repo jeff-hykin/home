@@ -11,6 +11,11 @@ A bunch of tools I use for setting up new machines. Mostly Debian-based and MacO
 . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix)
 ```
 
+### Setup Home
+```shell
+. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_home || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_home)
+```
+
 ### Installing Basics
 ```shell
 . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_cli_stuff || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_cli_stuff)
