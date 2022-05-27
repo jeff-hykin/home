@@ -2,39 +2,6 @@
 const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.24/main/run.js`)
 const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
 
-// 
-// 
-// actual logic
-// 
-// 
-async function isCommand(string) {
-    const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.24/main/run.js`)
-    const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
-
-    switch (Deno.build.os) {
-        case "linux":
-        case "darwin":
-            // POSIX
-            return await run("command", "-v", string, Out(null)).success
-        case "windows":
-            // FIXME: untested, not escaped (not sure it even can be properly escaped)
-            console.warn(`On Windows this function (isCommand(${JSON.stringify(string)})) is untested and likely to break`)
-            let output
-            try {
-                output = await run("cmd", "/c", `(help ${string} > nul || exit 0) && where ${string} > nul 2> nul`, Out(returnAsString))
-                output = output === "1"
-            } catch (error) {
-                try {
-                    // FIXME: bad: as a fallback runs the command with no args to figure out if it is a command (some commands could do bad things to the file system if run with no args)
-                    await run(string)
-                    output = true
-                } catch (error) {
-                    output = false
-                }
-            }
-            return output === "1"
-    }
-}
 
 function extractLinesWithAddresses(string) {
     const addresses = string.split("\n").filter(each=>each.match(/(\d{1,3}\.)(\d{1,3}\.)+/))
@@ -44,15 +11,10 @@ function extractLinesWithAddresses(string) {
 // 
 // run
 // 
-
-if (isCommand("ifconfig")) {
-    console.log(`running ifconfig`)
+try {
     const ipDataString = await run("ifconfig", Stdout(returnAsString))
     console.log(extractLinesWithAddresses(ipDataString))
-} else if (isCommand("ip")) {
-    console.log(`running ip`)
+} catch (error) {
     const ipDataString = await run("ip", "address", Stdout(returnAsString))
     console.log(extractLinesWithAddresses(ipDataString))
-} else {
-    console.error("couldn't find `ifconfig` or `ip` as runnable commands so IDK how to get your ip address")
 }
