@@ -1,8 +1,8 @@
 #!/usr/bin/env -S deno run --allow-all
 import { ensure } from 'https://deno.land/x/ensure/mod.ts'; ensure({ denoVersion: "1.17.1", })
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.17/main/run.js`)
-const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.17/main/file_system.js`)
-const { Console, cyan, white } = await import(`https://deno.land/x/quickr@0.3.17/main/console.js`)
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.24/main/run.js`)
+const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
+const { Console, cyan, white } = await import(`https://deno.land/x/quickr@0.3.24/main/console.js`)
 
 const sshFolder = `${FileSystem.home}/.ssh/`
 const authorizedKeysPath = `${FileSystem.home}/.ssh/authorized_keys`
