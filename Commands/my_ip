@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-all
 const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.24/main/run.js`)
-const { FileSystem, Console } = await import(`https://deno.land/x/file_system_js@0.0.7/main/deno.js`)
+const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
 
 // 
 // 
@@ -9,7 +9,7 @@ const { FileSystem, Console } = await import(`https://deno.land/x/file_system_js
 // 
 async function isCommand(string) {
     const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.24/main/run.js`)
-    const { FileSystem, Console } = await import(`https://deno.land/x/file_system_js@0.0.7/main/deno.js`)
+    const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
 
     switch (Deno.build.os) {
         case "linux":
@@ -46,9 +46,11 @@ function extractLinesWithAddresses(string) {
 // 
 
 if (isCommand("ifconfig")) {
+    console.log(`running ifconfig`)
     const ipDataString = await run("ifconfig", Stdout(returnAsString))
     console.log(extractLinesWithAddresses(ipDataString))
 } else if (isCommand("ip")) {
+    console.log(`running ip`)
     const ipDataString = await run("ip", "address", Stdout(returnAsString))
     console.log(extractLinesWithAddresses(ipDataString))
 } else {
