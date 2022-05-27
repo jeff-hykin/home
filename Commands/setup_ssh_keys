@@ -69,7 +69,10 @@ async function getFingerprint(path=defaultPublicKeyPath) {
 }
 
 async function verifyAndSetupSshFolderStructure() {
+    console.debug(`sshFolder is:`,sshFolder)
     await FileSystem.ensureIsFolder(sshFolder)
+    const sshFolderInfo = await FileSystem.info(sshFolder)
+    console.debug(`sshFolderInfo is:`,sshFolderInfo)
     const authInfo = await FileSystem.info(authorizedKeysPath)
     if (!authInfo.exists) {
         await Deno.writeTextFile(authorizedKeysPath, "")
