@@ -155,8 +155,12 @@
         { "key": "ctrl+shift+g", "command": "editor.action.previousMatchFindAction", "when": "editorFocus || findInputFocused && !isMac" },
         
         // Add Next Match
-        { "key": "cmd+d", "command": "editor.action.addSelectionToNextFindMatch", "when": "editorFocus && isMac" },
-        { "key": "ctrl+d", "command": "editor.action.addSelectionToNextFindMatch", "when": "editorFocus && !isMac" },
+        { "key": "cmd+d",            "command": "macros.nextWord"        , "when": "editorTextFocus && isMac"                          },
+        { "key": "ctrl+d",           "command": "macros.nextWord"        , "when": "editorTextFocus && !isMac"                         },
+        { "key": "ctrl+shift+d",     "command": "editor.action.remove"   , "when": "editorTextFocus && !isMac"                         },
+        { "key": "cmd+ctrl+e",       "command": "editor.action.addSelectionToNextFindMatch", "when": "editorFocus"                     },
+        // { "key": "cmd+d", "command": "editor.action.addSelectionToNextFindMatch", "when": "editorFocus && isMac" },
+        // { "key": "ctrl+d", "command": "editor.action.addSelectionToNextFindMatch", "when": "editorFocus && !isMac" },
         
         // grow text selection
         // {  "key": "alt+cmd+right", "command": "editor.action.smartSelect.grow", "when": "editorTextFocus" },
