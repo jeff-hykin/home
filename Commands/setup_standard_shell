@@ -1,0 +1,798 @@
+#!/usr/bin/env bash
+
+# 
+# helpers
+# 
+    newline='
+'
+    move_out_of_the_way() {
+        if [[ -e "$1" ]]
+        then
+            # if something is in the way, move it out of the way
+            # (recursively)
+            if [[ -e "$1.old" ]]
+            then
+                move_out_of_the_way "$1.old"
+            fi
+            
+            # now that anything that would be in the way has been moved
+            mv "$1" "$1.old"
+        fi
+    }
+
+    not_folder() {
+        path="$1"
+        if [ -e "$path" ]
+        then
+            if [ -d "$path" ]
+            then
+                return 0
+            fi
+        fi
+        return 1
+    }
+
+    ensure_is_folder() {
+        path="$1"
+        # move things if needed
+        if not_folder "$path"
+        then
+            move_out_of_the_way "$path"
+        fi
+        # create if not there
+        if ! [ -e "$path" ]
+        then
+            mkdir -p "$path"
+        fi
+    }
+
+    delete() {
+        path="$1"
+        if [ -e "$path" ]
+        then
+            # check if symlink
+            if [ -L "$path" ]
+            then
+                rm "$path"
+            else
+                # if folder and not symlink
+                if [ -d "$path" ]
+                then
+                    rm -rf "$path"
+                else
+                    rm -f "$path"
+                fi
+            fi
+        fi
+    }
+
+    force_move() {
+        existing_thing="$1"
+        new_location_and_name="$2"
+        # check if exists
+        if [ -e "$existing_thing" ]
+        then
+            # make sure new location is empty
+            if [ -e "$new_location_and_name" ]
+            then
+                delete "$new_location_and_name"
+            fi
+            # ensure the parent path exists
+            mkdir -p "$(dirname "$new_location_and_name")"
+            # then move
+            mv "$existing_thing" "$new_location_and_name"
+        fi
+    }
+    
+    add_to_path() {
+        new_folder="$1"
+        location="$HOME/Terminal/settings/command_folders.list"
+        # check if file exists
+        if ! [ -f "$location" ]
+        then
+            mkdir -p "$(dirname "$location")"
+            touch "$source_file"
+        fi
+        escaped_new_folder="$(sed 's/[][\.|$(){}?+*^]/\\&/g' <<< "$new_folder")"
+        # if path already in the file, do nothing 
+        if cat "$location" | grep -E "^$escaped_new_folder$"
+        then
+            true
+        else
+            echo "$newline$new_folder" >> "$location"
+        fi
+    }
+
+# 
+# setup
+# 
+    cd # go home
+    ensure_is_folder "Commands"
+    ensure_is_folder "Terminal/plugins"
+    ensure_is_folder "Terminal/settings"
+    ensure_is_folder "Terminal/shells"
+    ensure_is_folder "Personal/Commands"
+    ensure_is_folder "Personal/Terminal"
+    
+    add_to_path "Commands"
+    add_to_path "Personal/Commands"
+
+    # add standard commands
+
+    echo '#!/usr/bin/env bash
+    # this command does nothing except run as sudo
+    sudo "$@"' > 'Commands/#'
+    chmod u+rwx 'Commands/#'
+
+    echo '#!/usr/bin/env bash
+    # this command does nothing except eat the "$" part
+    "$@"' > 'Commands/$'
+    chmod u+rwx 'Commands/$'
+
+# 
+# POSIX Shell
+# 
+    # create folders
+    ensure_is_folder "Terminal/shells/sh/events/on_interactive/"
+    ensure_is_folder "Terminal/shells/sh/events/on_login/"
+    ensure_is_folder "Terminal/shells/sh/events/on_logout/"
+    # move default locations out
+    force_move ".rc" "Terminal/shells/sh/events/on_interactive/000_000_000.shellrc.sh"
+    force_move ".profile" "Terminal/shells/sh/events/on_login/000_000_000.profile.sh"
+    force_move ".logout" "Terminal/shells/sh/events/on_logout/000_000_000.logout.sh"
+    # replace default locations with different things
+        # 
+        # on_interactive
+        # 
+            path=".rc"
+            content='
+            # 
+            # HEY DONT EDIT THIS 
+            # 
+                # instead
+                # 1. go to the "$HOME/Terminal/shells/sh/events/on_interactive/" folder
+                # 2. create a new file like "101_070_000.thing.sh" (change the numbers and "thing")
+                # 3. whatever you were putting in here, put it in that file you created instead
+            
+            # do nothing if non-interactive (otherwise scp breaks) see: https://unix.stackexchange.com/a/257613
+            test -t 0
+            if ! [ $? -eq 0 ]
+            then
+                return
+            fi
+            
+            export SHELL_STANDARD_ENV_VERSION_MAJOR="1"
+            export SHELL_STANDARD_ENV_VERSION_MINOR="0"
+            export SHELL_STANDARD_ENV_VERSION_PATCH="1"
+
+            # 
+            # debug check
+            # 
+            if [ -n "$(cat "$HOME/Terminal/settings/debug")" ]
+            then
+                export SHELL_STANDARD_ENV_DEBUG="true"
+            fi
+            if [ "$SHELL_STANDARD_ENV_DEBUG" = "true" ]
+            then
+                echo "[.rc] enabling debugging because"
+                echo "[.rc]     $HOME/Terminal/settings/debug"
+                echo "[.rc] was non-empty"
+                echo "[.rc] "
+            fi
+
+            #
+            # set path
+            #
+            export PATH="$PATH:$(cat "Terminal/settings/command_folders.list" | | tr "\n" ":" )"
+            
+            # 
+            # run a background task that makes all commands executable
+            # 
+            sh -c '"'"'
+                mkdir -p "$HOME/Commands/"
+                # (this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+                for_each_item_in="$HOME/Commands/"; [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'"'"'"'"'"'"'rm -rf "$__temp_var__temp_folder"'"'"'"'"'"'"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; (find "$for_each_item_in" -maxdepth 1 ! -path "$for_each_item_in" -print0 2>/dev/null | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'"'"'"'"'"'"'\0'"'"'"'"'"'"'"'"' each
+                do
+                    # check if file
+                    if [ -f "$each" ]
+                    then
+                        chmod u+x "$each"
+                    fi
+                done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"
+            '"'"'
+            
+            # 
+            # run on_interactive
+            # 
+            
+            # this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+            for_each_item_in_1="$HOME/Terminal/shells/sh/events/on_interactive"
+            for_each_item_in_2="$HOME/Personal/Terminal/shells/sh/events/on_interactive"
+            mkdir -p "$for_each_item_in_1"
+            mkdir -p "$for_each_item_in_2"
+            [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'rm -rf "$__temp_var__temp_folder"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; ({find "$for_each_item_in_1" -maxdepth 1 ! -path "$for_each_item_in_1" -print0 2>/dev/null; find "$for_each_item_in_2" -maxdepth 1 ! -path "$for_each_item_in_2" -print0 2>/dev/null} | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'\0'"'"' each
+            do
+                # make sure its a file
+                if [ -f "$each" ]; then
+                    echo "[.rc] loading: $each"
+                    . "$each"
+                fi
+            done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+            '
+            echo "$content" > "$path"
+        
+        # 
+        # on_login
+        # 
+            path=".profile"
+            content='
+            # 
+            # HEY DONT EDIT THIS 
+            # 
+                # instead
+                # 1. go to the "$HOME/Terminal/shells/sh/events/on_login/" folder
+                # 2. create a new file like "101_070_000.thing.sh" (change the numbers and "thing")
+                # 3. whatever you were putting in here, put it in that file you created instead
+            
+            # 
+            # shell-agnostic setup
+            # 
+            export SHELL_STANDARD_ENV_VERSION_MAJOR="1"
+            export SHELL_STANDARD_ENV_VERSION_MINOR="0"
+            export SHELL_STANDARD_ENV_VERSION_PATCH="1"
+            # settings
+            if [ -n "$(cat "$HOME/Terminal/settings/debug")" ]
+            then
+                export SHELL_STANDARD_ENV_DEBUG="true"
+            fi
+
+            # 
+            # debug check
+            # 
+            if [ "$SHELL_STANDARD_ENV_DEBUG" = "true" ]
+            then
+                echo "[.profile] enabling debugging because"
+                echo "[.profile]     $HOME/Terminal/settings/debug"
+                echo "[.profile] was non-empty"
+                echo "[.profile] "
+            fi
+
+            #
+            # set path
+            #
+            export PATH="$PATH:$(cat "Terminal/settings/command_folders.list" | | tr "\n" ":" )"
+            
+            # 
+            # run a background task that makes all commands executable
+            # 
+            sh -c '"'"'
+                mkdir -p "$HOME/Commands/"
+                # (this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+                for_each_item_in="$HOME/Commands/"; [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'"'"'"'"'"'"'rm -rf "$__temp_var__temp_folder"'"'"'"'"'"'"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; (find "$for_each_item_in" -maxdepth 1 ! -path "$for_each_item_in" -print0 2>/dev/null | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'"'"'"'"'"'"'\0'"'"'"'"'"'"'"'"' each
+                do
+                    # check if file
+                    if [ -f "$each" ]
+                    then
+                        chmod u+x "$each"
+                    fi
+                done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"
+            '"'"'
+            
+            # 
+            # run on_login
+            # 
+            
+            # this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+            for_each_item_in_1="$HOME/Terminal/shells/sh/events/on_login"
+            for_each_item_in_2="$HOME/Personal/Terminal/shells/sh/events/on_login"
+            mkdir -p "$for_each_item_in_1"
+            mkdir -p "$for_each_item_in_2"
+            [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'rm -rf "$__temp_var__temp_folder"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; ({find "$for_each_item_in_1" -maxdepth 1 ! -path "$for_each_item_in_1" -print0 2>/dev/null; find "$for_each_item_in_2" -maxdepth 1 ! -path "$for_each_item_in_2" -print0 2>/dev/null} | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'\0'"'"' each
+            do
+                # make sure its a file
+                if [ -f "$each" ]; then
+                    echo "[.profile] loading: $each"
+                    . "$each"
+                fi
+            done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+            '
+            echo "$content" > "$path"
+        
+        # 
+        # on_logout
+        # 
+            path=".logout"
+            content='
+            # 
+            # HEY DONT EDIT THIS 
+            # 
+                # instead
+                # 1. go to the "$HOME/Terminal/shells/sh/events/on_logout/" folder
+                # 2. create a new file like "101_070_000.thing.sh" (change the numbers and "thing")
+                # 3. whatever you were putting in here, put it in that file you created instead
+            
+            # 
+            # run on_logout
+            # 
+            
+            # this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+            for_each_item_in_1="$HOME/Terminal/shells/sh/events/on_logout"
+            for_each_item_in_2="$HOME/Personal/Terminal/shells/sh/events/on_logout"
+            mkdir -p "$for_each_item_in_1"
+            mkdir -p "$for_each_item_in_2"
+            [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'rm -rf "$__temp_var__temp_folder"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; ({find "$for_each_item_in_1" -maxdepth 1 ! -path "$for_each_item_in_1" -print0 2>/dev/null; find "$for_each_item_in_2" -maxdepth 1 ! -path "$for_each_item_in_2" -print0 2>/dev/null} | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'\0'"'"' each
+            do
+                # make sure its a file
+                if [ -f "$each" ]; then
+                    echo "[.logout] loading: $each"
+                    . "$each"
+                fi
+            done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+            '
+            echo "$content" > "$path"
+        
+# 
+# Bash
+# 
+    # folders
+    ensure_is_folder "Terminal/shells/bash/events/on_interactive/"
+    ensure_is_folder "Terminal/shells/bash/events/on_login/"
+    ensure_is_folder "Terminal/shells/bash/events/on_logout/"
+    # move files
+    force_move ".bashrc"       "Terminal/shells/bash/events/on_interactive/000_000_000.bashrc.bash"
+    force_move ".bash_profile" "Terminal/shells/bash/events/on_login/000_000_000.bash_profile.bash"
+    force_move ".bash_login"   "Terminal/shells/bash/events/on_login/000_000_001.bash_login.bash"
+    force_move ".bash_logout"  "Terminal/shells/bash/events/on_logout/000_000_000.bash_logout.bash"
+    # replace default locations with different things
+        # 
+        # on_interactive
+        # 
+            path=".bashrc"
+            content='
+            # 
+            # HEY DONT EDIT THIS 
+            # 
+                # instead
+                # 1. go to the "$HOME/Terminal/shells/bash/events/on_interactive/" folder
+                # 2. create a new file like "101_070_000.thing.bash" (change the numbers and "thing")
+                # 3. whatever you were putting in here, put it in that file you created instead
+            
+            # do nothing if non-interactive (otherwise scp breaks) see: https://unix.stackexchange.com/a/257613
+            test -t 0
+            if ! [ $? -eq 0 ]
+            then
+                return
+            fi
+
+            # 
+            # debug check
+            # 
+            if [ -n "$(cat "$HOME/Terminal/settings/debug")" ]
+            then
+                export SHELL_STANDARD_ENV_DEBUG="true"
+            fi
+            if [ "$SHELL_STANDARD_ENV_DEBUG" = "true" ]
+            then
+                echo "[.bashrc] enabling debugging because"
+                echo "[.bashrc]     $HOME/Terminal/settings/debug"
+                echo "[.bashrc] was non-empty"
+                echo "[.bashrc] "
+            fi
+
+            #
+            # set path
+            #
+            export PATH="$PATH:$(cat "Terminal/settings/command_folders.list" | | tr "\n" ":" )"
+            
+            # 
+            # run a background task that makes all commands executable
+            # 
+            sh -c '"'"'
+                mkdir -p "$HOME/Commands/"
+                # (this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+                for_each_item_in="$HOME/Commands/"; [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'"'"'"'"'"'"'rm -rf "$__temp_var__temp_folder"'"'"'"'"'"'"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; (find "$for_each_item_in" -maxdepth 1 ! -path "$for_each_item_in" -print0 2>/dev/null | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'"'"'"'"'"'"'\0'"'"'"'"'"'"'"'"' each
+                do
+                    # check if file
+                    if [ -f "$each" ]
+                    then
+                        chmod u+x "$each"
+                    fi
+                done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"
+            '"'"'
+            
+            # 
+            # run on_interactive
+            # 
+            
+            # this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+            for_each_item_in_1="$HOME/Terminal/shells/bash/events/on_interactive"
+            for_each_item_in_2="$HOME/Personal/Terminal/shells/bash/events/on_interactive"
+            mkdir -p "$for_each_item_in_1"
+            mkdir -p "$for_each_item_in_2"
+            for_each_item_in_3="$HOME/Terminal/shells/sh/events/on_interactive"
+            for_each_item_in_4="$HOME/Personal/Terminal/shells/sh/events/on_interactive"
+            mkdir -p "$for_each_item_in_3"
+            mkdir -p "$for_each_item_in_4"
+            [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'rm -rf "$__temp_var__temp_folder"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; ({find "$for_each_item_in_1" -maxdepth 1 ! -path "$for_each_item_in_1" -print0 2>/dev/null; find "$for_each_item_in_2" -maxdepth 1 ! -path "$for_each_item_in_2" -print0 2>/dev/null; find "$for_each_item_in_3" -maxdepth 1 ! -path "$for_each_item_in_3" -print0 2>/dev/null; find "$for_each_item_in_4" -maxdepth 1 ! -path "$for_each_item_in_4" -print0 2>/dev/null} | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'\0'"'"' each
+            do
+                # make sure its a file
+                if [ -f "$each" ]; then
+                    echo "[.bashrc] loading: $each"
+                    . "$each"
+                fi
+            done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+            '
+            echo "$content" > "$path"
+        
+        # 
+        # on_login
+        # 
+            path=".bash_profile"
+            content='
+            # 
+            # HEY DONT EDIT THIS 
+            # 
+                # instead
+                # 1. go to the "$HOME/Terminal/shells/bash/events/on_login/" folder
+                # 2. create a new file like "101_070_000.thing.bash" (change the numbers and "thing")
+                # 3. whatever you were putting in here, put it in that file you created instead
+            
+            # 
+            # shell-agnostic setup
+            # 
+            export SHELL_STANDARD_ENV_VERSION_MAJOR="1"
+            export SHELL_STANDARD_ENV_VERSION_MINOR="0"
+            export SHELL_STANDARD_ENV_VERSION_PATCH="1"
+            # settings
+            if [ -n "$(cat "$HOME/Terminal/settings/debug")" ]
+            then
+                export SHELL_STANDARD_ENV_DEBUG="true"
+            fi
+
+            # 
+            # debug check
+            # 
+            if [ "$SHELL_STANDARD_ENV_DEBUG" = "true" ]
+            then
+                echo "[.bash_profile] enabling debugging because"
+                echo "[.bash_profile]     $HOME/Terminal/settings/debug"
+                echo "[.bash_profile] was non-empty"
+                echo "[.bash_profile] "
+            fi
+
+            #
+            # set path
+            #
+            export PATH="$PATH:$(cat "Terminal/settings/command_folders.list" | | tr "\n" ":" )"
+            
+            # 
+            # run a background task that makes all commands executable
+            # 
+            sh -c '"'"'
+                mkdir -p "$HOME/Commands/"
+                # (this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+                for_each_item_in="$HOME/Commands/"; [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'"'"'"'"'"'"'rm -rf "$__temp_var__temp_folder"'"'"'"'"'"'"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; (find "$for_each_item_in" -maxdepth 1 ! -path "$for_each_item_in" -print0 2>/dev/null | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'"'"'"'"'"'"'\0'"'"'"'"'"'"'"'"' each
+                do
+                    # check if file
+                    if [ -f "$each" ]
+                    then
+                        chmod u+x "$each"
+                    fi
+                done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"
+            '"'"'
+            
+            # 
+            # run on_login
+            # 
+            
+            # this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+            for_each_item_in_1="$HOME/Terminal/shells/bash/events/on_login"
+            for_each_item_in_2="$HOME/Personal/Terminal/shells/bash/events/on_login"
+            mkdir -p "$for_each_item_in_1"
+            mkdir -p "$for_each_item_in_2"
+            # run the posix files as well
+            for_each_item_in_3="$HOME/Terminal/shells/sh/events/on_login"
+            for_each_item_in_4="$HOME/Personal/Terminal/shells/sh/events/on_login"
+            mkdir -p "$for_each_item_in_3"
+            mkdir -p "$for_each_item_in_4"
+            [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'rm -rf "$__temp_var__temp_folder"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; ({find "$for_each_item_in_1" -maxdepth 1 ! -path "$for_each_item_in_1" -print0 2>/dev/null; find "$for_each_item_in_2" -maxdepth 1 ! -path "$for_each_item_in_2" -print0 2>/dev/null; find "$for_each_item_in_3" -maxdepth 1 ! -path "$for_each_item_in_3" -print0 2>/dev/null; find "$for_each_item_in_4" -maxdepth 1 ! -path "$for_each_item_in_4" -print0 2>/dev/null} | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'\0'"'"' each
+            do
+                # make sure its a file
+                if [ -f "$each" ]; then
+                    echo "[.bash_profile] loading: $each"
+                    . "$each"
+                fi
+            done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+            '
+            echo "$content" > "$path"
+        
+        # 
+        # on_logout
+        # 
+            path=".bash_logout"
+            content='
+            # 
+            # HEY DONT EDIT THIS 
+            # 
+                # instead
+                # 1. go to the "$HOME/Terminal/shells/bash/events/on_logout/" folder
+                # 2. create a new file like "101_070_000.thing.bash" (change the numbers and "thing")
+                # 3. whatever you were putting in here, put it in that file you created instead
+            
+            # 
+            # run on_logout
+            # 
+            
+            # this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+            for_each_item_in_1="$HOME/Terminal/shells/bash/events/on_logout"
+            for_each_item_in_2="$HOME/Personal/Terminal/shells/bash/events/on_logout"
+            mkdir -p "$for_each_item_in_1"
+            mkdir -p "$for_each_item_in_2"
+            for_each_item_in_3="$HOME/Terminal/shells/sh/events/on_logout"
+            for_each_item_in_4="$HOME/Personal/Terminal/shells/sh/events/on_logout"
+            mkdir -p "$for_each_item_in_3"
+            mkdir -p "$for_each_item_in_4"
+            [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'rm -rf "$__temp_var__temp_folder"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; ({find "$for_each_item_in_1" -maxdepth 1 ! -path "$for_each_item_in_1" -print0 2>/dev/null; find "$for_each_item_in_2" -maxdepth 1 ! -path "$for_each_item_in_2" -print0 2>/dev/null; find "$for_each_item_in_3" -maxdepth 1 ! -path "$for_each_item_in_3" -print0 2>/dev/null; find "$for_each_item_in_4" -maxdepth 1 ! -path "$for_each_item_in_4" -print0 2>/dev/null} | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'\0'"'"' each
+            do
+                # make sure its a file
+                if [ -f "$each" ]; then
+                    echo "[.bash_logout] loading: $each"
+                    . "$each"
+                fi
+            done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+            '
+            echo "$content" > "$path"
+    
+# 
+# Zsh
+# 
+    # folders
+    ensure_is_folder "Terminal/shells/zsh/functions"
+    ensure_is_folder "Terminal/shells/zsh/events/on_start/"
+    ensure_is_folder "Terminal/shells/zsh/events/on_interactive/"
+    ensure_is_folder "Terminal/shells/zsh/events/on_login/"
+    ensure_is_folder "Terminal/shells/zsh/events/on_logout/"
+    # move files
+    force_move ".zshenv"   "Terminal/shells/zsh/events/on_start/000_000_000.zshenv.zsh"
+    force_move ".zshrc"    "Terminal/shells/zsh/events/on_interactive/000_000_000.zshrc.zsh"
+    force_move ".zprofile" "Terminal/shells/zsh/events/on_login/000_000_000.zprofile.zsh"
+    force_move ".zlogin"   "Terminal/shells/zsh/events/on_login/000_000_001.zlogin.zsh"
+    force_move ".zlogout"  "Terminal/shells/zsh/events/on_logout/000_000_000.zlogout.zsh"
+    # replace default locations with different things
+        # 
+        # on_start
+        # 
+            path=".zshenv"
+            content='
+            # 
+            # HEY DONT EDIT THIS 
+            # 
+                # instead
+                # 1. go to the "$HOME/Terminal/shells/zsh/events/on_start/" folder
+                # 2. create a new file like "101_070_000.thing.zsh" (change the numbers and "thing")
+                # 3. whatever you were putting in here, put it in that file you created instead
+            
+            # do nothing if non-interactive (otherwise scp breaks) see: https://unix.stackexchange.com/a/257613
+            test -t 0
+            if ! [ $? -eq 0 ]
+            then
+                return
+            fi
+            
+            export SHELL_STANDARD_ENV_VERSION_MAJOR="1"
+            export SHELL_STANDARD_ENV_VERSION_MINOR="0"
+            export SHELL_STANDARD_ENV_VERSION_PATCH="1"
+            
+            # 
+            # debug check
+            # 
+            if [ -n "$(cat "$HOME/Terminal/settings/debug")" ]
+            then
+                export SHELL_STANDARD_ENV_DEBUG="true"
+            fi
+            if [ "$SHELL_STANDARD_ENV_DEBUG" = "true" ]
+            then
+                echo "[.zshenv] enabling debugging because"
+                echo "[.zshenv]     $HOME/Terminal/settings/debug"
+                echo "[.zshenv] was non-empty"
+                echo "[.zshenv] "
+            fi
+
+            #
+            # set path
+            #
+            export PATH="$PATH:$(cat "Terminal/settings/command_folders.list" | | tr "\n" ":" )"
+            
+            # 
+            # run a background task that makes all commands executable
+            # 
+            sh -c '"'"'
+                mkdir -p "$HOME/Commands/"
+                # (this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+                for_each_item_in="$HOME/Commands/"; [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'"'"'"'"'"'"'rm -rf "$__temp_var__temp_folder"'"'"'"'"'"'"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; (find "$for_each_item_in" -maxdepth 1 ! -path "$for_each_item_in" -print0 2>/dev/null | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'"'"'"'"'"'"'\0'"'"'"'"'"'"'"'"' each
+                do
+                    # check if file
+                    if [ -f "$each" ]
+                    then
+                        chmod u+x "$each"
+                    fi
+                done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"
+            '"'"'
+            
+            # 
+            # run on_start
+            # 
+            
+            # this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+            for_each_item_in_1="$HOME/Terminal/shells/zsh/events/on_start"
+            for_each_item_in_2="$HOME/Personal/Terminal/shells/zsh/events/on_start"
+            mkdir -p "$for_each_item_in_1"
+            mkdir -p "$for_each_item_in_2"
+            for_each_item_in_3="$HOME/Terminal/shells/sh/events/on_start"
+            for_each_item_in_4="$HOME/Personal/Terminal/shells/sh/events/on_start"
+            mkdir -p "$for_each_item_in_3"
+            mkdir -p "$for_each_item_in_4"
+            [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'rm -rf "$__temp_var__temp_folder"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; ({find "$for_each_item_in_1" -maxdepth 1 ! -path "$for_each_item_in_1" -print0 2>/dev/null; find "$for_each_item_in_2" -maxdepth 1 ! -path "$for_each_item_in_2" -print0 2>/dev/null; find "$for_each_item_in_3" -maxdepth 1 ! -path "$for_each_item_in_3" -print0 2>/dev/null; find "$for_each_item_in_4" -maxdepth 1 ! -path "$for_each_item_in_4" -print0 2>/dev/null} | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'\0'"'"' each
+            do
+                # make sure its a file
+                if [ -f "$each" ]; then
+                    echo "[.zshenv] loading: $each"
+                    . "$each"
+                fi
+            done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+            '
+            echo "$content" > "$path"
+        
+        # 
+        # on_interactive
+        # 
+            path=".zshrc"
+            content='
+            # 
+            # HEY DONT EDIT THIS 
+            # 
+                # instead
+                # 1. go to the "$HOME/Terminal/shells/zsh/events/on_interactive/" folder
+                # 2. create a new file like "101_070_000.thing.zsh" (change the numbers and "thing")
+                # 3. whatever you were putting in here, put it in that file you created instead
+            
+            # 
+            # debug check
+            # 
+            if [ "$SHELL_STANDARD_ENV_DEBUG" = "true" ]
+            then
+                echo "[.zshrc] enabling debugging because"
+                echo "[.zshrc]     $SHELL_STANDARD_ENV_DEBUG == '"'"'true'"'"' "
+                echo "[.zshrc] "
+            fi
+            
+            # 
+            # run on_interactive
+            # 
+            
+            # this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+            for_each_item_in_1="$HOME/Terminal/shells/zsh/events/on_interactive"
+            for_each_item_in_2="$HOME/Personal/Terminal/shells/zsh/events/on_interactive"
+            mkdir -p "$for_each_item_in_1"
+            mkdir -p "$for_each_item_in_2"
+            for_each_item_in_3="$HOME/Terminal/shells/sh/events/on_interactive"
+            for_each_item_in_4="$HOME/Personal/Terminal/shells/sh/events/on_interactive"
+            mkdir -p "$for_each_item_in_3"
+            mkdir -p "$for_each_item_in_4"
+            [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'rm -rf "$__temp_var__temp_folder"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; ({find "$for_each_item_in_1" -maxdepth 1 ! -path "$for_each_item_in_1" -print0 2>/dev/null; find "$for_each_item_in_2" -maxdepth 1 ! -path "$for_each_item_in_2" -print0 2>/dev/null; find "$for_each_item_in_3" -maxdepth 1 ! -path "$for_each_item_in_3" -print0 2>/dev/null; find "$for_each_item_in_4" -maxdepth 1 ! -path "$for_each_item_in_4" -print0 2>/dev/null} | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'\0'"'"' each
+            do
+                # make sure its a file
+                if [ -f "$each" ]; then
+                    echo "[.zshrc] loading: $each"
+                    . "$each"
+                fi
+            done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+            '
+            echo "$content" > "$path"
+        
+        # 
+        # on_login
+        # 
+            path=".zprofile"
+            content='
+            # 
+            # HEY DONT EDIT THIS 
+            # 
+                # instead
+                # 1. go to the "$HOME/Terminal/shells/zsh/events/on_login/" folder
+                # 2. create a new file like "101_070_000.thing.zsh" (change the numbers and "thing")
+                # 3. whatever you were putting in here, put it in that file you created instead
+            
+            # 
+            # debug check
+            # 
+            if [ "$SHELL_STANDARD_ENV_DEBUG" = "true" ]
+            then
+                echo "[.zprofile] enabling debugging because"
+                echo "[.zprofile]     $SHELL_STANDARD_ENV_DEBUG == '"'"'true'"'"' "
+                echo "[.zprofile] "
+            fi
+
+            # 
+            # run on_login
+            # 
+            
+            # this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+            for_each_item_in_1="$HOME/Terminal/shells/zsh/events/on_login"
+            for_each_item_in_2="$HOME/Personal/Terminal/shells/zsh/events/on_login"
+            mkdir -p "$for_each_item_in_1"
+            mkdir -p "$for_each_item_in_2"
+            # run the posix files as well
+            for_each_item_in_3="$HOME/Terminal/shells/sh/events/on_login"
+            for_each_item_in_4="$HOME/Personal/Terminal/shells/sh/events/on_login"
+            mkdir -p "$for_each_item_in_3"
+            mkdir -p "$for_each_item_in_4"
+            [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'rm -rf "$__temp_var__temp_folder"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; ({find "$for_each_item_in_1" -maxdepth 1 ! -path "$for_each_item_in_1" -print0 2>/dev/null; find "$for_each_item_in_2" -maxdepth 1 ! -path "$for_each_item_in_2" -print0 2>/dev/null; find "$for_each_item_in_3" -maxdepth 1 ! -path "$for_each_item_in_3" -print0 2>/dev/null; find "$for_each_item_in_4" -maxdepth 1 ! -path "$for_each_item_in_4" -print0 2>/dev/null} | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'\0'"'"' each
+            do
+                # make sure its a file
+                if [ -f "$each" ]; then
+                    echo "[.zprofile] loading: $each"
+                    . "$each"
+                fi
+            done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+            '
+            echo "$content" > "$path"
+        
+        # 
+        # on_logout
+        # 
+            path=".zlogout"
+            content='
+            # 
+            # HEY DONT EDIT THIS 
+            # 
+                # instead
+                # 1. go to the "$HOME/Terminal/shells/zsh/events/on_logout/" folder
+                # 2. create a new file like "101_070_000.thing.zsh" (change the numbers and "thing")
+                # 3. whatever you were putting in here, put it in that file you created instead
+            
+            # 
+            # run on_logout
+            # 
+            
+            # this loop is so stupidly complicated because of many inherent-to-shell reasons, for example: https://stackoverflow.com/questions/13726764/while-loop-subshell-dilemma-in-bash
+            for_each_item_in_1="$HOME/Terminal/shells/zsh/events/on_logout"
+            for_each_item_in_2="$HOME/Personal/Terminal/shells/zsh/events/on_logout"
+            mkdir -p "$for_each_item_in_1"
+            mkdir -p "$for_each_item_in_2"
+            for_each_item_in_3="$HOME/Terminal/shells/sh/events/on_logout"
+            for_each_item_in_4="$HOME/Personal/Terminal/shells/sh/events/on_logout"
+            mkdir -p "$for_each_item_in_3"
+            mkdir -p "$for_each_item_in_4"
+            [ -z "$__NESTED_WHILE_COUNTER" ] && __NESTED_WHILE_COUNTER=0;__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER + 1))"; trap '"'"'rm -rf "$__temp_var__temp_folder"'"'"' EXIT; __temp_var__temp_folder="$(mktemp -d)"; mkfifo "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER"; ({find "$for_each_item_in_1" -maxdepth 1 ! -path "$for_each_item_in_1" -print0 2>/dev/null; find "$for_each_item_in_2" -maxdepth 1 ! -path "$for_each_item_in_2" -print0 2>/dev/null; find "$for_each_item_in_3" -maxdepth 1 ! -path "$for_each_item_in_3" -print0 2>/dev/null; find "$for_each_item_in_4" -maxdepth 1 ! -path "$for_each_item_in_4" -print0 2>/dev/null} | sort -z > "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER" &); while read -d $'"'"'\0'"'"' each
+            do
+                # make sure its a file
+                if [ -f "$each" ]; then
+                    echo "[.zlogout] loading: $each"
+                    . "$each"
+                fi
+            done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+            '
+            echo "$content" > "$path"
+
+# 
+# Future shells:
+# 
+    # ensure_is_folder "Terminal/shells/dash/events/on_login/"
+    # ensure_is_folder "Terminal/shells/dash/events/on_interactive/"
+    # ensure_is_folder "Terminal/shells/dash/events/on_logout/"
+    # ensure_is_folder "Terminal/shells/ion/events/on_login/"
+    # ensure_is_folder "Terminal/shells/ion/events/on_interactive/"
+    # ensure_is_folder "Terminal/shells/ion/events/on_logout/"
+    # ensure_is_folder "Terminal/shells/fish/events/on_login/"
+    # ensure_is_folder "Terminal/shells/fish/events/on_interactive/"
+    # ensure_is_folder "Terminal/shells/fish/events/on_logout/"
+    # ensure_is_folder "Terminal/shells/csh/events/on_login/"
+    # ensure_is_folder "Terminal/shells/csh/events/on_interactive/"
+    # ensure_is_folder "Terminal/shells/csh/events/on_logout/"
+    # ensure_is_folder "Terminal/shells/ksh/events/on_login/"
+    # ensure_is_folder "Terminal/shells/ksh/events/on_interactive/"
+    # ensure_is_folder "Terminal/shells/ksh/events/on_logout/"
+    # ensure_is_folder "Terminal/shells/tcsh/events/on_login/"
+    # ensure_is_folder "Terminal/shells/tcsh/events/on_interactive/"
+    # ensure_is_folder "Terminal/shells/tcsh/events/on_logout/"
