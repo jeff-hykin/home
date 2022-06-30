@@ -553,6 +553,18 @@
         ],
         "description": "home"
     },
+    "getter": {
+        "prefix": "getter",
+        "body": [
+            "@property",
+            "def ${1:attribute}(self):",
+            "    return self._${1:attribute}",
+            "",
+            "@${1:attribute}.setter",
+            "def ${1:attribute}(self, value):",
+            "    self._${1:attribute} = value",
+        ],
+    },
     "network": {
         "prefix": "network",
         "body": [
