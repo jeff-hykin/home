@@ -70,6 +70,13 @@
         ],
         "description": "creates a for loop"
     },
+    "raise": {
+        "prefix": "raise",
+        "body": [
+            "throw Error(`$0`)",
+        ],
+        "description": "creates a for loop"
+    },
     "forin loop": {
         "prefix": "forin",
         "body": [
@@ -103,6 +110,26 @@
             "})"
         ],
         "description": "creates a promise"
+    },
+    "template": {
+        "prefix": "template",
+        "body": [
+            "import { zip, enumerate, count, permute, combinations, wrapAroundGet } from 'https://deno.land/x/good@0.5.1/array.js'",
+            "import { capitalize, indent, toCamelCase, numberToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString } from 'https://deno.land/x/good@0.5.1/string.js'",
+            "function template(maybeStrings, ...args) {",
+            "    if (!(maybeStrings instanceof Array)) {",
+            "        // probably called as a normal function",
+            "    // templated input",
+            "    } else {",
+            "        // for some reason the original one is non-editable so make a copy",
+            "        maybeStrings = [...maybeStrings]",
+            "        const argsInOrder = zip(maybeStrings, args).flat()",
+            "        const debugString = 'template`'+zip(maybeStrings, args.map(each=>`\\\\\\${\\${toRepresentation(each)}}`)).flat().join('')+'`'",
+            "        ",
+            "        $0",
+            "    }",
+            "}",
+        ],
     },
     "Deno": {
         "prefix": "Deno",
@@ -554,7 +581,6 @@
     "table": {  "prefix": "table", "body": [ "<table>$0</table>" ], },
     "tbody": {  "prefix": "tbody", "body": [ "<tbody>$0</tbody>" ], },
     "td": {  "prefix": "td", "body": [ "<td>$0</td>" ], },
-    "template": {  "prefix": "template", "body": [ "<template>$0</template>" ], },
     "textarea": {  "prefix": "textarea", "body": [ "<textarea>$0</textarea>" ], },
     "tfoot": {  "prefix": "tfoot", "body": [ "<tfoot>$0</tfoot>" ], },
     "th": {  "prefix": "th", "body": [ "<th>$0</th>" ], },

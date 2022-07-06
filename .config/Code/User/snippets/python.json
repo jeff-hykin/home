@@ -52,6 +52,13 @@
         ],
         "description": "debugging fixme"
     },
+    "throw": {
+        "prefix": "throw",
+        "body": [
+            "raise Exception(f'''$0''')"
+        ],
+        "description": "Raise an exception"
+    },
     "raise": {
         "prefix": "raise",
         "body": [
