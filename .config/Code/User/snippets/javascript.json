@@ -23,6 +23,46 @@
         ],
         "description": "creates a for loop"
     },
+    "is_string": {
+        "prefix": "is_string",
+        "body": [
+            "if (typeof $0 == 'string') {",
+            "    ",
+            "}"
+        ],
+    },
+    "is_null": {
+        "prefix": "is_null",
+        "body": [
+            "if ($0 == null) {",
+            "    ",
+            "}"
+        ],
+    },
+    "file_exists": {
+        "prefix": "file_exists",
+        "body": [
+            "import { FileSystem } from \"https://deno.land/x/quickr@0.3.34/main/file_system.js\"",
+            "const itemInfo = FileSystem.info($1)",
+            "if (itemInfo.exists) {",
+            "    $2",
+            "}",
+        ],
+    },
+    "write_file": {
+        "prefix": "write_file",
+        "body": [
+            "import { FileSystem } from \"https://deno.land/x/quickr@0.3.34/main/file_system.js\"",
+            "FileSystem.write({path: $1, data: $2, force=true})",
+        ],
+    },
+    "import hash": {
+        "prefix": "import_hash",
+        "body": [
+            "import { sha256 } from \"https://denopkg.com/chiefbiiko/sha256@v1.0.0/mod.ts\"",
+            "sha256($0, 'utf-8', 'hex')",
+        ],
+    },
     "forentries loop": {
         "prefix": "forentries",
         "body": [

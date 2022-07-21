@@ -1,3 +1,4 @@
+
 {
 /*
 	// Place your snippets for Python here. Each snippet is defined under a snippet name and has a prefix, body and 
@@ -133,7 +134,13 @@
         ],
         "description": "import defaultdict"
     },
-    
+    "is_null": {
+        "prefix": "is_none",
+        "body": [
+            "if type($0) == type(None):",
+            "    ",
+        ],
+    },
     "from os": {
         "prefix": "from os",
         "body": [
