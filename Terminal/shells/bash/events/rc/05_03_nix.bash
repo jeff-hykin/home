@@ -58,8 +58,9 @@ then
         echo 'creating certificate file (for https and git) since its not created yet and NIX needs one'
         echo 
         sudo security 'export' -t certs -f pemseq -k /System/Library/Keychains/SystemRootCertificates.keychain -o "$NIX_SSL_CERT_FILE"
+        mkdir -p "$HOME/git-certs/"
+        sudo cp "$NIX_SSL_CERT_FILE" "$HOME/git-certs/nix-cert.pem"
     fi
-    export NIX_SSL_CERT_FILE=""
 else
     export NIX_SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt" # NixOS, Ubuntu, Debian, Gentoo, Arch
     if ! [ -f "$NIX_SSL_CERT_FILE" ]
