@@ -59,6 +59,7 @@ then
         echo 
         sudo security 'export' -t certs -f pemseq -k /System/Library/Keychains/SystemRootCertificates.keychain -o "$NIX_SSL_CERT_FILE"
     fi
+    export NIX_SSL_CERT_FILE=""
 else
     export NIX_SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt" # NixOS, Ubuntu, Debian, Gentoo, Arch
     if ! [ -f "$NIX_SSL_CERT_FILE" ]
