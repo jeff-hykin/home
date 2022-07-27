@@ -441,6 +441,11 @@ git_url_of_origin () {
     git config --get remote.origin.url
 }
 
+git_update_prev_commit_date () {
+    #  date example: '7/25/2022 @ 11:17'
+    git commit --amend --date="$1" && git rebase --committer-date-is-author-date 'HEAD^'
+}
+
 # self submodule
 # git submodule add -b jirl --name "jirl" -- https://github.com/jeff-hykin/model_racer.git ./source/jirl
 
