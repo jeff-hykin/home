@@ -17,7 +17,7 @@
     "forof loop": {
         "prefix": "forof",
         "body": [
-            "for (let each of $0) {",
+            "for (const ${1:each} of $2) {",
             "    ",
             "}"
         ],
@@ -53,7 +53,14 @@
         "prefix": "write_file",
         "body": [
             "import { FileSystem } from \"https://deno.land/x/quickr@0.3.34/main/file_system.js\"",
-            "FileSystem.write({path: $1, data: $2, force=true})",
+            "await FileSystem.write({path: $1, data: $2, force=true})",
+        ],
+    },
+    "read_file": {
+        "prefix": "read_file",
+        "body": [
+            "import { FileSystem } from \"https://deno.land/x/quickr@0.3.34/main/file_system.js\"",
+            "await FileSystem.read(path)",
         ],
     },
     "import hash": {
