@@ -43,3 +43,39 @@ then
         export NIX_PATH="$NIX_PATH:/nix/var/nix/profiles/per-user/$(whoami)/channels"
     fi
 fi
+
+# 
+# setup nix certificate
+# 
+if [ "$(uname)" = "Darwin" ] 
+then
+    export NIX_SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt"
+    # check if file exists
+    if ! [ -f "$NIX_SSL_CERT_FILE" ]
+    then
+        echo 
+        echo 
+        echo 'creating certificate file (for https and git) since its not created yet and NIX needs one'
+        echo 
+        sudo security 'export' -t certs -f pemseq -k /System/Library/Keychains/SystemRootCertificates.keychain -o "$NIX_SSL_CERT_FILE"
+        sudo chmod ugo+r "$NIX_SSL_CERT_FILE" # let everyone read it (otherwise doesnt work)
+    fi
+else
+    export NIX_SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt" # NixOS, Ubuntu, Debian, Gentoo, Arch
+    if ! [ -f "$NIX_SSL_CERT_FILE" ]
+    then
+        export NIX_SSL_CERT_FILE="/etc/ssl/ca-bundle.pem" # openSUSE Tumbleweed
+        if ! [ -f "$NIX_SSL_CERT_FILE" ]
+        then
+            export NIX_SSL_CERT_FILE="/etc/ssl/certs/ca-bundle.crt" # Old NixOS
+            if ! [ -f "$NIX_SSL_CERT_FILE" ]
+            then
+                export NIX_SSL_CERT_FILE="/etc/pki/tls/certs/ca-bundle.crt" # Fedora, CentOS
+                if ! [ -f "$NIX_SSL_CERT_FILE" ]
+                then
+                    export NIX_SSL_CERT_FILE=""
+                fi
+            fi
+        fi
+    fi
+fi

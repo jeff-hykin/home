@@ -23,6 +23,46 @@
         ],
         "description": "creates a for loop"
     },
+    "is_string": {
+        "prefix": "is_string",
+        "body": [
+            "if (typeof $0 == 'string') {",
+            "    ",
+            "}"
+        ],
+    },
+    "is_null": {
+        "prefix": "is_null",
+        "body": [
+            "if ($0 == null) {",
+            "    ",
+            "}"
+        ],
+    },
+    "file_exists": {
+        "prefix": "file_exists",
+        "body": [
+            "import { FileSystem } from \"https://deno.land/x/quickr@0.3.34/main/file_system.js\"",
+            "const itemInfo = FileSystem.info($1)",
+            "if (itemInfo.exists) {",
+            "    $2",
+            "}",
+        ],
+    },
+    "write_file": {
+        "prefix": "write_file",
+        "body": [
+            "import { FileSystem } from \"https://deno.land/x/quickr@0.3.34/main/file_system.js\"",
+            "FileSystem.write({path: $1, data: $2, force=true})",
+        ],
+    },
+    "import hash": {
+        "prefix": "import_hash",
+        "body": [
+            "import { sha256 } from \"https://denopkg.com/chiefbiiko/sha256@v1.0.0/mod.ts\"",
+            "sha256($0, 'utf-8', 'hex')",
+        ],
+    },
     "forentries loop": {
         "prefix": "forentries",
         "body": [
@@ -70,6 +110,13 @@
         ],
         "description": "creates a for loop"
     },
+    "raise": {
+        "prefix": "raise",
+        "body": [
+            "throw Error(`$0`)",
+        ],
+        "description": "creates a for loop"
+    },
     "forin loop": {
         "prefix": "forin",
         "body": [
@@ -103,6 +150,26 @@
             "})"
         ],
         "description": "creates a promise"
+    },
+    "template": {
+        "prefix": "template",
+        "body": [
+            "import { zip, enumerate, count, permute, combinations, wrapAroundGet } from 'https://deno.land/x/good@0.5.1/array.js'",
+            "import { capitalize, indent, toCamelCase, numberToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString } from 'https://deno.land/x/good@0.5.1/string.js'",
+            "function template(maybeStrings, ...args) {",
+            "    if (!(maybeStrings instanceof Array)) {",
+            "        // probably called as a normal function",
+            "    // templated input",
+            "    } else {",
+            "        // for some reason the original one is non-editable so make a copy",
+            "        maybeStrings = [...maybeStrings]",
+            "        const argsInOrder = zip(maybeStrings, args).flat()",
+            "        const debugString = 'template`'+zip(maybeStrings, args.map(each=>`\\\\\\${\\${toRepresentation(each)}}`)).flat().join('')+'`'",
+            "        ",
+            "        $0",
+            "    }",
+            "}",
+        ],
     },
     "Deno": {
         "prefix": "Deno",
@@ -554,7 +621,6 @@
     "table": {  "prefix": "table", "body": [ "<table>$0</table>" ], },
     "tbody": {  "prefix": "tbody", "body": [ "<tbody>$0</tbody>" ], },
     "td": {  "prefix": "td", "body": [ "<td>$0</td>" ], },
-    "template": {  "prefix": "template", "body": [ "<template>$0</template>" ], },
     "textarea": {  "prefix": "textarea", "body": [ "<textarea>$0</textarea>" ], },
     "tfoot": {  "prefix": "tfoot", "body": [ "<tfoot>$0</tfoot>" ], },
     "th": {  "prefix": "th", "body": [ "<th>$0</th>" ], },
