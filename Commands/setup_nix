@@ -97,7 +97,7 @@ then
         [ "$major_version" = "14" ] || \
         [ "$major_version" = "15" ]
     then
-        bash <(curl -Lk https://releases.nixos.org/nix/nix-2.9.2/install) --darwin-use-unencrypted-nix-store-volume || sh <(curl -L https://nixos.org/nix/install) --daemon
+        yes | bash <(curl -Lk https://releases.nixos.org/nix/nix-2.9.2/install) --darwin-use-unencrypted-nix-store-volume || sh <(curl -L https://nixos.org/nix/install) --daemon
     #                  
     # Older than Big Sur (Catalina, Mojave, High Siera, Siera, etc)
     #                 
