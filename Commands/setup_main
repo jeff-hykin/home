@@ -7,6 +7,12 @@ then
     sudo apt-get install -y curl
 fi
 
+# make sure xcode tools are installed
+if [ "$(uname)" = "Darwin" ]
+then
+    xcode-select --install 2>/dev/null
+fi
+
 # install nix
 . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix)
 # install git
