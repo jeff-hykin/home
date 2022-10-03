@@ -26,7 +26,7 @@ then
         fi
     # use prompt so the user sees a time estimate and progress
     else
-        check=$((xcode-\select --install) 2>&1)
+        check="$((xcode-\select --install) 2>&1)"
         echo $check
         str="xcode-select: note: install requested for command line developer tools"
         while [[ "$check" == "$str" ]];
