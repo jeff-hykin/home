@@ -11,7 +11,7 @@ fi
 # TODO: add a check/option for a corrupted nix install
 
 if ! [ -d "/nix/store" ]
-
+then
     echo "|------------------------------------------------------|" 1>&2
     echo "|                                                      |" 1>&2
     echo "|    I'll try to install nix for you                   |" 1>&2
