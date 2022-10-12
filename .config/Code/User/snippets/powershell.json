@@ -9,6 +9,10 @@
         "body": "echo '$0: '\"$$0\"",
         "description": "output variable"
     },
+    "path_to_this_file": {
+        "prefix": "path_to_this_file",
+        "body": "\\$path_to_this_file = \"\\$([System.IO.Path]::GetDirectoryName(\\$myInvocation.MyCommand.Definition))/\\$([System.IO.Path]::GetFileName(\\$myInvocation.MyCommand.Definition))\";",
+    },
     "print": {
         "prefix": "print",
         "body": "echo \"${0:message}\"",

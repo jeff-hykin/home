@@ -159,6 +159,8 @@
         { "key": "ctrl+d",           "command": "editor.action.addSelectionToNextFindMatch", "when": "editorTextFocus && !isMac"                         },
         { "key": "cmd+ctrl+e",       "command": "macros.nextWord",                           "when": "editorFocus"                                       },
         
+        { "key": "ctrl+q",                "command": "-workbench.action.quickOpenView" },
+        
         // grow text selection
         // {  "key": "alt+cmd+right", "command": "editor.action.smartSelect.grow", "when": "editorTextFocus" },
         // shrink text selction
@@ -199,7 +201,7 @@
         { "key": "cmd+t cmd+=", "command": "alignment.align", "when": "editorHasSelection && isMac" },
         { "key": "ctrl+t ctrl+=", "command": "alignment.align", "when": "editorHasSelection && !isMac" },
         
-        { "key": "ctrl+q ctrl+j", "command": "yo1dog.cursor-align.alignCursors", "when": "isMac" },
+        { "key": "ctrl+q ctrl+j", "command": "yo1dog.cursor-align.alignCursors", "when": "true" },
         { "key": "cmd+q cmd+j", "command": "yo1dog.cursor-align.alignCursors", "when": "!isMac"  },
         
         // TODO: sort
@@ -536,5 +538,13 @@
             "key": "ctrl+shift+q",
             "command": "-workbench.action.quickOpenNavigatePreviousInViewPicker",
             "when": "inQuickOpen && inViewsPicker"
+        },
+        {
+            "key": "ctrl+z",
+            "command": "editor.action.toggleWordWrap"
+        },
+        {
+            "key": "alt+z",
+            "command": "-editor.action.toggleWordWrap"
         },
 ]
