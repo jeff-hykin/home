@@ -384,8 +384,20 @@ ll () {
             ls -lAF --group-directories-first --color "$@"
         fi
     else
-        # | tac # <- is for getting folders at the bottom
-        exa --color=always -lF --sort extension --group-directories-first --git --all  "$@" | tac
+      # if tac exists
+        if [ -n "$(command -v "tac")" ]
+        then
+            # | tac # <- is for getting folders at the bottom
+            exa --color=always -lF --sort extension --group-directories-first --git --all  "$@" | tac
+        else
+            # if tail exists
+            if [ -n "$(command -v "tail")" ]
+            then
+                exa --color=always -lF --sort extension --group-directories-first --git --all  "$@" | tail -r
+            else
+                exa --color=always -lF --sort extension --group-directories-first --git --all  "$@" | tac
+            fi
+        fi
     fi
 }
 
