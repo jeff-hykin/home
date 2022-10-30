@@ -477,6 +477,21 @@ add__to__group () {
     usermod -a -G $2 $1
 }
 
+add_user () {
+    username="$1"
+    echo "${light_purple}Enter a username:${color_reset}"
+    if sudo useradd --create-home "$username" --password "password" --groups sudo
+    then
+        echo ""
+        echo "user created successfully"
+        echo "Now set the password"
+        sudo passwd "$username"
+    else
+        echo ""
+        echo "Sorry, there was an error when creating the user"
+    fi
+}
+
 # 
 # shells
 # 
