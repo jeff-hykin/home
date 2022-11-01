@@ -131,6 +131,7 @@ async function verifyAndSetupSshFolderStructure() {
     const permissions = await FileSystem.getPermissions({path: configPath,})
 
     // authorized_keys file needs 644 permissions: chmod 644 $HOME/.ssh/authorized_keys
+    // UPDATE: apparently not, supposed to be 600 
     await FileSystem.addPermissions({
         path: authorizedKeysPath,
         permissions: {
@@ -140,12 +141,12 @@ async function verifyAndSetupSshFolderStructure() {
                 canExecute: false,
             }, 
             group:{
-                canRead: true,
+                canRead: false,
                 canWrite: false,
                 canExecute: false,
             },
             others:{
-                canRead: true,
+                canRead: false,
                 canWrite: false,
                 canExecute: false,
 
