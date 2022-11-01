@@ -1,8 +1,8 @@
 #!/usr/bin/env -S deno run --allow-all
 import { ensure } from 'https://deno.land/x/ensure/mod.ts'; ensure({ denoVersion: "1.17.1", })
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.4.7/main/run.js`)
-const { FileSystem } = await import(`https://deno.land/x/quickr@0.4.7/main/file_system.js`)
-const { Console, cyan, white } = await import(`https://deno.land/x/quickr@0.4.7/main/console.js`)
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.4.8/main/run.js`)
+const { FileSystem } = await import(`https://deno.land/x/quickr@0.4.8/main/file_system.js`)
+const { Console, cyan, white } = await import(`https://deno.land/x/quickr@0.4.8/main/console.js`)
 
 const sshFolder = `${FileSystem.home}/.ssh/`
 const authorizedKeysPath = `${FileSystem.home}/.ssh/authorized_keys`
@@ -131,7 +131,6 @@ async function verifyAndSetupSshFolderStructure() {
     const permissions = await FileSystem.getPermissions({path: configPath,})
 
     // authorized_keys file needs 644 permissions: chmod 644 $HOME/.ssh/authorized_keys
-    // UPDATE: apparently not, supposed to be 600 
     await FileSystem.addPermissions({
         path: authorizedKeysPath,
         permissions: {
@@ -141,12 +140,12 @@ async function verifyAndSetupSshFolderStructure() {
                 canExecute: false,
             }, 
             group:{
-                canRead: false,
+                canRead: true,
                 canWrite: false,
                 canExecute: false,
             },
             others:{
-                canRead: false,
+                canRead: true,
                 canWrite: false,
                 canExecute: false,
 
