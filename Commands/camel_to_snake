@@ -7,6 +7,10 @@ import { FileSystem } from "https://deno.land/x/quickr@0.4.8/main/file_system.js
 
 function camelToSnakeCase({string, ignorePascalCase=true}) {
     return string.replace(/\b[a-zA-Z_][a-zA-Z_0-9]+\b/g, (each)=>{
+        // if no uppper case letters, do nothing
+        if (!each.match(/[A-Z]/)) {
+            return each
+        }
         // keep Pascal case as-is
         if (ignorePascalCase && each[0].toUpperCase() == each[0]) {
             return each
@@ -17,11 +21,31 @@ function camelToSnakeCase({string, ignorePascalCase=true}) {
     })
 }
 
+function probablyFalsePositives(string) {
+    return string.match(/\\(n|t|r)[A-Z][a-zA-Z_0-9]+/g)
+}
+
 for (const eachPath of Deno.args) {
     FileSystem.read(eachPath).then(
-        (string)=>FileSystem.write({
-            path: eachPath,
-            data: camelToSnakeCase({string}),
-        })
+        (string)=>{
+            if (!string) {
+                console.log(`Failed on ${eachPath}`)
+            } else {
+                if (probablyFalsePositives(string)) {
+                    let lineNumber = 0
+                    for (const eachLine of string.split("\n")) {
+                        lineNumber += 1
+                        const falsePositives = probablyFalsePositives(eachLine)
+                        for (const each of falsePositives) {
+                            console.log(`    ${eachPath}:${lineNumber}\t${each}`)
+                        }
+                    }
+                }
+                FileSystem.write({
+                    path: eachPath,
+                    data: camelToSnakeCase({string}),
+                })
+            }
+        }
     )
 }
