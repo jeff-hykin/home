@@ -32,12 +32,15 @@ for (const eachPath of Deno.args) {
                 console.log(`Failed on ${eachPath}`)
             } else {
                 if (probablyFalsePositives(string)) {
+                    console.log(`caution: may have not done what you want in these cases:`)
                     let lineNumber = 0
                     for (const eachLine of string.split("\n")) {
                         lineNumber += 1
                         const falsePositives = probablyFalsePositives(eachLine)
-                        for (const each of falsePositives) {
-                            console.log(`    ${eachPath}:${lineNumber}\t${each}`)
+                        if (falsePositives) {
+                            for (const each of falsePositives) {
+                                console.log(`    ${eachPath}:${lineNumber}\t${each}`)
+                            }
                         }
                     }
                 }
