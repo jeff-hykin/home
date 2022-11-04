@@ -12,7 +12,7 @@ function camelToSnakeCase({string, ignorePascalCase=true}) {
             return each
         }
         // keep Pascal case as-is
-        if (ignorePascalCase && each[0].toUpperCase() == each[0]) {
+        if (ignorePascalCase && each.match(/^_*[A-Z]/)) {
             return each
         }
         const withUnderscoresBetweenLetters = each.replace(/([a-z])([A-Z])/g, (letterCombo)=>`${letterCombo[0]}_${letterCombo[1]}`)
