@@ -30,6 +30,11 @@ git_checkout () {
 
 git_checkout_pr () {
     pr_number="$1"
+    if [ -z "$pr_number" ]
+    then
+        echo "whats the PR number?"
+        read pr_number
+    fi
     temp_pr_name='@__temp__/pull_request'
     git_delete_branch "$temp_pr_name"
     git fetch origin "pull/$pr_number/head:$temp_pr_name"
@@ -41,7 +46,7 @@ git_commit_hashes () {
 }
 
 git_log () {
-    git log --first-parent --date=short --pretty=format:"%Cblue%ad %h%Cgreen %s %Creset%d"
+    git --no-pager log --reverse --first-parent --date=short --pretty=format:"%Cblue%ad %h%Cgreen %s %Creset%d" "$@"
 }
 
 git_current_commit_hash () {
@@ -66,7 +71,7 @@ git_squash_to () {
 git_squash () {
     args="$@"
     git reset --soft HEAD~2 && git add -A && git commit -m "$args" && echo "squash complete"
-    git_log | head -n5
+    git_log | tail -n5
 }
 
 # 
@@ -393,7 +398,12 @@ git_delete_large_file () {
         exit 0
     fi
     
-    git filter-branch --index-filter "git rm -rf --cached --ignore-unmatch '$filepath'" HEAD
+    oldest_commit_with_file="$(git log --all --pretty=format:%H -- "$filepath" | tail -n 1)"
+    
+    echo "$oldest_commit_with_file"
+    
+    rm -rf .git/refs/original/
+    FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --index-filter "git rm -rf --cached --ignore-unmatch '$filepath'" "$oldest_commit_with_file"..HEAD
     echo 
     echo "Now you need to destroy everyone else's progress by force pushing if you want remote to have the fix"
     echo 
