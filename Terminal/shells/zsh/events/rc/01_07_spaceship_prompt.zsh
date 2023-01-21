@@ -54,16 +54,7 @@ fpath=(
     "$__temp_var__z_functions_folder"
 )
 
-# make sure spaceship prompt is in the functions folder
-# link it into the functions folder
-if ! [ -e "$__temp_var__z_functions_folder/prompt_spaceship_setup" ]
-then
-    ln -sf ../../../plugins/spaceship-prompt/spaceship.zsh  "$__temp_var__z_functions_folder/prompt_spaceship_setup"
-fi
-
-# Set Spaceship ZSH as a prompt
-autoload -U promptinit; promptinit
-prompt "$__temp_var__plugin_name" &>/dev/null
+. "$HOME/Terminal/plugins/spaceship-prompt/spaceship.zsh"
 
 unset __temp_var__plugin_name
 unset __temp_var__z_functions_folder
