@@ -384,8 +384,20 @@ ll () {
             ls -lAF --group-directories-first --color "$@"
         fi
     else
-        # | tac # <- is for getting folders at the bottom
-        exa --color=always -lF --sort extension --group-directories-first --git --all  "$@" | tac
+      # if tac exists
+        if [ -n "$(command -v "tac")" ]
+        then
+            # | tac # <- is for getting folders at the bottom
+            exa --color=always -lF --sort extension --group-directories-first --git --all  "$@" | tac
+        else
+            # if tail exists
+            if [ -n "$(command -v "tail")" ]
+            then
+                exa --color=always -lF --sort extension --group-directories-first --git --all  "$@" | tail -r
+            else
+                exa --color=always -lF --sort extension --group-directories-first --git --all  "$@" | tac
+            fi
+        fi
     fi
 }
 
@@ -463,6 +475,21 @@ members_of () {
 
 add__to__group () {
     usermod -a -G $2 $1
+}
+
+add_user () {
+    username="$1"
+    echo "${light_purple}Enter a username:${color_reset}"
+    if sudo useradd --create-home "$username" --password "password" --groups sudo
+    then
+        echo ""
+        echo "user created successfully"
+        echo "Now set the password"
+        sudo passwd "$username"
+    else
+        echo ""
+        echo "Sorry, there was an error when creating the user"
+    fi
 }
 
 # 

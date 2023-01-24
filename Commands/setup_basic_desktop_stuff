@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+# (assumes nix is installed)
+
+nix-env -iA alacritty -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
+nix-env -iA vscode -f https://github.com/NixOS/nixpkgs/archive/bf972dc380f36a3bf83db052380e55f0eaa7dcb6.tar.gz
+nix-env -iA nodePackages.ungit -f https://github.com/NixOS/nixpkgs/archive/c82b46413401efa740a0b994f52e9903a4f6dcd5.tar.gz  
+
+# get nixGL (fixes alacritty on nvidia-driven stuf)
+nix-channel --add https://github.com/guibou/nixGL/archive/main.tar.gz nixgl && nix-channel --update
+nix-env -iA nixgl.auto.nixGLDefault   # or replace `nixGLDefault` with your desired wrapper
+
+# vs code extensions
+code --install-extension jeff-hykin.swe-starter-pack
+code --install-extension jeff-hykin.xd-theme
+code --install-extension jeff-hykin.mario
+code --install-extension PKief.material-icon-theme
+code --install-extension nmsmith89.incrementor
+code --install-extension neptunedesign.vs-sequential-number

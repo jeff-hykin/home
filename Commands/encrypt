@@ -28,3 +28,60 @@ if (info.isFolder) {
 const outputPath = `${fileOrFolder}.enc`
 await FileSystem.clearAPathFor(outputPath)
 const {success} = await run`gpg -c ${Stdout(Overwrite(outputPath))}`.outcome
+
+
+// 
+// 
+// better way
+// 
+// 
+
+async function hashToBytes(string) {
+    const msgUint8 = new TextEncoder().encode(string) // encode as (utf-8) Uint8Array
+    const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8) // hash the message
+    return new Uint8Array(hashBuffer)
+}
+
+async function hashToString(string) {
+    const msgUint8 = new TextEncoder().encode(string) // encode as (utf-8) Uint8Array
+    const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8) // hash the message
+    const hashArray = Array.from(new Uint8Array(hashBuffer)) // convert buffer to byte array
+    const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("") // convert bytes to hex string
+    return hashHex
+}
+
+function stringToBytes(string) {
+    return new TextEncoder().encode(string)
+}
+
+function encryptMessage(key, message) {
+    const encoded = stringToBytes(message)
+    
+    // iv will be needed for decryption
+    let iv = window.crypto.getRandomValues(new Uint8Array(16))
+    return window.crypto.subtle.encrypt(
+        {
+            name: "AES-CBC",
+            iv,
+        },
+        iv,
+        encoded
+    )
+}
+
+const key = JSON.stringify(
+    await crypto.subtle.exportKey(
+        "jwk", // JSON Web Key format
+        await crypto.subtle.generateKey(
+            { name: "AES-CTR", length: 256 }, // AES in "counter" mode
+            true, // Allow exporting the key
+            ["encrypt", "decrypt"]
+        )
+    )
+)
+
+const key = { kty: "oct", k: "mnsIJbDQ673kNsf9uFdnutRRpmqKDxPVFhTFjBPuoNI", alg: "A256CTR", key_ops: ["encrypt", "decrypt"], ext: true }
+
+function buf2hex(buf) {
+    return Array.prototype.map.call(new Uint8Array(buf), (x) => ("00" + x.toString(16)).slice(-2)).join("")
+}

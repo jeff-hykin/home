@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+# if nixGL exists
+if [ -n "$(command -v "nixGL")" ]
+then
+    nixGL alacritty
+else
+    alacritty
+fi

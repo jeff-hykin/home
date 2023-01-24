@@ -81,6 +81,12 @@
             "}",
         ],
     },
+    "mkdirp": {
+        "prefix": "mkdirp",
+        "body": [
+            "mkdir -p \"$1\"",
+        ],
+    },
     "if_is_mounted": {
         "prefix": "if mounted",
         "body": [
@@ -456,6 +462,11 @@
         "body": "if [ -e \"${1}\" ]\nthen\n    ${2}\nfi",
         "description": "if exist"
     },
+    "if_exist_symlink": {
+        "prefix": "if symlink exists",
+        "body": "# check if symlink exists\nif [ -L \"${1}\" ]\nthen\n    ${2}\nfi",
+        "description": "if exist symlink"
+    },
     "if_exist_file": {
         "prefix": "if file exists",
         "body": "# check if file exists\nif [ -f \"${1}\" ]\nthen\n    ${2}\nfi",
@@ -516,7 +527,7 @@
     },
     "escape_grep_regex": {
         "prefix": "escape_grep_regex",
-        "body": "sed 's/[][\\.|$(){}?+*^]/\\\\&/g' <<< \"$*\"",
+        "body": "sed 's/[][\\.|$(){}?+*^]/\\\\\\\\&/g' <<< \"$*\"",
         "description": "escape basic grep regex (not extended)"
     },
     "move": {
