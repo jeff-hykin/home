@@ -36,9 +36,6 @@ then
     echo "[.profile] (note: this debugging text itself may cause tools like scp to fail)"
 fi
 
-# if running a command like scp (non-interative) return to prevent errors
-[ -z "$PS1" ] && return
-
 #
 # add commands to path
 #

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# find and kill (more aggressively than killall)
+
+# for each argument (in a argument-might-have-spaces friendly way)
+for arg in "$@"; do
+    ps aux | grep -v $$ |  grep -E "$arg" | awk '{ print $2 }' | sudo xargs kill -9
+done
