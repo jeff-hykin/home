@@ -1,0 +1,10 @@
+#!/usr/bin/env -S deno run --allow-all
+import { ensure } from 'https://deno.land/x/ensure/mod.ts'; ensure({ denoVersion: "1.17.1", })
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.6.15/main/run.js`)
+const { FileSystem } = await import(`https://deno.land/x/quickr@0.6.15/main/file_system.js`)
+const { Console } = await import(`https://deno.land/x/quickr@0.6.15/main/console.js`)
+
+const url = Deno.args[0]
+Console.env.url = url
+const textOutput = await run`nix-build -E ${`with import <nixpkgs> {}; fetchzip {url = (builtins.getEnv "url"); sha256 = lib.fakeSha256; }`} ${Out(returnAsString)}`
+console.log(`${textOutput.match(/got: (.+)/)[1].replace(/\s|\n|\r/g,"")}`)
