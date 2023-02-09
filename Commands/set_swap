@@ -10,7 +10,7 @@ then
     # actual commands
     # 
     echo "this is probably going to take a long time, just fyi"
-    sudo dd if=/dev/zero of=/swapfile bs=1G count="$GB_OF_SWAP" && \
+    sudo dd if=/dev/zero of=/swapfile bs=1G count="$GB_OF_SWAP" status=progress && \
     sudo chmod 600 /swapfile && \
     sudo mkswap /swapfile && \
     sudo swapon /swapfile && \
