@@ -541,7 +541,7 @@
         },
         {
             "key": "ctrl+z",
-            "command": "editor.action.toggleWordWrap"
+            "command": "-editor.action.toggleWordWrap"
         },
         {
             "key": "alt+z",
