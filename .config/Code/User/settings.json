@@ -1,5 +1,6 @@
 {
         "C_Cpp.enhancedColorization": "Disabled",
+        "git.useIntegratedAskPass": false,
         "editor.minimap.enabled": false,
         "terminal.integrated.scrollback": 100000,
         "workbench.sideBar.location": "right",
