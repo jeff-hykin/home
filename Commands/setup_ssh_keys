@@ -1,8 +1,9 @@
 #!/usr/bin/env -S deno run --allow-all
 import { ensure } from 'https://deno.land/x/ensure/mod.ts'; ensure({ denoVersion: "1.17.1", })
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.4.8/main/run.js`)
-const { FileSystem } = await import(`https://deno.land/x/quickr@0.4.8/main/file_system.js`)
-const { Console, cyan, white } = await import(`https://deno.land/x/quickr@0.4.8/main/console.js`)
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.6.20/main/run.js`)
+const { FileSystem } = await import(`https://deno.land/x/quickr@0.6.20/main/file_system.js`)
+// const { FileSystem } = await import(`./file_system.js`)
+const { Console, cyan, white } = await import(`https://deno.land/x/quickr@0.6.20/main/console.js`)
 
 const sshFolder = `${FileSystem.home}/.ssh/`
 const authorizedKeysPath = `${FileSystem.home}/.ssh/authorized_keys`
@@ -24,7 +25,7 @@ console.log(`
 
 `)
 if (await Console.askFor.yesNo("Is this script running on your machine right now?")) {
-    await ensurePrivatePublicRsaKeyExists()
+    await ensurePrivatePublicRsaKeyExistsWithCorrectPermissions()
     console.log("\nOkay, now run this same script on the remote server")
     console.log("Paste the value below when it asks for your public key")
     console.log()
@@ -52,7 +53,7 @@ function escapeShellArgument(string) {
     return `'${string.replace(/'/,`'"'"'`)}'`
 }
 
-async function ensurePrivatePublicRsaKeyExists() {
+async function ensurePrivatePublicRsaKeyExistsWithCorrectPermissions() {
     let privateKey = await FileSystem.info(defaultPrivateKeyPath)
     let publicKey = await FileSystem.info(defaultPublicKeyPath)
     while (!privateKey.isFile || !publicKey.isFile) {
@@ -62,6 +63,50 @@ async function ensurePrivatePublicRsaKeyExists() {
         privateKey = await FileSystem.info(defaultPrivateKeyPath)
         publicKey = await FileSystem.info(defaultPublicKeyPath)
     }
+    // ensure permissions are correct
+    await FileSystem.addPermissions({
+        path: publicKey,
+        permissions: {
+            owner:{
+                canRead: true,
+                canWrite: true,
+                canExecute: false,
+            }, 
+            group:{
+                canRead: true,
+                canWrite: false,
+                canExecute: false,
+            },
+            others:{
+                canRead: true,
+                canWrite: false,
+                canExecute: false,
+
+            }
+        },
+    })
+    // ensure permissions are correct
+    await FileSystem.addPermissions({
+        path: privateKey,
+        permissions: {
+            owner:{
+                canRead: true,
+                canWrite: true,
+                canExecute: false,
+            }, 
+            group:{
+                canRead: false,
+                canWrite: false,
+                canExecute: false,
+            },
+            others:{
+                canRead: false,
+                canWrite: false,
+                canExecute: false,
+
+            }
+        },
+    })
 }
 
 async function getFingerprint(path=defaultPublicKeyPath) {

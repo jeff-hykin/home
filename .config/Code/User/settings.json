@@ -62,7 +62,7 @@
         "terminal.integrated.fontWeight": "200",
         "terminal.integrated.fontWeightBold": "400",
         "editor.lineHeight": 0,
-        "editor.autoIndent": false,
+        "editor.autoIndent": "advanced",
         "editor.foldingStrategy": "indentation",
         "editor.codeLens": false,
         "editor.trimAutoWhitespace": false, // trim is on, but language-specific
@@ -877,12 +877,12 @@
             "*.m": "objective-c"
         },
         "[javascript]": {
-            "editor.autoIndent": false,
+            "editor.autoIndent": "advanced",
             "editor.trimAutoWhitespace": true,
             "editor.defaultFormatter": "esbenp.prettier-vscode",
         },
         "[ruby]": {
-            "editor.autoIndent": false,
+            "editor.autoIndent": "advanced",
         },
         "[yaml]": {
             "editor.tabSize" : 4,
