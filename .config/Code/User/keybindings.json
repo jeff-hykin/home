@@ -22,7 +22,6 @@
     // 
     // 
     // 
-    
         // 
         // Jump word
         // 
@@ -112,6 +111,7 @@
         { "key": "ctrl+shift+d",    "command": "mario.selectDownToInner",   "when": "editorTextFocus && isMac" },
         { "key": "ctrl+shift+e",    "command": "mario.selectUpToInner",   "when": "editorTextFocus && isMac" },
         
+    
         // 
         // Mario: MacOS: ctrl + arrow keys
         // 
