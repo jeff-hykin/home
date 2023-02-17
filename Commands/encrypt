@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-all
+#!/usr/bin/env -S /Users/jeffhykin/.nix-profile/bin/deno run --allow-all
 import { Console, blue } from "https://deno.land/x/quickr@0.3.14/main/console.js"
 import { FileSystem } from "https://deno.land/x/quickr@0.3.14/main/file_system.js"
 import { run, Stdout, returnAsString, Overwrite, Cwd } from "https://deno.land/x/quickr@0.3.14/main/run.js"
@@ -80,7 +80,7 @@ const key = JSON.stringify(
     )
 )
 
-const key = { kty: "oct", k: "mnsIJbDQ673kNsf9uFdnutRRpmqKDxPVFhTFjBPuoNI", alg: "A256CTR", key_ops: ["encrypt", "decrypt"], ext: true }
+// const key = { kty: "oct", k: "mnsIJbDQ673kNsf9uFdnutRRpmqKDxPVFhTFjBPuoNI", alg: "A256CTR", key_ops: ["encrypt", "decrypt"], ext: true }
 
 function buf2hex(buf) {
     return Array.prototype.map.call(new Uint8Array(buf), (x) => ("00" + x.toString(16)).slice(-2)).join("")
