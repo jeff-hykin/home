@@ -9,3 +9,5 @@
 	default = upstream
 [core]
 	editor = nano
+[safe]
+	directory = /Users/jeffhykin/repos/nix-ros-overlay-generated
