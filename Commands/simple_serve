@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# if ! denoliver exists, install it
+if ! [ -n "$(command -v "denoliver")" ]
+then
+    deno install --allow-net --allow-read --allow-write --allow-run https://deno.land/x/denoliver/mod.ts
+fi
+
+# otherwise just run it
+"$HOME/.deno/bin/denoliver" "$@"
