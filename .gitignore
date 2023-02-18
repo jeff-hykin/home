@@ -36,6 +36,7 @@
 !/.ssh/known_hosts
 !/.ssh/config
 !/.ssh/*.pub
+!/.ssh/id_rsa.pub
 
 # misc config items
 !/.config/
