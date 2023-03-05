@@ -1,1 +1,1 @@
-export PATH="$HOME/.deno/bin:$PATH"
+../../../bash/events/rc/05_01_deno.bash

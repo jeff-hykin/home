@@ -94,16 +94,19 @@ then
     __XD_builtin_rm="$(which rm)"
 fi
 rm () {
-    # if symlink
-    if [ -L "$1" ]; then
-        "$__XD_builtin_rm" "$@"
-    # if folder then delete recursively
-    elif [ -d "$1" ]
-    then
-        "$__XD_builtin_rm" -rf "$1"
-    else
-        "$__XD_builtin_rm" "$@"
-    fi
+    # for each argument (in a argument-might-have-spaces friendly way)
+    for arg in "$@"; do
+        # if symlink
+        if [ -L "$arg" ]; then
+            "$__XD_builtin_rm" "$arg"
+        # if folder then delete recursively
+        elif [ -d "$arg" ]
+        then
+            "$__XD_builtin_rm" -rf "$arg"
+        else
+            "$__XD_builtin_rm" "$arg"
+        fi
+    done    
 }
 
 is_command () {
