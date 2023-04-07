@@ -1,20 +1,27 @@
 #!/usr/bin/env -S deno run --allow-all
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.24/main/run.js`)
-const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.6.20/main/run.js`)
+const { FileSystem } = await import(`https://deno.land/x/quickr@0.6.20/main/file_system.js`)
 
+if (Deno.networkInterfaces instanceof Function) {
+    const ipAddresses = Deno.networkInterfaces().filter((each)=>each.family=="IPv4").map((each)=>each.address)
+    for (const each of ipAddresses) {
+        console.log(each)
+    }
+} else {
+    function extractLinesWithAddresses(string) {
+        const pattern = /(\d{1,3})(\.\d{1,3})+/
+        const addresses = string.split("\n").filter(each=>each.match(pattern)).map(each=>each.match(pattern)[0])
+        return addresses.join("\n")
+    }
 
-function extractLinesWithAddresses(string) {
-    const addresses = string.split("\n").filter(each=>each.match(/(\d{1,3}\.)(\d{1,3}\.)+/))
-    return addresses.join("\n")
-}
-
-// 
-// run
-// 
-try {
-    const ipDataString = await run("ifconfig", Stdout(returnAsString))
-    console.log(extractLinesWithAddresses(ipDataString))
-} catch (error) {
-    const ipDataString = await run("ip", "address", Stdout(returnAsString))
-    console.log(extractLinesWithAddresses(ipDataString))
+    // 
+    // run
+    // 
+    try {
+        const ipDataString = await run("ifconfig", Stdout(returnAsString))
+        console.log(extractLinesWithAddresses(ipDataString))
+    } catch (error) {
+        const ipDataString = await run("ip", "address", Stdout(returnAsString))
+        console.log(extractLinesWithAddresses(ipDataString))
+    }
 }
