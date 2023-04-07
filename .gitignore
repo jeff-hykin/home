@@ -22,7 +22,7 @@
 !/.zlogin
 !/.irbrc
 !/.Xmodmap
-!/package.json
+!/default.nix
 !/README.md
 
 #
