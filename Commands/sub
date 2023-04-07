@@ -11,6 +11,8 @@ const _ = (await import('https://cdn.skypack.dev/lodash'))
 
 const args = parse(Deno.args)
 
+const isNonInteractive = !Deno.isatty(Deno.stdin.rid)
+
 let escapeFind = false
 let escapeReplacement = false
 
@@ -25,17 +27,28 @@ if (args.literalReplacement) {
 
 let paths = args._
 
-await Promise.all(
-    paths.map(eachPath=>replace({
-        filePath: eachPath,
-        find: args.find,
-        replacement: args.replacement,
+if (isNonInteractive) {
+    const content = (new TextDecoder()).decode(await Deno.readAll(Deno.stdin))
+    console.log(await replace({
+        content,
+        find: args.find == null ? args._[0] : args.find,
+        replacement: args.replacement == null ? args._[1] : args.replacement,
         escapeFind,
         escapeReplacement,
     }))
-)
+} else {
+    await Promise.all(
+        paths.map(eachPath=>fileReplace({
+            filePath: eachPath,
+            find: args.find,
+            replacement: args.replacement,
+            escapeFind,
+            escapeReplacement,
+        }))
+    )
+}
 
-async function replace({filePath, find, replacement, escapeFind, escapeReplacement}) {
+async function replace({content, find, replacement, escapeFind, escapeReplacement}) {
     if (escapeFind) {
         find = _.escapeRegExp(find)
     }
@@ -44,8 +57,16 @@ async function replace({filePath, find, replacement, escapeFind, escapeReplaceme
     }
     find = new RegExp(find, "g")
 
-    const content = (await FileSystem.read(filePath))
     const replaced = content.replace(find, replacement)
+    return replaced
+}
+
+async function fileReplace({filePath, find, replacement, escapeFind, escapeReplacement}) {
+    const content = (await FileSystem.read(filePath))
+    if (!content) {
+        console.warn(`Can't replace text inside of ${filePath}, because it doesn't seem to be a file`)
+    }
+    const replaced = replace({content, find, replacement, escapeFind, escapeReplacement})
     if (content != replaced) {
         await FileSystem.write({
             path: filePath,
