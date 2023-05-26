@@ -11,7 +11,7 @@ nix-env -iA deno curl git -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa
 
 # high quality tools
 nix-env -iA dua                     -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # for cleaning disk space
-nix-env -iA trashy                  -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # replacement for rm
+nix-env -iA trashy                  -f https://github.com/NixOS/nixpkgs/archive/3c3b3ab88a34ff8026fc69cb78febb9ec9aedb16.tar.gz # replacement for rm
 nix-env -iA fd                      -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # for finding things
 nix-env -iA exa                     -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # ls replacement
 nix-env -iA xplr                    -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # file explorer
