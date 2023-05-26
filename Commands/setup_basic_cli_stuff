@@ -5,18 +5,26 @@
 #
 # installing basic tools
 #
-nix-env -iA deno -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz
-nix-env -iA git -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  
-nix-env -iA dua -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz     # for cleaning disk space
-nix-env -iA curl -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  
-nix-env -iA fd  -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz     # for finding things
-nix-env -iA exa -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  
-nix-env -iA xplr -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  
-nix-env -iA bottom -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  # "btm" better than top
-nix-env -iA zsh -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  
-nix-env -iA zsh-syntax-highlighting -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  
-nix-env -iA oh-my-zsh -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  
-nix-env -iA zsh-autosuggestions -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  
-nix-env -iA spaceship-prompt -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  
-nix-env -i ssh-copy-id -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz  
-nix-env -i zellij -f https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz # detachable sessions
+
+# very basics
+nix-env -iA deno curl git -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz
+
+# high quality tools
+nix-env -iA dua                     -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # for cleaning disk space
+nix-env -iA trashy                  -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # replacement for rm
+nix-env -iA fd                      -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # for finding things
+nix-env -iA exa                     -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # ls replacement
+nix-env -iA xplr                    -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # file explorer
+nix-env -iA bottom                  -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # "btm" better than top
+nix-env -iA zellij                  -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # detachable sessions
+nix-env -iA nodePackages.ungit      -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # git ui
+nix-env -iA ssh-copy-id             -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz 
+
+# zsh stuff
+nix-env -iA \
+    zsh \
+    zsh-syntax-highlighting \
+    oh-my-zsh \
+    zsh-autosuggestions \
+    spaceship-prompt \
+    -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz  
