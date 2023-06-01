@@ -1,13 +1,41 @@
 {
+    # local install command: nix-env -i -f ./  
     pkgs ? (builtins.import 
         (builtins.fetchTarball
-            ({url="https://github.com/NixOS/nixpkgs/archive/ce6aa13369b667ac2542593170993504932eb836.tar.gz";})
+            ({url="https://github.com/NixOS/nixpkgs/archive/a161e8d1dfbd6a81630214e2a767a525cb92abfc.tar.gz";})
         )
-        ({})
+        ({
+            overlays = [ 
+            ]; 
+        })
     ),
     deno ? pkgs.deno,
     bash ? pkgs.bash,
-    sd ? pkgs.sd,
+    sd   ? pkgs.sd,
+    doomEmacs ? (pkgs.callPackage 
+        (
+            builtins.fetchTarball 
+            {
+                url = https://github.com/nix-community/nix-doom-emacs/archive/master.tar.gz;
+            }
+        ) 
+        {
+            doomPrivateDir = ./.config/doom_emacs;
+            dependencyOverrides = {
+                "emacs-overlay" = (builtins.fetchTarball {
+                    url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
+                });
+            };
+            emacsPackagesOverlay = self: super: {
+                gitignore-mode = pkgs.emacsPackages.git-modes;
+                gitconfig-mode = pkgs.emacsPackages.git-modes;
+                gitattributes-mode = pkgs.emacsPackages.git-modes;
+            };
+            # builtins.fetchTarball ({
+            #     url="https://github.com/ballantony/doom-emacs-config/archive/master.tar.gz";
+            # });
+        }
+    )
 }:
     pkgs.stdenv.mkDerivation {
         pname = "jeff-tools";
@@ -24,6 +52,7 @@
         buildInputs = [
             deno
             bash
+            doomEmacs
         ];
         
         # separateDebugInfo = true;
@@ -39,6 +68,7 @@
             
             mkdir -p "$out/bin"
             cp -r "$src/Commands/"* "$out/bin"
+            cp -r '${doomEmacs}/bin/'* "$out/bin"
             
             # ensure executability
             chmod +x "$out/bin/"* &
@@ -54,4 +84,3 @@
             wait $(jobs -p)
         '';
     }
-    
