@@ -1217,4 +1217,5 @@
             ],
             "workbench.colorTheme": "XD Theme - MixItUp",
             "editor.bracketPairColorization.enabled": false,
+            "window.zoomLevel": 1,
 }
