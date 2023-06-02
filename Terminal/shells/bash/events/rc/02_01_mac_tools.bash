@@ -13,9 +13,9 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         sudo /usr/libexec/locate.updatedb
     }
     
-    function my_ip  {
-        ifconfig | sub '[\w\W]*\nen0[\w\W]*inet ([\d\.]+) [\w\W]*' '\\1'
-    }
+    # function my_ip  {
+    #     ifconfig | sub '[\w\W]*\nen0[\w\W]*inet ([\d\.]+) [\w\W]*' '$1'
+    # }
     
     # list out a files attributes
     function info  {

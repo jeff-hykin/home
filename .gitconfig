@@ -11,3 +11,5 @@
 	editor = nano
 [safe]
 	directory = /Users/jeffhykin/repos/nix-ros-overlay-generated
+[advice]
+	detachedHead = false
