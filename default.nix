@@ -46,7 +46,7 @@
         gcc = pkgs.gcc;
         coreutils = pkgs.coreutils;
         src = builtins.fetchTarball ({
-            url="https://github.com/jeff-hykin/home/archive/0d1c13b3ff96ebde79369ce88ee138a994bd9bca.tar.gz";
+            url="https://github.com/jeff-hykin/home/archive/a2e20f7ffeea8d0e2ec0c0ecab83bae9fbe437b7.tar.gz";
         });
         
         buildInputs = [
