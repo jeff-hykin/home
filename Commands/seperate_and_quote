@@ -1,0 +1,23 @@
+#!/usr/bin/env -S /Users/jeffhykin/.nix-profile/bin/deno run --allow-all
+import { Console, blue } from "https://deno.land/x/quickr@0.6.25/main/console.js"
+import { FileSystem } from "https://deno.land/x/quickr@0.6.25/main/file_system.js"
+import { run, Stdout, returnAsString, Overwrite, Cwd } from "https://deno.land/x/quickr@0.6.25/main/run.js"
+
+// 
+// args
+// 
+let [ seperator ] = Deno.args
+seperator = seperator || '\n'
+
+// 
+// split and quote
+// 
+const stdinContent = (new TextDecoder()).decode(await Deno.readAll(Deno.stdin))
+const args = stdinContent.split(seperator)
+await Deno.stdout.write(
+    new TextEncoder().encode(
+        args.map(
+            each=>`'${each.replace(/'/g, `'"'"'`)}'`
+        ).join(' ')
+    )
+)
