@@ -6,6 +6,15 @@
 # installing basic tools
 #
 
+# zsh stuff
+nix-env -iA \
+    zsh \
+    zsh-syntax-highlighting \
+    oh-my-zsh \
+    zsh-autosuggestions \
+    spaceship-prompt \
+    -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz  
+
 # very basics
 nix-env -iA deno curl git -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz
 
@@ -19,12 +28,3 @@ nix-env -iA bottom                  -f https://github.com/NixOS/nixpkgs/archive/
 nix-env -iA zellij                  -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # detachable sessions
 nix-env -iA nodePackages.ungit      -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz # git ui
 nix-env -iA ssh-copy-id             -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz 
-
-# zsh stuff
-nix-env -iA \
-    zsh \
-    zsh-syntax-highlighting \
-    oh-my-zsh \
-    zsh-autosuggestions \
-    spaceship-prompt \
-    -f https://github.com/NixOS/nixpkgs/archive/f1b9cc23aa8b1549dd7cb53dbe9fc950efc97646.tar.gz  
