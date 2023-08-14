@@ -7,18 +7,21 @@ import stream from "node:stream"
 import process from "node:process"
 import buffer from "node:buffer"
 import child_process from "node:child_process"
-import path from "node:path"
-import path2 from "node:path";
-import util from "node:util";
-import url from "node:url";
-import fs, { promises as fsAsync } from "node:fs";
-
+import path, { normalize, resolve, dirname, basename} from "node:path"
+import util, { format } from "node:util";
+import url, { fileURLToPath } from "node:url";
+import fs, { promises as fsAsync, readFileSync } from "node:fs";
 import assert from "node:assert"
 import events from "node:events"
 import tty from "node:tty"
-import readline from "readline";
+import readline from "node:readline";
 import string_decoder from "node:string_decoder"
 import crypto from "node:crypto"
+
+import { toRepresentation } from "https://deno.land/x/good@1.4.4.3/string.js";
+import { green } from "https://deno.land/x/quickr@0.6.42/main/console.js";
+import { debounce as denoDebounce } from "https://deno.land/std@0.198.0/async/debounce.ts";
+
 const Buffer = buffer.Buffer
 
 
@@ -10206,7 +10209,7 @@ var require_execa = __commonJS({
 			options.stdio = normalizeStdio(options);
 			if (
 				process.platform === "win32" &&
-				path3.basename(file, ".exe") === "cmd"
+				basename(file, ".exe") === "cmd"
 			) {
 				args.unshift("/q");
 			}
@@ -10719,8 +10722,10 @@ var require_ps_list = __commonJS({
 				)
 				.map(([key, value]) => ({
 					pid: Number.parseInt(key, 10),
-					name: path3.basename(value.comm),
+					name: basename(value.comm),
 					cmd: value.args,
+					comm: value.comm,
+                    args: value.args.slice(value.comm.length+1,),
 					ppid: Number.parseInt(value.ppid, 10),
 					uid: Number.parseInt(value.uid, 10),
 					cpu: Number.parseFloat(value["%cpu"]),
@@ -10823,8 +10828,8 @@ var require_ps_list2 = __commonJS({
 			const flags = (options.all === false ? "" : "a") + "wwxo";
 			const ret = {};
 			await Promise.all(
-				["comm", "args", "ppid", "uid", "%cpu", "%mem"].map(async (cmd) => {
-					const { stdout } = await execFile("ps", [flags, `pid,${cmd}`], {
+				["comm", "args", "ppid", "uid", "%cpu", "%mem",].map(async (key) => {
+					const { stdout } = await execFile("ps", [flags, `pid,${key}`], {
 						maxBuffer: TEN_MEGABYTES,
 					});
 					for (let line of stdout.trim().split("\n").slice(1)) {
@@ -10834,7 +10839,7 @@ var require_ps_list2 = __commonJS({
 						if (ret[pid] === void 0) {
 							ret[pid] = {};
 						}
-						ret[pid][cmd] = val;
+						ret[pid][key] = val;
 					}
 				})
 			);
@@ -10850,8 +10855,10 @@ var require_ps_list2 = __commonJS({
 				)
 				.map(([key, value]) => ({
 					pid: Number.parseInt(key, 10),
-					name: path3.basename(value.comm),
+					name: basename(value.comm),
 					cmd: value.args,
+					comm: value.comm,
+                    args: value.args.slice(value.comm.length+1,),
 					ppid: Number.parseInt(value.ppid, 10),
 					uid: Number.parseInt(value.uid, 10),
 					cpu: Number.parseFloat(value["%cpu"]),
@@ -10863,7 +10870,7 @@ var require_ps_list2 = __commonJS({
 		var psOutputRegex =
 			/^[ \t]*(?<pid>\d+)[ \t]+(?<ppid>\d+)[ \t]+(?<uid>\d+)[ \t]+(?<cpu>\d+\.\d+)[ \t]+(?<memory>\d+\.\d+)[ \t]+/;
 		var nonWindowsSingleCall = async (options = {}) => {
-			const flags = options.all === false ? "wwxo" : "awwxo";
+			const flags = options.all === false ? "xoww" : "axoww";
 			const [psPid, stdout] = await new Promise((resolve2, reject) => {
 				const child = childProcess.execFile(
 					"ps",
@@ -65382,10 +65389,11 @@ var init_interactive = __esm({
 		filterProcesses = (input, processes, flags) => {
 			const memoryThreshold = flags.verbose ? 0 : 1;
 			const cpuThreshold = flags.verbose ? 0 : 3;
+            console.debug(`processes is:`,processes.slice(0,3))
 			const filteredProcesses = new import_fuzzy_search.default(
 				processes,
 				[
-					// The name is truncated for some reason, so we always use `cmd` for now.
+					// FIXME: The name is truncated for some reason, so we always use `cmd` for now.
 					"cmd",
 					/// flags.verbose && !isWindows ? 'cmd' : 'name',
 					"pid",
@@ -65394,15 +65402,8 @@ var init_interactive = __esm({
 					caseSensitive: false,
 				}
 			).search(input);
+            const largestNameLength = Math.max(...filteredProcesses.map(each=>each?.name?.length||0))
 			return filteredProcesses
-				.filter(
-					(process_) =>
-						!(
-							process_.name.endsWith("-helper") ||
-							process_.name.endsWith("Helper") ||
-							process_.name.endsWith("HelperApp")
-						)
-				)
 				.sort(preferHeurisicallyInterestingProcesses)
 				.map((process_) => {
 					const renderPercentage = (percents) => {
@@ -65437,8 +65438,10 @@ var init_interactive = __esm({
 						memory.length +
 						cpu.length;
 					const length = lineLength - margins;
+                    const processString = process_.cmd || process_.name
+                    const effectiveName =  `${`${green(process_.name)}`.padEnd(largestNameLength," ")}\t${process_.args}`.slice(0,process6.stdout.columns*0.7)
 					const name = cliTruncate(
-						flags.verbose && !isWindows ? process_.cmd : process_.name,
+						flags.verbose && !isWindows ? effectiveName : effectiveName,
 						length,
 						{ position: "middle", preferTruncationOnSpace: true }
 					);
@@ -65532,14 +65535,20 @@ var init_interactive = __esm({
 				"autocomplete",
 				import_inquirer_autocomplete_prompt.default
 			);
+            const internalFunc = async (answers, input) => {
+                console.debug(`inner`)
+                return filterProcesses(input, processes, flags)
+            }
 			const answer = await import_inquirer.default.prompt([
 				{
 					name: "processes",
 					message: "Running processes:",
 					type: "autocomplete",
 					pageSize: 10,
-					source: async (answers, input) =>
-						filterProcesses(input, processes, flags),
+					source: async (answers, input) => {
+                        const output = internalFunc(answers, input)
+                        return output
+                    },
 				},
 			]);
 			performKillSequence(answer.processes);
@@ -65568,19 +65577,9 @@ var init_interactive = __esm({
 	},
 });
 
-// cli.js
-import process7 from "node:process";
 
 // node_modules/.deno/meow@10.1.5/node_modules/meow/index.js
 var import_minimist_options = __toESM(require_minimist_options(), 1);
-import { dirname } from "node:path";
-import process2 from "node:process";
-import { fileURLToPath } from "node:url";
-
-// node_modules/.deno/yargs-parser@20.2.9/node_modules/yargs-parser/build/lib/index.js
-import { format } from "node:util";
-import { readFileSync } from "node:fs";
-import { normalize, resolve } from "node:path";
 
 // node_modules/.deno/yargs-parser@20.2.9/node_modules/yargs-parser/build/lib/string-utils.js
 function camelCase(str) {
@@ -66816,7 +66815,7 @@ function readPackageUpSync(options) {
 		return;
 	}
 	return {
-		packageJson: readPackageSync({ ...options, cwd: path2.dirname(filePath) }),
+		packageJson: readPackageSync({ ...options, cwd: path.dirname(filePath) }),
 		path: filePath,
 	};
 }
@@ -66933,7 +66932,7 @@ var meow = (helpText, options = {}) => {
 	});
 	options = {
 		pkg: foundPackage ? foundPackage.packageJson : {},
-		argv: process2.argv.slice(2),
+		argv: process.argv.slice(2),
 		flags: {},
 		inferType: false,
 		input: "string",
@@ -66985,7 +66984,7 @@ var meow = (helpText, options = {}) => {
 		2
 	);
 	(0, import_normalize_package_data2.default)(package_);
-	process2.title = package_.bin ? Object.keys(package_.bin)[0] : package_.name;
+	process.title = package_.bin ? Object.keys(package_.bin)[0] : package_.name;
 	let { description } = options;
 	if (!description && description !== false) {
 		({ description } = package_);
@@ -67003,13 +67002,13 @@ ${help}
 			: "\n");
 	const showHelp = (code) => {
 		console.log(help);
-		process2.exit(typeof code === "number" ? code : 2);
+		process.exit(typeof code === "number" ? code : 2);
 	};
 	const showVersion = () => {
 		console.log(
 			typeof options.version === "string" ? options.version : package_.version
 		);
-		process2.exit(0);
+		process.exit(0);
 	};
 	if (argv._.length === 0 && options.argv.length === 1) {
 		if (argv.version === true && options.autoVersion) {
@@ -67026,7 +67025,7 @@ ${help}
 		);
 		if (unknownFlags.length > 0) {
 			reportUnknownFlags(unknownFlags);
-			process2.exit(2);
+			process.exit(2);
 		}
 	}
 	const flags = (0, import_camelcase_keys.default)(argv, {
@@ -67044,7 +67043,7 @@ ${help}
 	);
 	if (missingRequiredFlags.length > 0) {
 		reportMissingRequiredFlags(missingRequiredFlags);
-		process2.exit(2);
+		process.exit(2);
 	}
 	return {
 		input,
@@ -67135,7 +67134,7 @@ var cli = meow_default(
 				}
 				if (error.message.includes("Could not find a process with port")) {
 					console.error(error.message);
-					process7.exit(1);
+					process.exit(1);
 				}
 				(
 					await Promise.resolve().then(
