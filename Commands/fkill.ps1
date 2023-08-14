@@ -16,7 +16,7 @@ import fs, { promises as fsAsync } from "node:fs";
 import assert from "node:assert"
 import events from "node:events"
 import tty from "node:tty"
-import readline from "readline";
+import readline from "node:readline";
 import string_decoder from "node:string_decoder"
 import crypto from "node:crypto"
 const Buffer = buffer.Buffer
