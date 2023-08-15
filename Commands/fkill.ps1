@@ -19,10 +19,30 @@ import string_decoder from "node:string_decoder"
 import crypto from "node:crypto"
 
 import { toRepresentation } from "https://deno.land/x/good@1.4.4.3/string.js";
-import { green } from "https://deno.land/x/quickr@0.6.42/main/console.js";
+import { green, blue } from "https://deno.land/x/quickr@0.6.42/main/console.js";
 import { debounce as denoDebounce } from "https://deno.land/std@0.198.0/async/debounce.ts";
 
 const Buffer = buffer.Buffer
+
+
+const numberOfProcessesToShowAtOnce = 20
+const nameProportionOfScreen = 0.8
+
+const highlight = ({keyString, baseString, color})=>{
+    if (!baseString || baseString.length == 0 || !keyString || keyString.length == 0) {
+        return baseString
+    }
+    let stringChunks = []
+    keyString = keyString.toLowerCase()
+    const match = baseString.toLowerCase().match(keyString)
+    if (!match) {
+        return baseString
+    }
+    stringChunks.push(baseString.slice(0,match.index))
+    stringChunks.push(color(baseString.slice(match.index, match.index+keyString.length)))
+    stringChunks.push(highlight({keyString, color, baseString: baseString.slice(match.index+keyString.length,) }))
+    return stringChunks.join("")
+}
 
 
 var __create = Object.create;
@@ -65279,7 +65299,6 @@ __export(interactive_exports, {
 	handleFkillError: () => handleFkillError,
 	init: () => init,
 });
-import process6 from "node:process";
 var import_chalk,
 	import_inquirer,
 	import_inquirer_autocomplete_prompt,
@@ -65321,7 +65340,7 @@ var init_interactive = __esm({
 		init_fkill();
 		import_process_exists2 = __toESM(require_process_exists(), 1);
 		import_fuzzy_search = __toESM(require_FuzzySearch(), 1);
-		isWindows = process6.platform === "win32";
+		isWindows = process.platform === "win32";
 		commandLineMargins = 4;
 		PROCESS_EXITED_MIN_INTERVAL = 5;
 		PROCESS_EXITED_MAX_INTERVAL = 1280;
@@ -65389,7 +65408,7 @@ var init_interactive = __esm({
 		filterProcesses = (input, processes, flags) => {
 			const memoryThreshold = flags.verbose ? 0 : 1;
 			const cpuThreshold = flags.verbose ? 0 : 3;
-            console.debug(`processes is:`,processes.slice(0,3))
+            const lineLength = process.stdout.columns || 80;
 			const filteredProcesses = new import_fuzzy_search.default(
 				processes,
 				[
@@ -65403,7 +65422,10 @@ var init_interactive = __esm({
 				}
 			).search(input);
             const largestNameLength = Math.max(...filteredProcesses.map(each=>each?.name?.length||0))
+            const displayStringLength = lineLength*nameProportionOfScreen
+            const argsLength = displayStringLength-(largestNameLength+5)
 			return filteredProcesses
+                .filter(eachProcess=>eachProcess.pid!=Deno.pid) // e.g. dont kill ourselves
 				.sort(preferHeurisicallyInterestingProcesses)
 				.map((process_) => {
 					const renderPercentage = (percents) => {
@@ -65414,7 +65436,6 @@ var init_interactive = __esm({
 						const fraction = digits.slice(-1);
 						return fraction === "0" ? `${whole}%` : `${whole}.${fraction}%`;
 					};
-					const lineLength = process6.stdout.columns || 80;
 					const ports =
 						process_.ports.length === 0
 							? ""
@@ -65439,34 +65460,55 @@ var init_interactive = __esm({
 						cpu.length;
 					const length = lineLength - margins;
                     const processString = process_.cmd || process_.name
-                    const effectiveName =  `${`${green(process_.name)}`.padEnd(largestNameLength," ")}\t${process_.args}`.slice(0,process6.stdout.columns*0.7)
+                    const processNamePortion = green(process_.name.padEnd(largestNameLength," "))
+                    let processArgsPortion = process_.args.slice(0, argsLength)
+                    // if the input was in the args, but isn't in the displayString, then change the displayString
+                    if (process_.args.match(input) && !processArgsPortion.match(input)) {
+                        // really long input
+                        if (processArgsPortion <= input.length) {
+                            processArgsPortion = "…"+input.slice(0, processArgsPortion.length)+"…"
+                        } else {
+                            const matchIndex = process_.args.indexOf(input)
+                            const padding = Math.floor((processArgsPortion.length-input.length)/2)
+                            let start = matchIndex-padding
+                            if (start < 0) {
+                                start = 0
+                            }
+                            processArgsPortion = "…"+process_.args.slice(start, matchIndex) + process_.args.slice(matchIndex, matchIndex+input.length) + process_.args.slice(matchIndex+input.length, matchIndex+input.length+padding)
+                            if (matchIndex+input.length+padding < process_.args.length) {
+                                processArgsPortion = processArgsPortion+"…"
+                            }
+                        }
+                    }
+                    const displayString = highlight({baseString: processNamePortion + processArgsPortion, keyString: input, color: blue }).padEnd(displayStringLength-20, " ")
 					const name = cliTruncate(
-						flags.verbose && !isWindows ? effectiveName : effectiveName,
+						displayString,
 						length,
-						{ position: "middle", preferTruncationOnSpace: true }
+						{ position: "left", preferTruncationOnSpace: false }
 					);
 					const extraMargin = 2;
 					const spacer =
-						lineLength === process6.stdout.columns
+						lineLength === process.stdout.columns
 							? "".padEnd(length - name.length - extraMargin)
 							: "";
+
 					return {
-						name: `${name} ${import_chalk.default.dim(
+						name: `${cpu.padEnd(7," ")} ${name} ${import_chalk.default.dim(
 							process_.pid
-						)}${spacer}${import_chalk.default.dim(ports)}${cpu}${memory}`,
+						)}${spacer}${import_chalk.default.dim(ports)}${memory}`,
 						value: process_.pid,
 					};
 				});
 		};
 		handleFkillError = async (processes) => {
 			const suffix = processes.length > 1 ? "es" : "";
-			if (process6.stdout.isTTY === false) {
+			if (process.stdout.isTTY === false) {
 				console.error(
 					`Error killing process${suffix}. Try \`fkill --force ${processes.join(
 						" "
 					)}\``
 				);
-				process6.exit(1);
+				process.exit(1);
 			} else {
 				const answer = await import_inquirer.default.prompt([
 					{
@@ -65509,11 +65551,11 @@ var init_interactive = __esm({
 			const problemText = hadError
 				? `Error killing process${suffix}.`
 				: `Process${suffix} didn't exit in ${DEFAULT_EXIT_TIMEOUT}ms.`;
-			if (process6.stdout.isTTY === false) {
+			if (process.stdout.isTTY === false) {
 				console.error(
 					`${problemText} Try \`fkill --force ${didSurvive.join(" ")}\``
 				);
-				process6.exit(1);
+				process.exit(1);
 			}
 			const answer = await import_inquirer.default.prompt([
 				{
@@ -65536,7 +65578,6 @@ var init_interactive = __esm({
 				import_inquirer_autocomplete_prompt.default
 			);
             const internalFunc = async (answers, input) => {
-                console.debug(`inner`)
                 return filterProcesses(input, processes, flags)
             }
 			const answer = await import_inquirer.default.prompt([
@@ -65544,7 +65585,7 @@ var init_interactive = __esm({
 					name: "processes",
 					message: "Running processes:",
 					type: "autocomplete",
-					pageSize: 10,
+					pageSize: numberOfProcessesToShowAtOnce,
 					source: async (answers, input) => {
                         const output = internalFunc(answers, input)
                         return output
