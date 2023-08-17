@@ -12,30 +12,30 @@
     deno ? pkgs.deno,
     bash ? pkgs.bash,
     sd   ? pkgs.sd,
-    doomEmacs ? (pkgs.callPackage 
-        (
-            builtins.fetchTarball 
-            {
-                url = https://github.com/nix-community/nix-doom-emacs/archive/master.tar.gz;
-            }
-        ) 
-        {
-            doomPrivateDir = ./.config/doom_emacs;
-            dependencyOverrides = {
-                "emacs-overlay" = (builtins.fetchTarball {
-                    url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
-                });
-            };
-            emacsPackagesOverlay = self: super: {
-                gitignore-mode = pkgs.emacsPackages.git-modes;
-                gitconfig-mode = pkgs.emacsPackages.git-modes;
-                gitattributes-mode = pkgs.emacsPackages.git-modes;
-            };
-            # builtins.fetchTarball ({
-            #     url="https://github.com/ballantony/doom-emacs-config/archive/master.tar.gz";
-            # });
-        }
-    )
+    # doomEmacs ? (pkgs.callPackage 
+    #     (
+    #         builtins.fetchTarball 
+    #         {
+    #             url = https://github.com/nix-community/nix-doom-emacs/archive/master.tar.gz;
+    #         }
+    #     ) 
+    #     {
+    #         doomPrivateDir = ./.config/doom_emacs;
+    #         dependencyOverrides = {
+    #             "emacs-overlay" = (builtins.fetchTarball {
+    #                 url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
+    #             });
+    #         };
+    #         emacsPackagesOverlay = self: super: {
+    #             gitignore-mode = pkgs.emacsPackages.git-modes;
+    #             gitconfig-mode = pkgs.emacsPackages.git-modes;
+    #             gitattributes-mode = pkgs.emacsPackages.git-modes;
+    #         };
+    #         # builtins.fetchTarball ({
+    #         #     url="https://github.com/ballantony/doom-emacs-config/archive/master.tar.gz";
+    #         # });
+    #     }
+    # )
 }:
     pkgs.stdenv.mkDerivation {
         pname = "jeff-tools";
@@ -52,7 +52,7 @@
         buildInputs = [
             deno
             bash
-            doomEmacs
+            # doomEmacs
         ];
         
         # separateDebugInfo = true;
@@ -68,7 +68,6 @@
             
             mkdir -p "$out/bin"
             cp -r "$src/Commands/"* "$out/bin"
-            cp -r '${doomEmacs}/bin/'* "$out/bin"
             
             # ensure executability
             chmod +x "$out/bin/"* &
