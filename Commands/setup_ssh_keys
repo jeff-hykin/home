@@ -4,7 +4,7 @@ echo "1.31.3"; : --% ' |out-null <#';};v="$(dv)";d="$HOME/.deno/$v/bin/deno";if 
 # */0}`;
 import { ensure } from 'https://deno.land/x/ensure/mod.ts'; ensure({ denoVersion: "1.17.1", })
 const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.6.24/main/run.js`)
-const { FileSystem } = await import(`https://deno.land/x/quickr@0.6.24/main/file_system.js`)
+import { FileSystem } from "https://deno.land/x/quickr@0.6.43/main/file_system.js"
 // const { FileSystem } = await import(`./file_system.js`)
 const { Console, cyan, white } = await import(`https://deno.land/x/quickr@0.6.24/main/console.js`)
 
@@ -120,6 +120,7 @@ async function getFingerprint(path=defaultPublicKeyPath) {
 }
 
 async function verifyAndSetupSshFolderStructure() {
+    console.log(`Verifying folder structure and permissions`)
     await FileSystem.ensureIsFolder(sshFolder)
     const authInfo = await FileSystem.info(authorizedKeysPath)
     if (!authInfo.exists) {
@@ -203,6 +204,13 @@ async function verifyAndSetupSshFolderStructure() {
             }
         },
     })
+    
+    // all individual keys
+    for (const [publicKeyPath, privateKeyPath] of await findAllKeyPairs(`${FileSystem.home}/.ssh/`)) {
+        console.log(`    found key: ${publicKeyPath} ... validating permissions`)
+        await fixPermissionsOnKeyPairs(privateKeyPath, publicKeyPath)
+    }
+
     // Make sure that user owns the files/folders and not root: chown user:user authorized_keys and chown user:user /home/$USER/.ssh
     const username = (await run("whoami", Stdout(returnAsString))).trim()
     const userId = (await run("id", "-u", username, Stdout(returnAsString))).trim()
@@ -214,5 +222,76 @@ async function verifyAndSetupSshFolderStructure() {
         console.log(`Lets change that:\n`)
         await run("sudo", "chown", username, sshFolder)
     }
+}
+
+async function fixPermissionsOnKeyPairs(privateKey, publicKey) {
+    // ensure permissions are correct
+    await FileSystem.addPermissions({
+        path: publicKey,
+        permissions: {
+            owner:{
+                canRead: true,
+                canWrite: true,
+                canExecute: false,
+            }, 
+            group:{
+                canRead: true,
+                canWrite: false,
+                canExecute: false,
+            },
+            others:{
+                canRead: true,
+                canWrite: false,
+                canExecute: false,
+
+            }
+        },
+    })
+    // ensure permissions are correct
+    await FileSystem.addPermissions({
+        path: privateKey,
+        permissions: {
+            owner:{
+                canRead: true,
+                canWrite: true,
+                canExecute: false,
+            }, 
+            group:{
+                canRead: false,
+                canWrite: false,
+                canExecute: false,
+            },
+            others:{
+                canRead: false,
+                canWrite: false,
+                canExecute: false,
+
+            }
+        },
+    })
+}
+
+/**
+ * @example
+ *     ```js
+ *     for (const [publicKeyPath, privateKeyPath] of await findAllKeyPairs(`${FileSystem.home}/.ssh/`)) {
+ *        console.log(publicKeyPath)
+ *        console.log(privateKeyPath)
+ *     } 
+ *     ```
+ *
+ */
+async function findAllKeyPairs(sshFolder) {
+    var pubKeyNames = []
+    var noPubNames = []
+    for (const eachFileInfo of await FileSystem.listFileItemsIn(sshFolder)) {
+        if (eachFileInfo.path.endsWith(".pub")) {
+            pubKeyNames.push(eachFileInfo.name)
+        } else {
+            noPubNames.push(eachFileInfo.basename)
+        }
+    }
+    const keyPairs = pubKeyName.filter(each=>noPubNames.includes(each)).map(each=>[ `${sshFolder}/${each}`, `${sshFolder}/${each}.pub` ])
+    return keyPairs
 }
 // (this comment is part of deno-guillotine, dont remove) #>
