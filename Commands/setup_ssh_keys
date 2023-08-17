@@ -61,9 +61,13 @@ async function ensurePrivatePublicRsaKeyExistsWithCorrectPermissions() {
     let publicKey = await FileSystem.info(defaultPublicKeyPath)
     while (!privateKey.isFile || !publicKey.isFile) {
         console.log(`Checking...`)
-        console.log(`    Private key exists? ${privateKey.isFile}`)
-        console.log(`    Public key exists? ${publicKey.isFile}`)
-        console.log("\nLooks like your key pair doesn't exist so lets make one")
+        console.log(`    Default private key exists (${defaultPrivateKeyPath})? ${privateKey.isFile}`)
+        console.log(`    Default public key exists (${defaultPublicKeyPath})? ${publicKey.isFile}`)
+        console.log("\nLooks like your default key pair doesn't exist")
+        if (!(await Console.askFor.yesNo(`Would you like to create them?`))) {
+            console.log(`okay, exiting program`)
+            return
+        }
         console.log(white.blackBackground`    running: `.cyan`ssh-keygen -t rsa`)
         await run("ssh-keygen", "-t", "rsa", "-f", defaultPrivateKeyPath)
         privateKey = await FileSystem.info(defaultPrivateKeyPath)
