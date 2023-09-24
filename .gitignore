@@ -45,6 +45,7 @@
 !/.config/nixpkgs/
 !/.config/alacritty/
 !/.config/fish/
+!/.config/karabiner/
 !/.config/Code/
 /.config/Code/*
 !/.config/Code/User
