@@ -1,0 +1,1891 @@
+{
+    "title": "Hold Space for ijkl arrow keys and more",
+    "rules": [
+        {
+            "description": "Hold Space for ijkl arrow keys and more",
+            "manipulators": [
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "j",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "left_arrow"
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "k",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "down_arrow"
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "l",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "right_arrow"
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "i",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "up_arrow"
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "u",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "open_bracket"
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "o",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "close_bracket"
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "0",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "delete_or_backspace"
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "z",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "z",
+                            "modifiers": [
+                                "left_alt"
+                            ]
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "period",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "period",
+                            "modifiers": [
+                                "left_alt"
+                            ]
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "comma",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "comma",
+                            "modifiers": [
+                                "left_alt"
+                            ]
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "l",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_alt"
+                            ]
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "j",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "semicolon",
+                            "modifiers": [
+                                "left_alt"
+                            ]
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "l",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "close_bracket",
+                            "modifiers": [
+                                "left_alt"
+                            ]
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "j",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "open_bracket",
+                            "modifiers": [
+                                "left_alt"
+                            ]
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "q",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "q"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "w",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "w"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "e",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "e"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "r",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "r"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "t",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "t"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "y",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "y"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "u",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "u"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "i",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "i"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "o",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "o"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "p",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "p"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "a",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "a"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "s",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "s"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "d",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "d"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "f",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "f"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "g",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "g"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "h",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "h"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "j",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "j"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "k",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "k"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "l",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "l"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "z",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "z"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "x",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "x"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "c",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "c"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "v",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "v"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "b",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "b"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "n",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "n"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "m",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote"
+                        },
+                        {
+                            "key_code": "m"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "quote",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "quote"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "quote",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "quote"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "quote",
+                        "modifiers": {
+                            "mandatory": [
+                                "right_shift"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "quote"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "semicolon",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "semicolon"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "spacebar",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "spacebar"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "spacebar_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "spacebar_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
