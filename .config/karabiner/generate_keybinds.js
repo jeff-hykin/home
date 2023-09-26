@@ -1,3 +1,5 @@
+import { FileSystem, glob } from "https://deno.land/x/quickr@0.6.47/main/file_system.js"
+
 const leftOrRight = (name)=> [`left_${name}`, `right_${name}`]
 
 const letterKeys = [
@@ -480,7 +482,7 @@ const karabinerMapping = {
                                 "key_code": each,
                                 "modifiers": {
                                     "optional": [
-                                        modifiers.filter(each=>!each.match(/shift/))
+                                        ...modifiers.filter(each=>!each.match(/shift/))
                                     ]
                                 }
                             },
@@ -490,7 +492,20 @@ const karabinerMapping = {
                                 },
                                 {
                                     "key_code": each,
-                                }
+                                },
+                                // "consume" the quote button
+                                {
+                                    "set_variable": {
+                                        "name": "quote_layer pressed",
+                                        "value": 0
+                                    }
+                                },
+                                {
+                                    "set_variable": {
+                                        "name": "quote_shift_layer pressed",
+                                        "value": 0
+                                    }
+                                },
                             ],
                             "conditions": [
                                 {
@@ -505,96 +520,107 @@ const karabinerMapping = {
                                 },
                             ]
                         })),
-                        leftOrRight('shift').map(
-                            leftOrRightShift=>letterKeys.map(
-                                eachLetterKey=>({
-                                    "type": "basic",
-                                    "from": {
-                                        "key_code": eachLetterKey,
-                                        "modifiers": {
-                                            "mandatory": [
-                                                leftOrRightShift
-                                            ]
-                                        },
-                                    },
-                                    "to": [
-                                        {
-                                            "key_code": "quote",
-                                        },
-                                        {
-                                            "key_code": eachLetterKey,
-                                            "modifiers": [
-                                                leftOrRightShift,
-                                            ],
-                                        }
-                                    ],
-                                    "conditions": [
-                                        {
-                                            "type": "variable_if",
-                                            "name": "quote_layer pressed",
-                                            "value": 1
-                                        },
-                                        {
-                                            "type": "variable_if",
-                                            "name": "quote_shift_layer pressed",
-                                            "value": 0
-                                        },
-                                        {
-                                            "type": "variable_if",
-                                            "name": "spacebar_layer pressed",
-                                            "value": 0
-                                        },
-                                    ]
-                                })
-                            )
-                        ),
+                        // leftOrRight('shift').map(
+                        //     leftOrRightShift=>letterKeys.map(
+                        //         eachLetterKey=>({
+                        //             "type": "basic",
+                        //             "from": {
+                        //                 "key_code": eachLetterKey,
+                        //                 "modifiers": {
+                        //                     "mandatory": [
+                        //                         leftOrRightShift
+                        //                     ]
+                        //                 },
+                        //             },
+                        //             "to": [
+                        //                 {
+                        //                     "key_code": "quote",
+                        //                 },
+                        //                 {
+                        //                     "key_code": eachLetterKey,
+                        //                     "modifiers": [
+                        //                         leftOrRightShift,
+                        //                     ],
+                        //                 },
+                        //                 // consume the quote button
+                        //                 {
+                        //                     "type": "variable_if",
+                        //                     "name": "quote_layer pressed",
+                        //                     "value": 0
+                        //                 },
+                        //                 {
+                        //                     "type": "variable_if",
+                        //                     "name": "quote_shift_layer pressed",
+                        //                     "value": 0
+                        //                 },
+                        //             ],
+                        //             "conditions": [
+                        //                 {
+                        //                     "type": "variable_if",
+                        //                     "name": "quote_layer pressed",
+                        //                     "value": 1
+                        //                 },
+                        //                 {
+                        //                     "type": "variable_if",
+                        //                     "name": "quote_shift_layer pressed",
+                        //                     "value": 0
+                        //                 },
+                        //                 {
+                        //                     "type": "variable_if",
+                        //                     "name": "spacebar_layer pressed",
+                        //                     "value": 0
+                        //                 },
+                        //             ]
+                        //         })
+                        //     )
+                        // ),
                         // NOTE: this command doesn't work/activate yet
-                        leftOrRight('shift').map(
-                            leftOrRightShift=>letterKeys.map(
-                                eachLetterKey=>({
-                                    "type": "basic",
-                                    "from": {
-                                        "key_code": eachLetterKey,
-                                        "modifiers": {
-                                            "mandatory": [
-                                                leftOrRightShift
-                                            ]
-                                        },
-                                    },
-                                    "to": [
-                                        {
-                                            "key_code": "quote",
-                                            "modifiers": [
-                                                leftOrRightShift,
-                                            ],
-                                        },
-                                        {
-                                            "key_code": eachLetterKey,
-                                            "modifiers": [
-                                                leftOrRightShift,
-                                            ],
-                                        }
-                                    ],
-                                    "conditions": [
-                                        {
-                                            "type": "variable_if",
-                                            "name": "quote_layer pressed",
-                                            "value": 1
-                                        },
-                                        {
-                                            "type": "variable_if",
-                                            "name": "quote_shift_layer pressed",
-                                            "value": 1
-                                        },
-                                        {
-                                            "type": "variable_if",
-                                            "name": "spacebar_layer pressed",
-                                            "value": 0
-                                        },
-                                    ]
-                                })
-                            )
-                        )
+                        // leftOrRight('shift').map(
+                        //     leftOrRightShift=>letterKeys.map(
+                        //         eachLetterKey=>({
+                        //             "type": "basic",
+                        //             "from": {
+                        //                 "key_code": eachLetterKey,
+                        //                 "modifiers": {
+                        //                     "mandatory": [
+                        //                         leftOrRightShift
+                        //                     ]
+                        //                 },
+                        //             },
+                        //             "to": [
+                        //                 {
+                        //                     "key_code": "quote",
+                        //                     "modifiers": [
+                        //                         leftOrRightShift,
+                        //                     ],
+                        //                 },
+                        //                 {
+                        //                     "key_code": eachLetterKey,
+                        //                     "modifiers": [
+                        //                         leftOrRightShift,
+                        //                     ],
+                        //                 }
+                        //             ],
+                        //             "conditions": [
+                        //                 {
+                        //                     "type": "variable_if",
+                        //                     "name": "quote_layer pressed",
+                        //                     "value": 1
+                        //                 },
+                        //                 {
+                        //                     "type": "variable_if",
+                        //                     "name": "quote_shift_layer pressed",
+                        //                     "value": 1
+                        //                 },
+                        //                 {
+                        //                     "type": "variable_if",
+                        //                     "name": "spacebar_layer pressed",
+                        //                     "value": 0
+                        //                 },
+                        //             ]
+                        //         })
+                        //     )
+                        // )
                     ].flat(Infinity),
                 // 
                 // layers
@@ -787,4 +813,8 @@ const karabinerMapping = {
         }
     ]
 }
-console.log(JSON.stringify(karabinerMapping, 0, 4))
+
+await FileSystem.write({
+    data:JSON.stringify(karabinerMapping, 0, 4),
+    path: `${FileSystem.home}/.config/karabiner/assets/complex_modifications/1695750720.json` 
+})
