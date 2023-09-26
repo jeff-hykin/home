@@ -16,8 +16,6 @@ const modifiers = [
     "fn",
 ]
 
-
-
 const karabinerMapping = {
     "title": "Hold Space for ijkl arrow keys and more",
     "rules": [
@@ -476,26 +474,128 @@ const karabinerMapping = {
                 // fixers / layer-avoiders
                 // 
                     ...[
-                        // TODO: add fixes
-                        // ...[
-                        //     letterKeys.concat("spacebar")
-                        // ].map(each=>({
-                        //     "type": "basic",
-                        //     "from": {
-                        //         "key_code": "quote",
-                        //         "modifiers": {
-                        //             "optional": [
-                        //                  ...leftOrRight('shift'),
-                        //             ]
-                        //         },
-                        //         "simultaneous": [
-                        //             {
-                        //                 "key_code": each,
-                        //             }
-                        //         ]
-                        //     },
-                        // }))
-                    ],
+                        letterKeys.map(each=>({
+                            "type": "basic",
+                            "from": {
+                                "key_code": each,
+                                "modifiers": {
+                                    "optional": [
+                                        modifiers.filter(each=>!each.match(/shift/))
+                                    ]
+                                }
+                            },
+                            "to": [
+                                {
+                                    "key_code": "quote",
+                                },
+                                {
+                                    "key_code": each,
+                                }
+                            ],
+                            "conditions": [
+                                {
+                                    "type": "variable_if",
+                                    "name": "quote_layer pressed",
+                                    "value": 1
+                                },
+                                {
+                                    "type": "variable_if",
+                                    "name": "spacebar_layer pressed",
+                                    "value": 0
+                                },
+                            ]
+                        })),
+                        leftOrRight('shift').map(
+                            leftOrRightShift=>letterKeys.map(
+                                eachLetterKey=>({
+                                    "type": "basic",
+                                    "from": {
+                                        "key_code": eachLetterKey,
+                                        "modifiers": {
+                                            "mandatory": [
+                                                leftOrRightShift
+                                            ]
+                                        },
+                                    },
+                                    "to": [
+                                        {
+                                            "key_code": "quote",
+                                        },
+                                        {
+                                            "key_code": eachLetterKey,
+                                            "modifiers": [
+                                                leftOrRightShift,
+                                            ],
+                                        }
+                                    ],
+                                    "conditions": [
+                                        {
+                                            "type": "variable_if",
+                                            "name": "quote_layer pressed",
+                                            "value": 1
+                                        },
+                                        {
+                                            "type": "variable_if",
+                                            "name": "quote_shift_layer pressed",
+                                            "value": 0
+                                        },
+                                        {
+                                            "type": "variable_if",
+                                            "name": "spacebar_layer pressed",
+                                            "value": 0
+                                        },
+                                    ]
+                                })
+                            )
+                        ),
+                        // NOTE: this command doesn't work/activate yet
+                        leftOrRight('shift').map(
+                            leftOrRightShift=>letterKeys.map(
+                                eachLetterKey=>({
+                                    "type": "basic",
+                                    "from": {
+                                        "key_code": eachLetterKey,
+                                        "modifiers": {
+                                            "mandatory": [
+                                                leftOrRightShift
+                                            ]
+                                        },
+                                    },
+                                    "to": [
+                                        {
+                                            "key_code": "quote",
+                                            "modifiers": [
+                                                leftOrRightShift,
+                                            ],
+                                        },
+                                        {
+                                            "key_code": eachLetterKey,
+                                            "modifiers": [
+                                                leftOrRightShift,
+                                            ],
+                                        }
+                                    ],
+                                    "conditions": [
+                                        {
+                                            "type": "variable_if",
+                                            "name": "quote_layer pressed",
+                                            "value": 1
+                                        },
+                                        {
+                                            "type": "variable_if",
+                                            "name": "quote_shift_layer pressed",
+                                            "value": 1
+                                        },
+                                        {
+                                            "type": "variable_if",
+                                            "name": "spacebar_layer pressed",
+                                            "value": 0
+                                        },
+                                    ]
+                                })
+                            )
+                        )
+                    ].flat(Infinity),
                 // 
                 // layers
                 // 
@@ -526,6 +626,94 @@ const karabinerMapping = {
                             {
                                 "set_variable": {
                                     "name": "quote_layer pressed",
+                                    "value": 0
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "type": "basic",
+                        "from": {
+                            "key_code": "quote",
+                            "modifiers": {
+                                "mandatory": [
+                                    "left_shift"
+                                ]
+                            }
+                        },
+                        "to_if_alone": [
+                            {
+                                "key_code": "quote"
+                            }
+                        ],
+                        "to": [
+                            {
+                                "set_variable": {
+                                    "name": "quote_layer pressed",
+                                    "value": 1
+                                }
+                            },
+                            {
+                                "set_variable": {
+                                    "name": "quote_shift_layer pressed",
+                                    "value": 1
+                                }
+                            }
+                        ],
+                        "to_after_key_up": [
+                            {
+                                "set_variable": {
+                                    "name": "quote_layer pressed",
+                                    "value": 1
+                                }
+                            },
+                            {
+                                "set_variable": {
+                                    "name": "quote_shift_layer pressed",
+                                    "value": 0
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "type": "basic",
+                        "from": {
+                            "key_code": "quote",
+                            "modifiers": {
+                                "mandatory": [
+                                    "right_shift"
+                                ]
+                            }
+                        },
+                        "to_if_alone": [
+                            {
+                                "key_code": "quote"
+                            }
+                        ],
+                        "to": [
+                            {
+                                "set_variable": {
+                                    "name": "quote_layer pressed",
+                                    "value": 1
+                                }
+                            },
+                            {
+                                "set_variable": {
+                                    "name": "quote_shift_layer pressed",
+                                    "value": 1
+                                }
+                            },
+                        ],
+                        "to_after_key_up": [
+                            {
+                                "set_variable": {
+                                    "name": "quote_layer pressed",
+                                    "value": 0
+                                }
+                            },
+                            {
+                                "set_variable": {
+                                    "name": "quote_shift_layer pressed",
                                     "value": 0
                                 }
                             }
