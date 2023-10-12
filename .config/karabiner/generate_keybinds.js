@@ -23,6 +23,102 @@ const layerKeys = [
     'semicolon',
     'quote',
 ]
+const layerInteractionKeys = Object.fromEntries(layerKeys.map(each=>[`${each}_layer`, []]))
+const whenLayers = ({layerValues, keyBehaviors,})=>{
+    const outputRules = []
+    for (let {from, to, conditions} of keyBehaviors) {
+        conditions = conditions||[]
+        for (const [key, value] of Object.entries(layerValues)) {
+            if (value) {
+                layerInteractionKeys[key].push(from['key_code'])
+            }
+            conditions.push({
+                "type": "variable_if",
+                "name": `${key} pressed`,
+                "value": value,
+            })
+        }
+        outputRules.push({
+            type: 'basic',
+            from,
+            to,
+            conditions,
+        })
+    }
+    return outputRules
+}
+const layerKeyShiftFixer = ({ layer, keys, conditions })=>{
+    const keyShiftHelper = ({ shiftOfLayerInput, shiftOfKeyInput,  })=>
+        leftOrRight("shift").map(shift=>
+            ({
+                "type": "basic",
+                "from": {
+                    "key_code": each,
+                    "modifiers": {
+                        ...(
+                            shiftOfKeyInput ?
+                                { mandatory: [ shiftKey ] }
+                            :
+                                { optional: modifiers.filter(each=>!each.match(/shift/)) }
+                        ),
+                    }
+                },
+                "to": [
+                    {
+                        "key_code": "quote",
+                        ...(
+                            shiftOfLayerInput ?
+                                { modifiers: [ shiftKey ] }
+                            :
+                                {}
+                        ),
+                    },
+                    {
+                        "key_code": each,
+                        ...(
+                            shiftOfKeyInput ?
+                                { modifiers: [ shiftKey ] }
+                            :
+                                {}
+                        ),
+                    },
+                    // "consume" the quote button
+                    {
+                        "set_variable": {
+                            "name": `${layer}_layer pressed`,
+                            "value": 0
+                        }
+                    },
+                    {
+                        "set_variable": {
+                            "name": `${layer}_shift_layer pressed`,
+                            "value": 0,
+                        }
+                    },
+                ],
+                "conditions": [
+                    {
+                        "type": "variable_if",
+                        "name": `${layer}_layer pressed`,
+                        "value": 1
+                    },
+                    {
+                        "type": "variable_if",
+                        "name": `${layer}_shift_layer pressed`,
+                        "value": shiftOfLayerInput ? 1 : 0,
+                    },
+                    ...conditions
+                ] 
+            })
+        )
+
+    return keys.map(each=>[
+        keyShiftHelper({ shiftOfLayerInput: true, shiftOfKeyInput: true }),
+        keyShiftHelper({ shiftOfLayerInput: true, shiftOfKeyInput: false }),
+        keyShiftHelper({ shiftOfLayerInput: false, shiftOfKeyInput: true }),
+        keyShiftHelper({ shiftOfLayerInput: false, shiftOfKeyInput: false }),
+    ]) 
+}
 
 const karabinerMapping = {
     "title": "Hold Space for ijkl arrow keys and more",
@@ -36,187 +132,179 @@ const karabinerMapping = {
                 // ijkl
                 // 
                 // 
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "j",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
+                    ...whenLayers({
+                        layerValues: {
+                            spacebar_layer: 1,
+                            semicolon_layer: 0,
+                            quote_layer: 0,
                         },
-                        "to": [
+                        keyBehaviors: [
                             {
-                                "key_code": "left_arrow"
+                                "from": {
+                                    "key_code": "j",
+                                    "modifiers": {
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "left_arrow"
+                                    }
+                                ],
+                            },
+                            {
+                                "from": {
+                                    "key_code": "k",
+                                    "modifiers": {
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "down_arrow"
+                                    }
+                                ],
+                            },
+                            {
+                                "from": {
+                                    "key_code": "l",
+                                    "modifiers": {
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "right_arrow"
+                                    }
+                                ],
+                            },
+                            {
+                                "from": {
+                                    "key_code": "i",
+                                    "modifiers": {
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "up_arrow"
+                                    }
+                                ],
                             }
                         ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "semicolon_layer pressed",
-                                "value": 0
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "quote_layer pressed",
-                                "value": 0
-                            }
-                        ]
-                    },
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "k",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
+                    }),
+                //
+                // spacebar layer
+                //
+                    ...whenLayers({
+                        layerValues: {
+                            spacebar_layer: 1,
                         },
-                        "to": [
+                        keyBehaviors: [
+                            // 
+                            //  brackets 
+                            // 
                             {
-                                "key_code": "down_arrow"
-                            }
+                                "from": {
+                                    "key_code": "u",
+                                    "modifiers": {
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "open_bracket"
+                                    }
+                                ],
+                            },
+                            {
+                                "from": {
+                                    "key_code": "o",
+                                    "modifiers": {
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "close_bracket"
+                                    }
+                                ],
+                            },
+
+                            // 
+                            // cursor undo
+                            // 
+                                {
+                                    "from": {
+                                        "key_code": "z",
+                                        "modifiers": {
+                                            "optional": [
+                                                "any"
+                                            ]
+                                        }
+                                    },
+                                    "to": [
+                                        {
+                                            "key_code": "z",
+                                            "modifiers": [
+                                                "left_alt"
+                                            ]
+                                        }
+                                    ],
+                                },
+                        // 
+                        // comma jump
+                        // 
+                            {
+                                "from": {
+                                    "key_code": "period",
+                                    "modifiers": {
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "period",
+                                        "modifiers": [
+                                            "left_alt"
+                                        ]
+                                    }
+                                ],
+                            },
+                            {
+                                "from": {
+                                    "key_code": "comma",
+                                    "modifiers": {
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "comma",
+                                        "modifiers": [
+                                            "left_alt"
+                                        ]
+                                    }
+                                ],
+                            },
                         ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "semicolon_layer pressed",
-                                "value": 0
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "quote_layer pressed",
-                                "value": 0
-                            }
-                        ]
-                    },
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "l",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to": [
-                            {
-                                "key_code": "right_arrow"
-                            }
-                        ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "semicolon_layer pressed",
-                                "value": 0
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "quote_layer pressed",
-                                "value": 0
-                            }
-                        ]
-                    },
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "i",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to": [
-                            {
-                                "key_code": "up_arrow"
-                            }
-                        ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "semicolon_layer pressed",
-                                "value": 0
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "quote_layer pressed",
-                                "value": 0
-                            }
-                        ]
-                    },
-                // 
-                //  brackets 
-                // 
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "u",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to": [
-                            {
-                                "key_code": "open_bracket"
-                            }
-                        ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        ]
-                    },
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "o",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to": [
-                            {
-                                "key_code": "close_bracket"
-                            }
-                        ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        ]
-                    },
+                    }),
                 // 
                 // backspace
                 // 
@@ -243,91 +331,7 @@ const karabinerMapping = {
                             }
                         ]
                     },
-                // 
-                // cursor undo
-                // 
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "z",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to": [
-                            {
-                                "key_code": "z",
-                                "modifiers": [
-                                    "left_alt"
-                                ]
-                            }
-                        ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        ]
-                    },
                 
-                // 
-                // comma jump
-                // 
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "period",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to": [
-                            {
-                                "key_code": "period",
-                                "modifiers": [
-                                    "left_alt"
-                                ]
-                            }
-                        ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        ]
-                    },
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "comma",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to": [
-                            {
-                                "key_code": "comma",
-                                "modifiers": [
-                                    "left_alt"
-                                ]
-                            }
-                        ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        ]
-                    },
                 // 
                 // quote jump
                 // 
@@ -521,10 +525,122 @@ const karabinerMapping = {
                                 },
                                 {
                                     "type": "variable_if",
+                                    "name": "quote_shift_layer pressed",
+                                    "value": 0
+                                },
+                                {
+                                    "type": "variable_if",
                                     "name": "spacebar_layer pressed",
                                     "value": 0
                                 },
-                            ]
+                             ] 
+                        })),
+                        letterKeys.map(each=>({
+                            "type": "basic",
+                            "from": {
+                                "key_code": each,
+                                "modifiers": {
+                                    "mandatory": [
+                                        "left_shift",
+                                    ]
+                                }
+                            },
+                            "to": [
+                                {
+                                    "key_code": "quote",
+                                    modifiers: [
+                                        "left_shift"
+                                    ]
+                                },
+                                {
+                                    "key_code": each,
+                                },
+                                // "consume" the quote button
+                                {
+                                    "set_variable": {
+                                        "name": "quote_layer pressed",
+                                        "value": 0
+                                    }
+                                },
+                                {
+                                    "set_variable": {
+                                        "name": "quote_shift_layer pressed",
+                                        "value": 0
+                                    }
+                                },
+                            ],
+                            "conditions": [
+                                {
+                                    "type": "variable_if",
+                                    "name": "quote_layer pressed",
+                                    "value": 1
+                                },
+                                {
+                                    "type": "variable_if",
+                                    "name": "quote_shift_layer pressed",
+                                    "value": 1
+                                },
+                                {
+                                    "type": "variable_if",
+                                    "name": "spacebar_layer pressed",
+                                    "value": 0
+                                },
+                             ] 
+                        })),
+                        letterKeys.map(each=>({
+                            "type": "basic",
+                            "from": {
+                                "key_code": each,
+                                "modifiers": {
+                                    "mandatory": [
+                                        "left_shift",
+                                    ]
+                                }
+                            },
+                            "to": [
+                                {
+                                    "key_code": "quote",
+                                    modifiers: [
+                                        "left_shift"
+                                    ],
+                                },
+                                {
+                                    "key_code": each,
+                                    modifiers: [
+                                        "left_shift"
+                                    ],
+                                },
+                                // "consume" the quote button
+                                {
+                                    "set_variable": {
+                                        "name": "quote_layer pressed",
+                                        "value": 0
+                                    }
+                                },
+                                {
+                                    "set_variable": {
+                                        "name": "quote_shift_layer pressed",
+                                        "value": 0
+                                    }
+                                },
+                            ],
+                            "conditions": [
+                                {
+                                    "type": "variable_if",
+                                    "name": "quote_layer pressed",
+                                    "value": 1
+                                },
+                                {
+                                    "type": "variable_if",
+                                    "name": "quote_shift_layer pressed",
+                                    "value": 1
+                                },
+                                {
+                                    "type": "variable_if",
+                                    "name": "spacebar_layer pressed",
+                                    "value": 0
+                                },
+                             ] 
                         })),
                         // leftOrRight('shift').map(
                         //     leftOrRightShift=>letterKeys.map(
