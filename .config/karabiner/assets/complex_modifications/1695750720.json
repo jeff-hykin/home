@@ -4567,13 +4567,7 @@
                         "key_code": "spacebar",
                         "modifiers": {
                             "optional": [
-                                "left_alt",
-                                "right_alt",
-                                "left_control",
-                                "right_control",
-                                "left_gui",
-                                "right_gui",
-                                "fn"
+                                "any"
                             ]
                         }
                     },
@@ -4594,100 +4588,6 @@
                         {
                             "set_variable": {
                                 "name": "spacebar_layer pressed",
-                                "value": 0
-                            }
-                        }
-                    ]
-                },
-                {
-                    "type": "basic",
-                    "from": {
-                        "key_code": "spacebar",
-                        "modifiers": {
-                            "mandatory": [
-                                "left_shift"
-                            ]
-                        }
-                    },
-                    "to_if_alone": [
-                        {
-                            "key_code": "spacebar",
-                            "modifiers": [
-                                "left_shift"
-                            ]
-                        }
-                    ],
-                    "to": [
-                        {
-                            "set_variable": {
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        },
-                        {
-                            "set_variable": {
-                                "name": "spacebar_shift_layer pressed",
-                                "value": 1
-                            }
-                        }
-                    ],
-                    "to_after_key_up": [
-                        {
-                            "set_variable": {
-                                "name": "spacebar_layer pressed",
-                                "value": 0
-                            }
-                        },
-                        {
-                            "set_variable": {
-                                "name": "spacebar_shift_layer pressed",
-                                "value": 0
-                            }
-                        }
-                    ]
-                },
-                {
-                    "type": "basic",
-                    "from": {
-                        "key_code": "spacebar",
-                        "modifiers": {
-                            "mandatory": [
-                                "right_shift"
-                            ]
-                        }
-                    },
-                    "to_if_alone": [
-                        {
-                            "key_code": "spacebar",
-                            "modifiers": [
-                                "right_shift"
-                            ]
-                        }
-                    ],
-                    "to": [
-                        {
-                            "set_variable": {
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        },
-                        {
-                            "set_variable": {
-                                "name": "spacebar_shift_layer pressed",
-                                "value": 1
-                            }
-                        }
-                    ],
-                    "to_after_key_up": [
-                        {
-                            "set_variable": {
-                                "name": "spacebar_layer pressed",
-                                "value": 0
-                            }
-                        },
-                        {
-                            "set_variable": {
-                                "name": "spacebar_shift_layer pressed",
                                 "value": 0
                             }
                         }
