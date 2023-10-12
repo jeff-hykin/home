@@ -185,29 +185,6 @@
                 {
                     "type": "basic",
                     "from": {
-                        "key_code": "0",
-                        "modifiers": {
-                            "optional": [
-                                "any"
-                            ]
-                        }
-                    },
-                    "to": [
-                        {
-                            "key_code": "delete_or_backspace"
-                        }
-                    ],
-                    "conditions": [
-                        {
-                            "type": "variable_if",
-                            "name": "spacebar_layer pressed",
-                            "value": 1
-                        }
-                    ]
-                },
-                {
-                    "type": "basic",
-                    "from": {
                         "key_code": "z",
                         "modifiers": {
                             "optional": [
@@ -273,6 +250,29 @@
                             "modifiers": [
                                 "left_alt"
                             ]
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "0",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "delete_or_backspace"
                         }
                     ],
                     "conditions": [
@@ -471,6 +471,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -517,6 +522,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -569,6 +579,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -615,6 +630,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -667,6 +687,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -713,6 +738,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -765,6 +795,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -811,6 +846,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -863,6 +903,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -909,6 +954,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -961,6 +1011,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -1007,6 +1062,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -1059,6 +1119,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -1105,6 +1170,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -1157,6 +1227,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -1203,6 +1278,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -1255,6 +1335,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -1301,6 +1386,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -1353,6 +1443,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -1399,6 +1494,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -1451,6 +1551,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -1497,6 +1602,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -1549,6 +1659,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -1595,6 +1710,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -1647,6 +1767,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 0
                         }
@@ -1692,6 +1817,2741 @@
                         {
                             "type": "variable_if",
                             "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "q",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "q"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "w",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "w"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "e",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "e"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "r",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "r"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "t",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "t"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "y",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "y"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "u",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "u"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "i",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "i"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "o",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "o"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "p",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "p"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "a",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "a"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "s",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "s"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "d",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "d"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "f",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "f"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "g",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "g"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "h",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "h"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "j",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "j"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "k",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "k"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "l",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "l"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "z",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "z"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "x",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "x"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "c",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "c"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "v",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "v"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "b",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "b"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "n",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "n"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "m",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "m"
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "q",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "q",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "w",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "w",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "e",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "e",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "r",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "r",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "t",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "t",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "y",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "y",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "u",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "u",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "i",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "i",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "o",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "o",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "p",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "p",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "a",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "a",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "s",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "s",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "d",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "d",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "f",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "f",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "g",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "g",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "h",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "h",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "j",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "j",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "k",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "k",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "l",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "l",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "z",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "z",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "x",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "x",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "c",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "c",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "v",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "v",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "b",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "b",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "n",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "n",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "m",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "key_code": "m",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "quote_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_shift_layer pressed",
                             "value": 1
                         },
                         {
@@ -1751,7 +4611,10 @@
                     },
                     "to_if_alone": [
                         {
-                            "key_code": "spacebar"
+                            "key_code": "spacebar",
+                            "modifiers": [
+                                "left_shift"
+                            ]
                         }
                     ],
                     "to": [
@@ -1772,7 +4635,7 @@
                         {
                             "set_variable": {
                                 "name": "spacebar_layer pressed",
-                                "value": 1
+                                "value": 0
                             }
                         },
                         {
@@ -1795,7 +4658,10 @@
                     },
                     "to_if_alone": [
                         {
-                            "key_code": "spacebar"
+                            "key_code": "spacebar",
+                            "modifiers": [
+                                "right_shift"
+                            ]
                         }
                     ],
                     "to": [
@@ -1877,7 +4743,10 @@
                     },
                     "to_if_alone": [
                         {
-                            "key_code": "semicolon"
+                            "key_code": "semicolon",
+                            "modifiers": [
+                                "left_shift"
+                            ]
                         }
                     ],
                     "to": [
@@ -1898,7 +4767,7 @@
                         {
                             "set_variable": {
                                 "name": "semicolon_layer pressed",
-                                "value": 1
+                                "value": 0
                             }
                         },
                         {
@@ -1921,7 +4790,10 @@
                     },
                     "to_if_alone": [
                         {
-                            "key_code": "semicolon"
+                            "key_code": "semicolon",
+                            "modifiers": [
+                                "right_shift"
+                            ]
                         }
                     ],
                     "to": [
@@ -2003,7 +4875,10 @@
                     },
                     "to_if_alone": [
                         {
-                            "key_code": "quote"
+                            "key_code": "quote",
+                            "modifiers": [
+                                "left_shift"
+                            ]
                         }
                     ],
                     "to": [
@@ -2024,7 +4899,7 @@
                         {
                             "set_variable": {
                                 "name": "quote_layer pressed",
-                                "value": 1
+                                "value": 0
                             }
                         },
                         {
@@ -2047,7 +4922,10 @@
                     },
                     "to_if_alone": [
                         {
-                            "key_code": "quote"
+                            "key_code": "quote",
+                            "modifiers": [
+                                "right_shift"
+                            ]
                         }
                     ],
                     "to": [
