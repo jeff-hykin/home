@@ -19,11 +19,11 @@ const modifiers = [
 ]
 
 const layerKeys = [
-    'spacebar',
     'semicolon',
     'quote',
 ]
 const layerInteractionKeys = Object.fromEntries(layerKeys.map(each=>[`${each}_layer`, []]))
+layerInteractionKeys["spacebar_layer"] = []
 const whenLayers = ({layerValues, keyBehaviors,})=>{
     const outputRules = []
     for (let {from, to, conditions} of keyBehaviors) {
@@ -747,6 +747,38 @@ const karabinerMapping = {
                 // 
                 // layers
                 // 
+                    {
+                        "type": "basic",
+                        "from": {
+                            "key_code": "spacebar",
+                            "modifiers": {
+                                "optional": [
+                                    "any"
+                                ]
+                            }
+                        },
+                        "to_if_alone": [
+                            {
+                                "key_code": "spacebar"
+                            }
+                        ],
+                        "to": [
+                            {
+                                "set_variable": {
+                                    "name": "spacebar_layer pressed",
+                                    "value": 1
+                                }
+                            }
+                        ],
+                        "to_after_key_up": [
+                            {
+                                "set_variable": {
+                                    "name": "spacebar_layer pressed",
+                                    "value": 0
+                                }
+                            }
+                        ]
+                    },
                     ...layerKeys.map(eachKey=>[
                         {
                             "type": "basic",
