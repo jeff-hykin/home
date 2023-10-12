@@ -18,6 +18,12 @@ const modifiers = [
     "fn",
 ]
 
+const layerKeys = [
+    'spacebar',
+    'semicolon',
+    'quote',
+]
+
 const karabinerMapping = {
     "title": "Hold Space for ijkl arrow keys and more",
     "rules": [
@@ -625,190 +631,128 @@ const karabinerMapping = {
                 // 
                 // layers
                 // 
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "quote",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to_if_alone": [
-                            {
-                                "key_code": "quote"
-                            }
-                        ],
-                        "to": [
-                            {
-                                "set_variable": {
-                                    "name": "quote_layer pressed",
-                                    "value": 1
-                                }
-                            }
-                        ],
-                        "to_after_key_up": [
-                            {
-                                "set_variable": {
-                                    "name": "quote_layer pressed",
-                                    "value": 0
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "quote",
-                            "modifiers": {
-                                "mandatory": [
-                                    "left_shift"
-                                ]
-                            }
-                        },
-                        "to_if_alone": [
-                            {
-                                "key_code": "quote"
-                            }
-                        ],
-                        "to": [
-                            {
-                                "set_variable": {
-                                    "name": "quote_layer pressed",
-                                    "value": 1
+                    ...layerKeys.map(eachKey=>[
+                        {
+                            "type": "basic",
+                            "from": {
+                                "key_code": eachKey,
+                                "modifiers": {
+                                    "optional": [
+                                        ...modifiers.filter(each=>!each.match(/shift/))
+                                    ]
                                 }
                             },
-                            {
-                                "set_variable": {
-                                    "name": "quote_shift_layer pressed",
-                                    "value": 1
+                            "to_if_alone": [
+                                {
+                                    "key_code": eachKey
                                 }
-                            }
-                        ],
-                        "to_after_key_up": [
-                            {
-                                "set_variable": {
-                                    "name": "quote_layer pressed",
-                                    "value": 1
+                            ],
+                            "to": [
+                                {
+                                    "set_variable": {
+                                        "name": `${eachKey}_layer pressed`,
+                                        "value": 1
+                                    }
                                 }
-                            },
-                            {
-                                "set_variable": {
-                                    "name": "quote_shift_layer pressed",
-                                    "value": 0
+                            ],
+                            "to_after_key_up": [
+                                {
+                                    "set_variable": {
+                                        "name": `${eachKey}_layer pressed`,
+                                        "value": 0
+                                    }
                                 }
-                            }
-                        ]
-                    },
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "quote",
-                            "modifiers": {
-                                "mandatory": [
-                                    "right_shift"
-                                ]
-                            }
+                            ]
                         },
-                        "to_if_alone": [
-                            {
-                                "key_code": "quote"
-                            }
-                        ],
-                        "to": [
-                            {
-                                "set_variable": {
-                                    "name": "quote_layer pressed",
-                                    "value": 1
+                        {
+                            "type": "basic",
+                            "from": {
+                                "key_code": eachKey,
+                                "modifiers": {
+                                    "mandatory": [
+                                        "left_shift"
+                                    ]
                                 }
                             },
-                            {
-                                "set_variable": {
-                                    "name": "quote_shift_layer pressed",
-                                    "value": 1
+                            "to_if_alone": [
+                                {
+                                    "key_code": eachKey
                                 }
-                            },
-                        ],
-                        "to_after_key_up": [
-                            {
-                                "set_variable": {
-                                    "name": "quote_layer pressed",
-                                    "value": 0
+                            ],
+                            "to": [
+                                {
+                                    "set_variable": {
+                                        "name": `${eachKey}_layer pressed`,
+                                        "value": 1
+                                    }
+                                },
+                                {
+                                    "set_variable": {
+                                        "name": `${eachKey}_shift_layer pressed`,
+                                        "value": 1
+                                    }
                                 }
-                            },
-                            {
-                                "set_variable": {
-                                    "name": "quote_shift_layer pressed",
-                                    "value": 0
+                            ],
+                            "to_after_key_up": [
+                                {
+                                    "set_variable": {
+                                        "name": `${eachKey}_layer pressed`,
+                                        "value": 1
+                                    }
+                                },
+                                {
+                                    "set_variable": {
+                                        "name": `${eachKey}_shift_layer pressed`,
+                                        "value": 0
+                                    }
                                 }
-                            }
-                        ]
-                    },
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "semicolon",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
+                            ]
                         },
-                        "to_if_alone": [
-                            {
-                                "key_code": "semicolon"
-                            }
-                        ],
-                        "to": [
-                            {
-                                "set_variable": {
-                                    "name": "semicolon_layer pressed",
-                                    "value": 1
+                        {
+                            "type": "basic",
+                            "from": {
+                                "key_code": eachKey,
+                                "modifiers": {
+                                    "mandatory": [
+                                        "right_shift"
+                                    ]
                                 }
-                            }
-                        ],
-                        "to_after_key_up": [
-                            {
-                                "set_variable": {
-                                    "name": "semicolon_layer pressed",
-                                    "value": 0
+                            },
+                            "to_if_alone": [
+                                {
+                                    "key_code": eachKey
                                 }
-                            }
-                        ]
-                    },
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "spacebar",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
+                            ],
+                            "to": [
+                                {
+                                    "set_variable": {
+                                        "name": `${eachKey}_layer pressed`,
+                                        "value": 1
+                                    }
+                                },
+                                {
+                                    "set_variable": {
+                                        "name": `${eachKey}_shift_layer pressed`,
+                                        "value": 1
+                                    }
+                                },
+                            ],
+                            "to_after_key_up": [
+                                {
+                                    "set_variable": {
+                                        "name": `${eachKey}_layer pressed`,
+                                        "value": 0
+                                    }
+                                },
+                                {
+                                    "set_variable": {
+                                        "name": `${eachKey}_shift_layer pressed`,
+                                        "value": 0
+                                    }
+                                }
+                            ]
                         },
-                        "to_if_alone": [
-                            {
-                                "key_code": "spacebar"
-                            }
-                        ],
-                        "to": [
-                            {
-                                "set_variable": {
-                                    "name": "spacebar_layer pressed",
-                                    "value": 1
-                                }
-                            }
-                        ],
-                        "to_after_key_up": [
-                            {
-                                "set_variable": {
-                                    "name": "spacebar_layer pressed",
-                                    "value": 0
-                                }
-                            }
-                        ]
-                    }
+                    ]).flat(Infinity),
              ]
         }
     ]
