@@ -24,6 +24,7 @@
 !/.irbrc
 !/.Xmodmap
 !/default.nix
+!/flake.nix
 !/README.md
 
 #
