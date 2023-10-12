@@ -644,7 +644,7 @@ const karabinerMapping = {
                             },
                             "to_if_alone": [
                                 {
-                                    "key_code": eachKey
+                                    "key_code": eachKey,
                                 }
                             ],
                             "to": [
@@ -664,19 +664,23 @@ const karabinerMapping = {
                                 }
                             ]
                         },
-                        {
+                        ...leftOrRight('shift').map(shift=>({
+
                             "type": "basic",
                             "from": {
                                 "key_code": eachKey,
                                 "modifiers": {
                                     "mandatory": [
-                                        "left_shift"
+                                        shift
                                     ]
                                 }
                             },
                             "to_if_alone": [
                                 {
-                                    "key_code": eachKey
+                                    "key_code": eachKey,
+                                    modifiers: [
+                                        shift,
+                                    ]
                                 }
                             ],
                             "to": [
@@ -697,7 +701,7 @@ const karabinerMapping = {
                                 {
                                     "set_variable": {
                                         "name": `${eachKey}_layer pressed`,
-                                        "value": 1
+                                        "value": 0
                                     }
                                 },
                                 {
@@ -705,53 +709,9 @@ const karabinerMapping = {
                                         "name": `${eachKey}_shift_layer pressed`,
                                         "value": 0
                                     }
-                                }
-                            ]
-                        },
-                        {
-                            "type": "basic",
-                            "from": {
-                                "key_code": eachKey,
-                                "modifiers": {
-                                    "mandatory": [
-                                        "right_shift"
-                                    ]
-                                }
-                            },
-                            "to_if_alone": [
-                                {
-                                    "key_code": eachKey
                                 }
                             ],
-                            "to": [
-                                {
-                                    "set_variable": {
-                                        "name": `${eachKey}_layer pressed`,
-                                        "value": 1
-                                    }
-                                },
-                                {
-                                    "set_variable": {
-                                        "name": `${eachKey}_shift_layer pressed`,
-                                        "value": 1
-                                    }
-                                },
-                            ],
-                            "to_after_key_up": [
-                                {
-                                    "set_variable": {
-                                        "name": `${eachKey}_layer pressed`,
-                                        "value": 0
-                                    }
-                                },
-                                {
-                                    "set_variable": {
-                                        "name": `${eachKey}_shift_layer pressed`,
-                                        "value": 0
-                                    }
-                                }
-                            ]
-                        },
+                        }))
                     ]).flat(Infinity),
              ]
         }
