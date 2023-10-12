@@ -1704,10 +1704,268 @@
                 {
                     "type": "basic",
                     "from": {
+                        "key_code": "spacebar",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "spacebar"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "spacebar_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "spacebar_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "spacebar",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "spacebar"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "spacebar_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "spacebar_shift_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "spacebar_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "spacebar_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "spacebar",
+                        "modifiers": {
+                            "mandatory": [
+                                "right_shift"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "spacebar"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "spacebar_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "spacebar_shift_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "spacebar_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "spacebar_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "semicolon",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "semicolon"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "semicolon",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "semicolon"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "semicolon_shift_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "semicolon_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "semicolon",
+                        "modifiers": {
+                            "mandatory": [
+                                "right_shift"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "semicolon"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "semicolon_shift_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "semicolon_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
                         "key_code": "quote",
                         "modifiers": {
                             "optional": [
-                                "any"
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
                             ]
                         }
                     },
@@ -1816,70 +2074,6 @@
                         {
                             "set_variable": {
                                 "name": "quote_shift_layer pressed",
-                                "value": 0
-                            }
-                        }
-                    ]
-                },
-                {
-                    "type": "basic",
-                    "from": {
-                        "key_code": "semicolon",
-                        "modifiers": {
-                            "optional": [
-                                "any"
-                            ]
-                        }
-                    },
-                    "to_if_alone": [
-                        {
-                            "key_code": "semicolon"
-                        }
-                    ],
-                    "to": [
-                        {
-                            "set_variable": {
-                                "name": "semicolon_layer pressed",
-                                "value": 1
-                            }
-                        }
-                    ],
-                    "to_after_key_up": [
-                        {
-                            "set_variable": {
-                                "name": "semicolon_layer pressed",
-                                "value": 0
-                            }
-                        }
-                    ]
-                },
-                {
-                    "type": "basic",
-                    "from": {
-                        "key_code": "spacebar",
-                        "modifiers": {
-                            "optional": [
-                                "any"
-                            ]
-                        }
-                    },
-                    "to_if_alone": [
-                        {
-                            "key_code": "spacebar"
-                        }
-                    ],
-                    "to": [
-                        {
-                            "set_variable": {
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        }
-                    ],
-                    "to_after_key_up": [
-                        {
-                            "set_variable": {
-                                "name": "spacebar_layer pressed",
                                 "value": 0
                             }
                         }
