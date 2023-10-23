@@ -1,83 +1,61 @@
 {
-    description = "Testing out flakeshub ";
+    description = "Snowfall Cowsay";
+
     inputs = {
-        nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1.514192.tar.gz";
+        nixpkgs.url = "github:nixos/nixpkgs/nixos-22.11";
+        unstable.url = "github:nixos/nixpkgs/nixos-unstable";
 
-        # flake-compat.url = "https://flakehub.com/f/edolstra/flake-compat/1.0.1.tar.gz";
+        snowfall-lib = {
+            url = "github:snowfallorg/lib";
+            inputs.nixpkgs.follows = "nixpkgs";
+        };
 
-        # fenix = {
-        #     url = "https://flakehub.com/f/nix-community/fenix/0.1.1565.tar.gz";
-        #     inputs.nixpkgs.follows = "nixpkgs";
-        # };
+        vhs = {
+            url = "github:snowfallorg/vhs";
+            inputs.nixpkgs.follows = "nixpkgs";
+        };
 
-        # naersk = {
-        #     url = "github:nix-community/naersk";
-        #     inputs.nixpkgs.follows = "nixpkgs";
-        # };
+        cowfiles = {
+            url = "github:paulkaefer/cowsay-files";
+            flake = false;
+        };
     };
 
-    outputs = { self, ... }@inputs:
+    outputs = inputs:
         let
-            a = 10;
-            # inherit (inputs.nixpkgs) lib;
+            inherit (inputs.nixpkgs) lib;
+            inherit (lib) mapAttrsToList flatten foldl pipe;
 
-            # lastModifiedDate = self.lastModifiedDate or self.lastModified or "19700101";
+            collect-packages =
+                (system: packages:
+                    mapAttrsToList
+                        (name: package: {
+                            inherit system name package;
+                        })
+                        packages
+                );
 
-            # version = "${builtins.substring 0 8 lastModifiedDate}-${self.shortRev or "dirty"}";
+            collected-packages = flatten (
+                mapAttrsToList collect-packages inputs.self.packages
+            );
 
-            # forSystems = s: f: lib.genAttrs s (system: f rec {
-            #     inherit system;
-            #     pkgs = import inputs.nixpkgs { inherit system; overlays = [ self.overlays.default ]; };
-            # });
+            create-jobs = jobs: entry: jobs // {
+                ${entry.name} = (jobs.${entry.name} or { }) // {
+                    ${entry.system} = entry.package;
+                };
+            };
 
-            # forAllSystems = forSystems [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
-
-            # fenixToolchain = system: with inputs.fenix.packages.${system};
-            #     combine ([
-            #         stable.clippy
-            #         stable.rustc
-            #         stable.cargo
-            #         stable.rustfmt
-            #         stable.rust-src
-            #     ] ++ inputs.nixpkgs.lib.optionals (system == "x86_64-linux") [
-            #         targets.x86_64-unknown-linux-musl.stable.rust-std
-            #     ] ++ inputs.nixpkgs.lib.optionals (system == "aarch64-linux") [
-            #         targets.aarch64-unknown-linux-musl.stable.rust-std
-            #     ]);
-
+            hydraJobs = foldl create-jobs { } collected-packages;
         in
-            {
-                # overlays.default = final: prev: rec {
-                #     somthing = somthing;
-                # };
-                
-                # packages = forAllSystems ({ system, pkgs, ... }: rec {
-                #     fh = pkgs.fh;
-                #     default = pkgs.fh;
-                # });
+            inputs.snowfall-lib.mkFlake {
+                inherit inputs hydraJobs;
 
-                #   devShells = forAllSystems ({ system, pkgs, ... }:
-                #       {
-                #           default = pkgs.mkShell {
-                #               name = "dev";
+                src = ./.;
 
-                #               LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-                #               NIX_CFLAGS_COMPILE = lib.optionalString pkgs.stdenv.isDarwin "-I${pkgs.libcxx.dev}/include/c++/v1";
+                snowfall = {
+                    namespace = "snowfallorg";
+                };
 
-                #               nativeBuildInputs = with pkgs; [ pkg-config clang ];
-                #               buildInputs = with pkgs; [
-                #                   (fenixToolchain stdenv.hostPlatform.system)
-                #                   cargo-watch
-                #                   rust-analyzer
-                #                   nixpkgs-fmt
-                #                   gcc.cc.lib
-                #               ]
-                #               ++ lib.optionals (pkgs.stdenv.isDarwin) (with pkgs; with darwin.apple_sdk.frameworks; [
-                #                   libiconv
-                #                   Security
-                #                   SystemConfiguration
-                #               ]);
-                #           };
-                #       });
-          };
+                alias.packages.default = "cowsay";
+            };
 }
