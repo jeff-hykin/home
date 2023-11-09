@@ -24,7 +24,7 @@ if (Deno.build.os=="darwin"){
         each=>each.split("\n")[0].slice(1,)
     )
 } else {
-    var result = await run`getent passwd`
-    names = result.split("\n").filter(each=>!(each.endsWith("/bin/false")||each.endsWith("/nologin"))).map(each=>each.split(":")[0])
+    var result = await run`getent passwd ${Stdout(returnAsString)}`
+    names = result.split("\n").filter(each=>each.trim()&&!(each.endsWith("/bin/false")||each.endsWith("/nologin"))).map(each=>each.split(":")[0])
 }
 console.log(JSON.stringify(names,0,4))
