@@ -1,0 +1,30 @@
+#!/usr/bin/env -S deno run --allow-all
+import { FileSystem } from  "https://deno.land/x/quickr@0.6.51/main/file_system.js"
+import { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } from  "https://deno.land/x/quickr@0.6.51/main/run.js"
+
+// 
+// args
+// 
+let [ fileOrFolderPath ] = Deno.args
+
+// 
+// run
+// 
+let names
+if (Deno.build.os=="darwin"){
+    var result = await run`dscacheutil -q user ${Stdout(returnAsString)}`
+    var entries = result.split(/^name:/gm)
+    names = entries.filter(
+        each=>each.trim()&&(
+            !each.split("\n").some(
+                each=>each.startsWith("dir: /var/")||each.startsWith("shell: /usr/bin/false") || (each.startsWith("shell: ")&&each.endsWith("/nologin"))
+            )
+        )
+    ).map(
+        each=>each.split("\n")[0].slice(1,)
+    )
+} else {
+    var result = await run`getent passwd`
+    names = result.split("\n").filter(each=>!(each.endsWith("/bin/false")||each.endsWith("/nologin"))).map(each=>each.split(":")[0])
+}
+console.log(JSON.stringify(names,0,4))

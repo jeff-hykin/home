@@ -1,12 +1,5 @@
 # needs: perl, sed, awk
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    IS_MAC=true
-    IS_LINUX=false
-elif [[ "$OSTYPE" == "linux-gnu" ]]; then
-    IS_MAC=false
-    IS_LINUX=true
-fi
 
 # create a verbal alias
 alias previous_succeed='[ $? -eq 0 ]'
@@ -455,11 +448,6 @@ most_recent_file () {
 #
 #   Owners and Groups
 #
-all_users () {
-    IS_MAC && dscacheutil -q user
-    IS_LINUX && getent passwd
-}
-
 owner_of () {
     ls -ld "$@" | awk '{print $3}'
 }
