@@ -1,5 +1,5 @@
 {
-    "title": "Hold Space for ijkl arrow keys and more: 0.43430798520205016",
+    "title": "Hold Space for ijkl arrow keys and more: 0.21491869661356455",
     "rules": [
         {
             "description": "Hold Space for ijkl arrow keys and more",
@@ -24,6 +24,11 @@
                             "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -55,6 +60,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 0
                         }
@@ -80,6 +90,11 @@
                             "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -111,6 +126,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 0
                         }
@@ -137,6 +157,11 @@
                             "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -177,61 +202,8 @@
                         },
                         {
                             "type": "variable_if",
-                            "name": "quote_layer pressed",
+                            "name": "semicolon_layer pressed",
                             "value": 0
-                        }
-                    ]
-                },
-                {
-                    "type": "basic",
-                    "from": {
-                        "key_code": "semicolon",
-                        "modifiers": {
-                            "mandatory": [
-                                "left_gui"
-                            ]
-                        }
-                    },
-                    "to": [
-                        {
-                            "key_code": "delete_or_backspace",
-                            "modifiers": [
-                                "left_gui"
-                            ]
-                        }
-                    ],
-                    "conditions": [
-                        {
-                            "type": "variable_if",
-                            "name": "spacebar_layer pressed",
-                            "value": 1
-                        },
-                        {
-                            "type": "variable_if",
-                            "name": "quote_layer pressed",
-                            "value": 0
-                        }
-                    ]
-                },
-                {
-                    "type": "basic",
-                    "from": {
-                        "key_code": "semicolon",
-                        "modifiers": {
-                            "mandatory": []
-                        }
-                    },
-                    "to": [
-                        {
-                            "key_code": "delete_or_backspace",
-                            "modifiers": []
-                        }
-                    ],
-                    "conditions": [
-                        {
-                            "type": "variable_if",
-                            "name": "spacebar_layer pressed",
-                            "value": 1
                         },
                         {
                             "type": "variable_if",
@@ -367,6 +339,133 @@
                 {
                     "type": "basic",
                     "from": {
+                        "key_code": "semicolon",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "delete_or_backspace"
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "k",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "hyphen",
+                            "modifiers": []
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "k",
+                        "modifiers": {
+                            "mandatory": [
+                                "right_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "hyphen",
+                            "modifiers": []
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "k",
+                        "modifiers": {
+                            "optional": [
+                                "any"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "hyphen",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
                         "key_code": "0",
                         "modifiers": {
                             "optional": [
@@ -413,6 +512,11 @@
                         },
                         {
                             "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
                             "name": "spacebar_layer pressed",
                             "value": 1
                         }
@@ -441,6 +545,11 @@
                             "type": "variable_if",
                             "name": "quote_layer pressed",
                             "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
                         },
                         {
                             "type": "variable_if",
@@ -11708,6 +11817,138 @@
                         {
                             "set_variable": {
                                 "name": "spacebar_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "semicolon",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "semicolon"
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "semicolon",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "semicolon",
+                            "modifiers": [
+                                "left_shift"
+                            ]
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "semicolon_shift_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "semicolon_shift_layer pressed",
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "semicolon",
+                        "modifiers": {
+                            "mandatory": [
+                                "right_shift"
+                            ]
+                        }
+                    },
+                    "to_if_alone": [
+                        {
+                            "key_code": "semicolon",
+                            "modifiers": [
+                                "right_shift"
+                            ]
+                        }
+                    ],
+                    "to": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 1
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "semicolon_shift_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "semicolon_layer pressed",
+                                "value": 0
+                            }
+                        },
+                        {
+                            "set_variable": {
+                                "name": "semicolon_shift_layer pressed",
                                 "value": 0
                             }
                         }
