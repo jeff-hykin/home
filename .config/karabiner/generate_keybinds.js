@@ -132,7 +132,6 @@ const karabinerMapping = {
         {
             "description": "Hold Space for ijkl arrow keys and more",
             "manipulators": [
-
                 // 
                 // 
                 // ijkl
@@ -543,6 +542,31 @@ const karabinerMapping = {
                     //             "value": 1
                     //         }
                     //     ]
+                    // },
+                // 
+                // underscore
+                // 
+                    // {
+                    //     "type": "basic",
+                    //     "from": {
+                    //         "key_code": "k",
+                    //         "modifiers": {
+                    //             "mandatory": [
+                    //                 "left_control",
+                    //             ]
+                    //         }
+                    //     },
+                    //     "to": [
+                    //         {
+                    //             "key_code": "hyphen",
+                    //             "modifiers": [
+                    //                 "left_shift",
+                    //             ],
+                    //         }
+                    //     ],
+                    //     conditions: [
+
+                    //     ],
                     // },
                 // 
                 // disable stuff
