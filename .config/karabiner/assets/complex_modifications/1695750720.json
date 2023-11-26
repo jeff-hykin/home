@@ -1,5 +1,5 @@
 {
-    "title": "Hold Space for ijkl arrow keys and more",
+    "title": "Hold Space for ijkl arrow keys and more: 0.7573045607071582",
     "rules": [
         {
             "description": "Hold Space for ijkl arrow keys and more",
@@ -116,6 +116,82 @@
                     "to": [
                         {
                             "key_code": "up_arrow"
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "h",
+                        "modifiers": {
+                            "mandatory": [
+                                "left_shift"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "hyphen",
+                            "modifiers": []
+                        }
+                    ],
+                    "conditions": [
+                        {
+                            "type": "variable_if",
+                            "name": "spacebar_layer pressed",
+                            "value": 1
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "semicolon_layer pressed",
+                            "value": 0
+                        },
+                        {
+                            "type": "variable_if",
+                            "name": "quote_layer pressed",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "h",
+                        "modifiers": {
+                            "optional": [
+                                "left_alt",
+                                "right_alt",
+                                "left_control",
+                                "right_control",
+                                "left_gui",
+                                "right_gui",
+                                "fn"
+                            ]
+                        }
+                    },
+                    "to": [
+                        {
+                            "key_code": "hyphen",
+                            "modifiers": [
+                                "left_shift"
+                            ]
                         }
                     ],
                     "conditions": [
