@@ -25,7 +25,6 @@ const modifiers = [
 ]
 
 const layerKeys = [
-    'semicolon',
     'quote',
 ]
 const layerInteractionKeys = Object.fromEntries(layerKeys.map(each=>[`${each}_layer`, []]))
@@ -142,7 +141,6 @@ const karabinerMapping = {
                     ...whenLayers({
                         layerValues: {
                             spacebar_layer: 1,
-                            semicolon_layer: 0,
                             quote_layer: 0,
                         },
                         keyBehaviors: [
@@ -235,6 +233,40 @@ const karabinerMapping = {
                                         "key_code": "hyphen",
                                         "modifiers": [
                                             "left_shift", 
+                                        ],
+                                    }
+                                ],
+                            },
+                            {
+                                "from": {
+                                    "key_code": "semicolon",
+                                    "modifiers": {
+                                        "mandatory": [
+                                            "left_gui"
+                                        ],
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "delete_or_backspace",
+                                        "modifiers": [
+                                            "left_gui",
+                                        ],
+                                    }
+                                ],
+                            },
+                            {
+                                "from": {
+                                    "key_code": "semicolon",
+                                    "modifiers": {
+                                        "mandatory": [
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "delete_or_backspace",
+                                        "modifiers": [
                                         ],
                                     }
                                 ],
@@ -401,11 +433,6 @@ const karabinerMapping = {
                             },
                             {
                                 "type": "variable_if",
-                                "name": "semicolon_layer pressed",
-                                "value": 0
-                            },
-                            {
-                                "type": "variable_if",
                                 "name": "spacebar_layer pressed",
                                 "value": 1
                             }
@@ -437,11 +464,6 @@ const karabinerMapping = {
                             },
                             {
                                 "type": "variable_if",
-                                "name": "semicolon_layer pressed",
-                                "value": 0
-                            },
-                            {
-                                "type": "variable_if",
                                 "name": "spacebar_layer pressed",
                                 "value": 1
                             }
@@ -450,78 +472,78 @@ const karabinerMapping = {
                 // 
                 // bracket jump
                 // 
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "l",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to": [
-                            {
-                                "key_code": "close_bracket",
-                                "modifiers": [
-                                    "left_alt"
-                                ]
-                            }
-                        ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "quote_layer pressed",
-                                "value": 0
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "semicolon_layer pressed",
-                                "value": 1
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        ]
-                    },
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "j",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to": [
-                            {
-                                "key_code": "open_bracket",
-                                "modifiers": [
-                                    "left_alt"
-                                ]
-                            }
-                        ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "quote_layer pressed",
-                                "value": 0
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "semicolon_layer pressed",
-                                "value": 1
-                            },
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        ]
-                    },
+                    // {
+                    //     "type": "basic",
+                    //     "from": {
+                    //         "key_code": "l",
+                    //         "modifiers": {
+                    //             "optional": [
+                    //                 "any"
+                    //             ]
+                    //         }
+                    //     },
+                    //     "to": [
+                    //         {
+                    //             "key_code": "close_bracket",
+                    //             "modifiers": [
+                    //                 "left_alt"
+                    //             ]
+                    //         }
+                    //     ],
+                    //     "conditions": [
+                    //         {
+                    //             "type": "variable_if",
+                    //             "name": "quote_layer pressed",
+                    //             "value": 0
+                    //         },
+                    //         {
+                    //             "type": "variable_if",
+                    //             "name": "semicolon_layer pressed",
+                    //             "value": 1
+                    //         },
+                    //         {
+                    //             "type": "variable_if",
+                    //             "name": "spacebar_layer pressed",
+                    //             "value": 1
+                    //         }
+                    //     ]
+                    // },
+                    // {
+                    //     "type": "basic",
+                    //     "from": {
+                    //         "key_code": "j",
+                    //         "modifiers": {
+                    //             "optional": [
+                    //                 "any"
+                    //             ]
+                    //         }
+                    //     },
+                    //     "to": [
+                    //         {
+                    //             "key_code": "open_bracket",
+                    //             "modifiers": [
+                    //                 "left_alt"
+                    //             ]
+                    //         }
+                    //     ],
+                    //     "conditions": [
+                    //         {
+                    //             "type": "variable_if",
+                    //             "name": "quote_layer pressed",
+                    //             "value": 0
+                    //         },
+                    //         {
+                    //             "type": "variable_if",
+                    //             "name": "semicolon_layer pressed",
+                    //             "value": 1
+                    //         },
+                    //         {
+                    //             "type": "variable_if",
+                    //             "name": "spacebar_layer pressed",
+                    //             "value": 1
+                    //         }
+                    //     ]
+                    // },
                 // 
                 // disable stuff
                 // 
