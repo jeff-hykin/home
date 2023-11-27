@@ -4,8 +4,12 @@ echo "1.31.3"; : --% ' |out-null <#';};v="$(dv)";d="$HOME/.deno/$v/bin/deno";if 
 # */0}`;
 const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.6.20/main/run.js`)
 
-const { success } = await run("nix-env", "-iA", `nixpkgs.${Deno.args[0]}`)
+var { success } = await run("nix-env", "-iA", `nixpkgs.${Deno.args[0]}`, ...Deno.args.slice(1,))
 if (!success) {
-    await run("nix-env", "-f", "<nixpkgs>", "-iA", `${Deno.args[0]}`)
+    var { success } = await run("nix-env", "-f", "<nixpkgs>", "-iA", ...Deno.args)
+}
+if (!success) {
+    const pathToNix = await run`nix eval --impure --expr ${`<nixpkgs>`} ${Stdout(returnAsString)}`
+    await run`nix profile install ${`${pathToNix}#${Deno.args[0]}`}`
 }
 // (this comment is part of deno-guillotine, dont remove) #>
