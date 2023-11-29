@@ -13,3 +13,7 @@
 	directory = /Users/jeffhykin/repos/nix-ros-overlay-generated
 [advice]
 	detachedHead = false
+[diff]
+	tool = vscode
+[difftool "vscode"]
+	cmd = "code --wait --diff  "

@@ -1,61 +1,38 @@
 {
-    description = "Snowfall Cowsay";
+	description = "My awesome flake";
 
-    inputs = {
-        nixpkgs.url = "github:nixos/nixpkgs/nixos-22.11";
-        unstable.url = "github:nixos/nixpkgs/nixos-unstable";
+	inputs = {
+		nixpkgs.url = "github:nixos/nixpkgs/nixos-22.05";
 
-        snowfall-lib = {
-            url = "github:snowfallorg/lib";
-            inputs.nixpkgs.follows = "nixpkgs";
-        };
+		# Snowfall Lib is not required, but will make configuration easier for you.
+		snowfall-lib = {
+			url = "github:snowfallorg/lib";
+			inputs.nixpkgs.follows = "nixpkgs";
+		};
 
-        vhs = {
-            url = "github:snowfallorg/vhs";
-            inputs.nixpkgs.follows = "nixpkgs";
-        };
+		cowsay = {
+			url = "github:snowfallorg/cowsay";
+			inputs.nixpkgs.follows = "nixpkgs";
+		};
+	};
 
-        cowfiles = {
-            url = "github:paulkaefer/cowsay-files";
-            flake = false;
-        };
-    };
+	outputs = inputs:
+		inputs.snowfall-lib.mkFlake {
+			inherit inputs;
+			src = ./.;
 
-    outputs = inputs:
-        let
-            inherit (inputs.nixpkgs) lib;
-            inherit (lib) mapAttrsToList flatten foldl pipe;
+			overlays = with inputs; [
+				# To make this flake's packages available in your NixPkgs package set.
+				cowsay.overlay
+			];
 
-            collect-packages =
-                (system: packages:
-                    mapAttrsToList
-                        (name: package: {
-                            inherit system name package;
-                        })
-                        packages
-                );
-
-            collected-packages = flatten (
-                mapAttrsToList collect-packages inputs.self.packages
-            );
-
-            create-jobs = jobs: entry: jobs // {
-                ${entry.name} = (jobs.${entry.name} or { }) // {
-                    ${entry.system} = entry.package;
-                };
-            };
-
-            hydraJobs = foldl create-jobs { } collected-packages;
-        in
-            inputs.snowfall-lib.mkFlake {
-                inherit inputs hydraJobs;
-
-                src = ./.;
-
-                snowfall = {
-                    namespace = "snowfallorg";
-                };
-
-                alias.packages.default = "cowsay";
-            };
+			outputs-builder = channels:
+				let
+					inherit (channels.nixpkgs) system;
+					# Use packages directly from the input instead.
+					inherit (inputs.cowsay.packages.${system}) cowsay cow2img;
+				in {
+					# Use the packages in some way.
+				};
+		};
 }

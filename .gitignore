@@ -25,6 +25,7 @@
 !/.Xmodmap
 !/default.nix
 !/flake.nix
+!/flake.lock
 !/README.md
 
 #

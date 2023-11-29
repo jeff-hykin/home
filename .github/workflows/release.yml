@@ -28,4 +28,5 @@ jobs:
                 uses: "DeterminateSystems/flakehub-push@main"
                 with:
                     visibility: "public"
+                    name: "jeff-hykin/home"
                     tag: "${{ inputs.tag }}"
