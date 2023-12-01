@@ -4,12 +4,17 @@ echo "1.38.3"; : --% ' |out-null <#'; }; version="$(dv)"; deno="$HOME/.deno/$ver
 # */0}`;
 const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.6.56/main/run.js`)
 
-var { success } = await run("nix-env", "-iA", `nixpkgs.${Deno.args[0]}`, ...Deno.args.slice(1,))
+// this fails fastest so try it first
+if (!success) {
+    const pathToNix = await run`nix eval --impure --expr ${`<nixpkgs>`} ${Stdout(returnAsString)}`
+    var {success} = await run`nix profile install ${`${pathToNix.trim()}#${Deno.args[0]}`}`
+}
+
+if (!success) {
+    var { success } = await run("nix-env", "-iA", `nixpkgs.${Deno.args[0]}`, ...Deno.args.slice(1,))
+}
 if (!success) {
     var { success } = await run("nix-env", "-f", "<nixpkgs>", "-iA", ...Deno.args)
 }
-if (!success) {
-    const pathToNix = await run`nix eval --impure --expr ${`<nixpkgs>`} ${Stdout(returnAsString)}`
-    await run`nix profile install ${`${pathToNix}#${Deno.args[0]}`}`
-}
+
 // (this comment is part of deno-guillotine, dont remove) #>
