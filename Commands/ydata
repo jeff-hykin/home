@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+print(f'''importing''')
+import numpy as np
+import pandas as pd
+from ydata_profiling import ProfileReport
+import pandas as pd
+from io import StringIO
+import sys
+import os
+# pip install ydata-profiling
+
+def open_url(url):
+    import sys
+    import os
+    import subprocess
+    
+    output = ""
+    error = ""
+    try:
+        if sys.platform.startswith("darwin"): # OSX
+            args = ["open", url]
+            output, error = subprocess.Popen(
+                args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            ).communicate()
+        elif os.name == "nt": # Windows
+            os.startfile(url)
+        elif os.name == "posix": # Linux
+            args = ["xdg-open", url]
+            output, error = subprocess.Popen(
+                args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            ).communicate()
+            if "not found" in error:
+                args = ["exo-open", url]
+                output, error = subprocess.Popen(
+                    args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                ).communicate()
+
+    except Exception as error:
+        raise Exception(f'''Error opening {url} \n{error}''')
+
+print(f'''reading data''')
+filepath = sys.argv[1]
+try:
+    with open(filepath,'r') as f:
+        output = f.read()
+except:
+    output = None
+
+if not output:
+    raise Exception(f'''I dont see: {repr(filepath)}''')
+
+kwargs = dict(sep=",")
+if output.startswith("#"):
+    kwargs["comment"] = "#"
+
+
+if output.count('\t') > output.count(','):
+    kwargs["sep"] = "\t"
+
+# Use StringIO to create a file-like object from the string
+print(f'''loading as csv''')
+df = pd.read_csv(StringIO(output))
+profile = ProfileReport(df, title="Profiling Report")
+new_path_base = os.path.dirname(filepath)
+basename = os.path.basename(filepath)
+if "." not in basename:
+    new_path_base += f"/{basename}"
+else:
+    new_path_base += "/" + ".".join(basename.split(".")[0:-1])
+
+report_path = f"{new_path_base}.report.html"
+print(f'''generating report: {repr(report_path)}''')
+profile.to_file(report_path)
+
+print(f'''opening report''')
+open_url(f"file:///{report_path}")
