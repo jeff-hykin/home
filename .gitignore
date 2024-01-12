@@ -9,6 +9,7 @@
 # 
 # Custom
 # 
+!/index.html
 !/.gitignore
 !/.gitconfig
 !/.profile
