@@ -1017,11 +1017,12 @@
             </Container>
         </body>
     `
-    const url = new URL(window.location.href)
-    const remainingText = window.location.href.slice((url.origin+url.pathname).length+1)
-    if (remainingText) {
-        getNodesAndLinksFor(remainingText).then(loadNewGraph)
-    }
+    const remainingText = window.location.href.replace(/.+?#/,"")
+    setTimeout(() => {
+        if (remainingText) {
+            getNodesAndLinksFor(remainingText).then(loadNewGraph)
+        }
+    }, 0);
     document.body.animate(...fadeIn)
     // 
     // 
