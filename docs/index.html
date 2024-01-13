@@ -1017,6 +1017,10 @@
             </Container>
         </body>
     `
+    const remainingText = window.location.href.slice((u.origin+u.pathname).length+1)
+    if (remainingText) {
+        getNodesAndLinksFor(remainingText).then(loadNewGraph)
+    }
     document.body.animate(...fadeIn)
     // 
     // 
