@@ -101,547 +101,6 @@
             document.body ? animateLoader() : document.addEventListener("DOMContentLoaded", animateLoader)
     </script>
 
-<!--          -->
-<!-- Toastify -->
-<!--          -->
-<script type="module">
-    // 
-    // Toast
-    // 
-        import { css, cx } from 'https://cdn.skypack.dev/-/@emotion/css@v11.10.5-uWGULTiBZCR27o2j9H2P/dist=es2019,mode=imports/optimized/@emotion/css.js'
-    
-        const toastOn = css``
-        const toastify = css`
-            padding: 12px 20px;
-            color: #ffffff;
-            display: inline-block;
-            box-shadow: 0 3px 6px -1px rgba(0, 0, 0, 0.12), 0 10px 36px -4px rgba(77, 96, 232, 0.3);
-            background: -webkit-linear-gradient(315deg, #73a5ff, #5477f5);
-            background: linear-gradient(135deg, #73a5ff, #5477f5);
-            position: fixed;
-            opacity: 0;
-            transition: all 0.4s cubic-bezier(0.215, 0.61, 0.355, 1);
-            border-radius: 2px;
-            cursor: pointer;
-            text-decoration: none;
-            max-width: calc(50% - 20px);
-            z-index: 2147483647;
-            &${toastOn} {
-                opacity: 1;
-            }
-        `
-
-
-        const toastClose = css`
-            background: transparent;
-            border: 0;
-            color: white;
-            cursor: pointer;
-            font-family: inherit;
-            font-size: 1em;
-            opacity: 0.4;
-            padding: 0 5px;
-        `
-
-        const toastifyRight = css`
-            right: 15px;
-            @media only screen and (max-width: 360px) {
-                margin-left: auto;
-                margin-right: auto;
-                left: 0;
-                right: 0;
-                max-width: fit-content;
-            }
-        `
-
-        const toastifyLeft = css`
-            left: 15px;
-            @media only screen and (max-width: 360px) {
-                margin-left: auto;
-                margin-right: auto;
-                left: 0;
-                right: 0;
-                max-width: fit-content;
-            }
-        `
-
-        const toastifyTop = css`
-            top: 50px;
-        `
-
-        const toastifyBottom = css`
-            bottom: 50px;
-        `
-
-        const toastifyRounded = css`
-            border-radius: 25px;
-        `
-
-        const toastifyAvatar = css`
-            width: 1.5em;
-            height: 1.5em;
-            margin: -7px 5px;
-            border-radius: 2px;
-        `
-
-        const toastifyCenter = css`
-            margin-left: auto;
-            margin-right: auto;
-            left: 0;
-            right: 0;
-            max-width: fit-content;
-            max-width: -moz-fit-content;
-        `
-
-        const nameMapping = {
-            right: toastifyRight,
-            left: toastifyLeft,
-            top: toastifyTop,
-            bottom: toastifyBottom,
-            rounded: toastifyRounded,
-            avatar: toastifyAvatar,
-            center: toastifyCenter,
-        }
-
-        /*!
-        * Toastify js 1.12.0
-        * https://github.com/apvarun/toastify-js
-        * @license MIT licensed
-        *
-        * Copyright (C) 2018 Varun A P
-        */
-
-        /**
-        * Options used for Toastify
-        * @typedef {Object} ToastifyConfigurationObject
-        * @property {string} text - Message to be displayed in the toast
-        * @property {Element} node - Provide a node to be mounted inside the toast. node takes higher precedence over text
-        * @property {number} duration - Duration for which the toast should be displayed. -1 for permanent toast
-        * @property {string|Element} selector - CSS ID Selector on which the toast should be added
-        * @property {url} destination - URL to which the browser should be navigated on click of the toast
-        * @property {boolean} newWindow - Decides whether the destination should be opened in a new window or not
-        * @property {boolean} close - To show the close icon or not
-        * @property {string} gravity - To show the toast from top or bottom
-        * @property {string} position - To show the toast on left or right
-        * @property {string} backgroundColor - Deprecated: Sets the background color of the toast
-        * @property {url} avatar - Image/icon to be shown before text
-        * @property {string} className - Ability to provide custom class name for further customization
-        * @property {boolean} stopOnFocus - To stop timer when hovered over the toast (Only if duration is set)
-        * @property {Function} callback - Invoked when the toast is dismissed
-        * @property {Function} onClick - Invoked when the toast is clicked
-        * @property {Object} offset - Ability to add some offset to axis
-        * @property {boolean} escapeMarkup - Toggle the default behavior of escaping HTML markup
-        * @property {string} ariaLive - Use the HTML DOM style property to add styles to toast
-        * @property {Object} style - Use the HTML DOM style property to add styles to toast
-        */
-
-        class Toastify {
-            defaults = {
-                oldestFirst: true,
-                text: "Toastify is awesome!",
-                node: undefined,
-                duration: 3000,
-                selector: undefined,
-                callback: function () {},
-                destination: undefined,
-                newWindow: false,
-                close: false,
-                gravity: toastifyBottom,
-                positionLeft: false,
-                position: "",
-                backgroundColor: "",
-                avatar: "",
-                className: "",
-                stopOnFocus: true,
-                onClick: function () {},
-                offset: { x: 0, y: 0 },
-                escapeMarkup: true,
-                ariaLive: "polite",
-                style: { background: "" },
-            }
-            
-            /**
-            * Init the Toastify class
-            * @example
-            *     new Toastify({
-            *         text: "This is a toast",
-            *         duration: 3000
-            *     }).showToast()
-            *
-            * @param {ToastifyConfigurationObject} options - The configuration object to configure Toastify
-            * @param {string} [options.text=Hi there!] - Message to be displayed in the toast
-            * @param {Element} [options.node] - Provide a node to be mounted inside the toast. node takes higher precedence over text
-            * @param {number} [options.duration=3000] - Duration for which the toast should be displayed. -1 for permanent toast
-            * @param {string} [options.selector] - CSS Selector on which the toast should be added
-            * @param {url} [options.destination] - URL to which the browser should be navigated on click of the toast
-            * @param {boolean} [options.newWindow=false] - Decides whether the destination should be opened in a new window or not
-            * @param {boolean} [options.close=false] - To show the close icon or not
-            * @param {string} [options.gravity=toastify-top] - To show the toast from top or bottom
-            * @param {string} [options.position=right] - To show the toast on left or right
-            * @param {string} [options.backgroundColor] - Sets the background color of the toast (To be deprecated)
-            * @param {url} [options.avatar] - Image/icon to be shown before text
-            * @param {string} [options.className] - Ability to provide custom class name for further customization
-            * @param {boolean} [options.stopOnFocus] - To stop timer when hovered over the toast (Only if duration is set)
-            * @param {Function} [options.callback] - Invoked when the toast is dismissed
-            * @param {Function} [options.onClick] - Invoked when the toast is clicked
-            * @param {Object} [options.offset] - Ability to add some offset to axis
-            * @param {boolean} [options.escapeMarkup=true] - Toggle the default behavior of escaping HTML markup
-            * @param {string} [options.ariaLive] - Announce the toast to screen readers
-            * @param {Object} [options.style] - Use the HTML DOM style property to add styles to toast
-            */
-            constructor(options) {
-                /**
-                * The version of Toastify
-                * @type {string}
-                * @public
-                */
-                this.version = "1.12.0"
-
-                /**
-                * The configuration object to configure Toastify
-                * @type {ToastifyConfigurationObject}
-                * @public
-                */
-                this.options = {}
-
-                /**
-                * The element that is the Toast
-                * @type {Element}
-                * @public
-                */
-                this.toastElement = null
-
-                /**
-                * The root element that contains all the toasts
-                * @type {Element}
-                * @private
-                */
-                this._rootElement = document.body
-
-                // Setting defaults
-                this.options = Object.assign(this.defaults, options)
-
-                if (this.options.backgroundColor) {
-                    // This is being deprecated in favor of using the style HTML DOM property
-                    console.warn('DEPRECATION NOTICE: "backgroundColor" is being deprecated. Please use the "style.background" property.')
-                }
-
-                this.toastElement = null
-
-                this.options.gravity = options.gravity === "bottom" ? toastifyBottom : toastifyTop // toast position - top or bottom
-                this.options.stopOnFocus = options.stopOnFocus === undefined ? true : options.stopOnFocus // stop timeout on focus
-                if (options.backgroundColor) {
-                    this.options.style.background = options.backgroundColor
-                }
-            }
-
-            /**
-            * Display the toast
-            * @public
-            */
-            showToast() {
-                // Creating the DOM object for the toast
-                this.toastElement = this._buildToast()
-
-                // Getting the root element to with the toast needs to be added
-                if (typeof this.options.selector === "string") {
-                    this._rootElement = document.getElementById(this.options.selector)
-                } else if (this.options.selector instanceof HTMLElement || this.options.selector instanceof ShadowRoot) {
-                    this._rootElement = this.options.selector
-                } else {
-                    this._rootElement = document.body
-                }
-
-                // Validating if root element is present in DOM
-                if (!this._rootElement) {
-                    throw "Root element is not defined"
-                }
-
-                // Adding the DOM element
-                this._rootElement.insertBefore(this.toastElement, this._rootElement.firstChild)
-
-                // Repositioning the toasts in case multiple toasts are present
-                this._reposition()
-
-                if (this.options.duration > 0) {
-                    this.toastElement.timeOutValue = window.setTimeout(() => {
-                        // Remove the toast from DOM
-                        this._removeElement(this.toastElement)
-                    }, this.options.duration) // Binding `this` for function invocation
-                }
-
-                // Supporting function chaining
-                return this
-            }
-
-            /**
-            * Hide the toast
-            * @public
-            */
-            hideToast() {
-                if (this.toastElement.timeOutValue) {
-                    clearTimeout(this.toastElement.timeOutValue)
-                }
-                this._removeElement(this.toastElement)
-            }
-
-            /**
-            * Build the Toastify element
-            * @returns {Element}
-            * @private
-            */
-            _buildToast() {
-                // Validating if the options are defined
-                if (!this.options) {
-                    throw "Toastify is not initialized"
-                }
-
-                // Creating the DOM object
-                let divElement = document.createElement("div")
-                divElement.className = `${toastify} ${toastOn} ${this.options.className}`
-
-                // Positioning toast to left or right or center (default right)
-                divElement.className += ` ${nameMapping[this.options.position]}`
-
-                // Assigning gravity of element
-                divElement.className += ` ${this.options.gravity}`
-
-                // Loop through our style object and apply styles to divElement
-                for (const property in this.options.style) {
-                    divElement.style[property] = this.options.style[property]
-                }
-
-                // Announce the toast to screen readers
-                if (this.options.ariaLive) {
-                    divElement.setAttribute("aria-live", this.options.ariaLive)
-                }
-
-                // Adding the toast message/node
-                if (this.options.node && this.options.node.nodeType === Node.ELEMENT_NODE) {
-                    // If we have a valid node, we insert it
-                    divElement.appendChild(this.options.node)
-                } else {
-                    if (this.options.escapeMarkup) {
-                        divElement.innerText = this.options.text
-                    } else {
-                        divElement.innerHTML = this.options.text
-                    }
-
-                    if (this.options.avatar !== "") {
-                        let avatarElement = document.createElement("img")
-                        avatarElement.src = this.options.avatar
-
-                        avatarElement.className = toastifyAvatar
-
-                        if (this.options.position == "left") {
-                            // Adding close icon on the left of content
-                            divElement.appendChild(avatarElement)
-                        } else {
-                            // Adding close icon on the right of content
-                            divElement.insertAdjacentElement("afterbegin", avatarElement)
-                        }
-                    }
-                }
-
-                // Adding a close icon to the toast
-                if (this.options.close === true) {
-                    // Create a span for close element
-                    let closeElement = document.createElement("button")
-                    closeElement.type = "button"
-                    closeElement.setAttribute("aria-label", "Close")
-                    closeElement.className = toastClose
-                    closeElement.innerHTML = "&#10006;"
-
-                    // Triggering the removal of toast from DOM on close click
-                    closeElement.addEventListener("click", (event) => {
-                        event.stopPropagation()
-                        this._removeElement(this.toastElement)
-                        window.clearTimeout(this.toastElement.timeOutValue)
-                    })
-
-                    //Calculating screen width
-                    const width = window.innerWidth > 0 ? window.innerWidth : screen.width
-
-                    // Adding the close icon to the toast element
-                    // Display on the right if screen width is less than or equal to 360px
-                    if (this.options.position == "left" && width > 360) {
-                        // Adding close icon on the left of content
-                        divElement.insertAdjacentElement("afterbegin", closeElement)
-                    } else {
-                        // Adding close icon on the right of content
-                        divElement.appendChild(closeElement)
-                    }
-                }
-
-                // Clear timeout while toast is focused
-                if (this.options.stopOnFocus && this.options.duration > 0) {
-                    // stop countdown
-                    divElement.addEventListener("mouseover", (event) => {
-                        window.clearTimeout(divElement.timeOutValue)
-                    })
-                    // add back the timeout
-                    divElement.addEventListener("mouseleave", () => {
-                        divElement.timeOutValue = window.setTimeout(() => {
-                            // Remove the toast from DOM
-                            this._removeElement(divElement)
-                        }, this.options.duration)
-                    })
-                }
-
-                // Adding an on-click destination path
-                if (typeof this.options.destination !== "undefined") {
-                    divElement.addEventListener("click", (event) => {
-                        event.stopPropagation()
-                        if (this.options.newWindow === true) {
-                            window.open(this.options.destination, "_blank")
-                        } else {
-                            window.location = this.options.destination
-                        }
-                    })
-                }
-
-                if (typeof this.options.onClick === "function" && typeof this.options.destination === "undefined") {
-                    divElement.addEventListener("click", (event) => {
-                        event.stopPropagation()
-                        this.options.onClick()
-                    })
-                }
-
-                // Adding offset
-                if (typeof this.options.offset === "object") {
-                    const x = this._getAxisOffsetAValue("x", this.options)
-                    const y = this._getAxisOffsetAValue("y", this.options)
-
-                    const xOffset = this.options.position == "left" ? x : `-${x}`
-                    const yOffset = this.options.gravity == toastifyTop ? y : `-${y}`
-
-                    divElement.style.transform = `translate(${xOffset},${yOffset})`
-                }
-
-                // Returning the generated element
-                return divElement
-            }
-
-            /**
-            * Remove the toast from the DOM
-            * @param {Element} toastElement
-            */
-            _removeElement(toastElement) {
-                // Hiding the element
-                toastElement.className = toastElement.className.replace(` ${toastOn}`, "")
-
-                // Removing the element from DOM after transition end
-                window.setTimeout(() => {
-                    // remove options node if any
-                    if (this.options.node && this.options.node.parentNode) {
-                        this.options.node.parentNode.removeChild(this.options.node)
-                    }
-
-                    // Remove the element from the DOM, only when the parent node was not removed before.
-                    if (toastElement.parentNode) {
-                        toastElement.parentNode.removeChild(toastElement)
-                    }
-
-                    // Calling the callback function
-                    this.options.callback.call(toastElement)
-
-                    // Repositioning the toasts again
-                    this._reposition()
-                }, 400) // Binding `this` for function invocation
-            }
-
-            /**
-            * Position the toast on the DOM
-            * @private
-            */
-            _reposition() {
-                // Top margins with gravity
-                let topLeftOffsetSize = {
-                    top: 15,
-                    bottom: 15,
-                }
-                let topRightOffsetSize = {
-                    top: 15,
-                    bottom: 15,
-                }
-                let offsetSize = {
-                    top: 15,
-                    bottom: 15,
-                }
-
-                // Get all toast messages that have been added to the container (selector)
-                let allToasts = this._rootElement.querySelectorAll(`.${toastify}`)
-
-                let classUsed
-                let topOrBottom
-
-                // Modifying the position of each toast element
-                for (let i = 0; i < allToasts.length; i++) {
-                    // Getting the applied gravity
-                    if (allToasts[i].classList.contains(toastifyTop) === true) {
-                        classUsed = toastifyTop
-                        topOrBottom = "top"
-                    } else {
-                        classUsed = toastifyBottom
-                        topOrBottom = "bottom"
-                    }
-
-                    let height = allToasts[i].offsetHeight
-                    classUsed = classUsed.substr(9, classUsed.length - 1)
-                    // Spacing between toasts
-                    let offset = 15
-
-                    let width = window.innerWidth > 0 ? window.innerWidth : screen.width
-
-                    // Show toast in center if screen with less than or equal to 360px
-                    if (width <= 360) {
-                        // Setting the position
-                        allToasts[i].style[topOrBottom] = `${offsetSize[topOrBottom]}px`
-
-                        offsetSize[topOrBottom] += height + offset
-                    } else {
-                        if (allToasts[i].classList.contains(toastifyLeft) === true) {
-                            // Setting the position
-                            allToasts[i].style[topOrBottom] = `${topLeftOffsetSize[topOrBottom]}px`
-
-                            topLeftOffsetSize[topOrBottom] += height + offset
-                        } else {
-                            // Setting the position
-                            allToasts[i].style[topOrBottom] = `${topRightOffsetSize[topOrBottom]}px`
-
-                            topRightOffsetSize[topOrBottom] += height + offset
-                        }
-                    }
-                }
-            }
-
-            /**
-            * Helper function to get offset
-            * @param {string} axis - 'x' or 'y'
-            * @param {ToastifyConfigurationObject} options - The options object containing the offset object
-            */
-            _getAxisOffsetAValue(axis, options) {
-                if (options.offset[axis]) {
-                    if (isNaN(options.offset[axis])) {
-                        return options.offset[axis]
-                    } else {
-                        return `${options.offset[axis]}px`
-                    }
-                }
-
-                return "0px"
-            }
-        }
-        window.Toastify = Toastify
-    // example:
-    //     new Toastify({
-    //         text: message,
-    //         position: 'right',
-    //         backgroundColor: "#ef6c00",
-    //         gravity: "bottom",
-    //         duration: 8000,
-    //     }).showToast()
-</script>
 <!--                -->
 <!-- The main code  -->
 <!--                -->
@@ -656,6 +115,7 @@
             closeBackground: "#37465B",
             foregroundDim: "#08C6AB",
             foregroundBright: "#5AFFE7",
+            errorColor: "#FE7A36",
             accent: "#726EFF",
         }
     // 
@@ -663,197 +123,200 @@
     // Initialize
     // 
     // 
+        // import router from "https://esm.sh/quik-router@1.0.2"
+        // import router from "/Users/jeffhykin/repos/quik-router/main/main.bundle.js"
+        import { Elemental } from "https://deno.land/x/elementalist@0.5.34/main/deno.js?code"
+        import { css, components, Column, Row, askForFiles, Code, Input, Button, Checkbox, Dropdown, popUp, cx, } from "https://deno.land/x/good_component@0.2.7/elements.js"
+        import { fadeIn, fadeOut } from "https://deno.land/x/good_component@0.2.7/main/animations.js"
+        import { showToast } from "https://deno.land/x/good_component@0.2.7/main/actions.js"
+        import { addDynamicStyleFlags, setupStyles, createCssClass, setupClassStyles, hoverStyleHelper, combineClasses, mergeStyles, AfterSilent, removeAllChildElements } from "https://deno.land/x/good_component@0.2.7/main/helpers.js"
+        import storageObject from "https://deno.land/x/storage_object@0.0.2.0/main.js"
         import { zip, enumerate, count, permute, combinations, wrapAroundGet } from "https://deno.land/x/good@1.5.1.0/array.js"
-         // const ElementalLibrary = (await import("https://cdn.skypack.dev/@!!!!!/elemental@0.0.12")).default
         // const ContainerLibrary = (await import("https://cdn.skypack.dev/@!vanilla/container@v1.0.5")).default
         // inlined version of what is above
-        // const [ ElementalLibrary, ContainerLibrary ] = (()=>{var e = "\uE000", t = "\uE001"; function o(r2) {  var p2, a1, l, s, c = arguments, i = this, n = 0, d = [], h = 0, u = [], f = 0;  d.root = true;  var g = function(e2, o2, r3) {  o2 === void 0 && (o2 = []);  var p3 = 0;  return (e2 = r3 || e2 !== t ? e2.replace(/\ue001/g, (e3)=>u[f++]  ) : u[f++].slice(1, -1)) ? (e2.replace(/\ue000/g, (t2, r4)=>(r4 && o2.push(e2.slice(p3, r4)), p3 = r4 + 1, o2.push(c[++h]))  ), p3 < e2.length && o2.push(e2.slice(p3)), o2.length > 1 ? o2 : o2[0]) : e2;  }, m = ()=>{  [d, s, ...p2] = d, d.push(i(s, ...p2));  };  return r2.join(e).replace(/<!--[^]*-->/g, "").replace(/<!\[CDATA\[[^]*\]\]>/g, "").replace(/('|")[^\1]*?\1/g, (e2)=>(u.push(e2), t)  ).replace(/\s+/g, " ").replace(/(?:^|>)([^<]*)(?:$|<)/g, (e2, t2, r3, p3)=>{  var c2, i2;  if (r3 && p3.slice(n, r3).replace(/(\S)\/$/, "$1 /").split(" ").map((e3, t3)=>{  if (e3[0] === "/") c2 = i2 || e3.slice(1) || 1;  else if (t3) {  if (e3) {  var r4 = d[2] || (d[2] = {});  e3.slice(0, 3) === "..." ? Object.assign(r4, arguments[++h]) : ([a1, l] = e3.split("="), r4[g(a1)] = !l || g(l));  }  } else {  for(i2 = g(e3); o.close[d[1] + i2];)m();  d = [  d,  i2,  null  ], o.empty[i2] && (c2 = i2);  }  }), c2) for(m(); s !== c2 && o.close[s];)m();  n = r3 + e2.length, t2 && t2 !== " " && g((s = 0, t2), d, true);  }), d.root || m(), d.length > 1 ? d : d[0]; } o.empty = {}, o.close = {}, "area base br col command embed hr img input keygen link meta param source track wbr ! !doctype ? ?xml".split(" ").map((e2)=>o.empty[e2] = o.empty[e2.toUpperCase()] = true ); var r = {  li: "",  dt: "dd",  dd: "dt",  p: "address article aside blockquote details div dl fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 header hgroup hr main menu nav ol pre section table",  rt: "rp",  rp: "rt",  optgroup: "",  option: "optgroup",  caption: "tbody thead tfoot tr colgroup",  colgroup: "thead tbody tfoot tr caption",  thead: "tbody tfoot caption",  tbody: "tfoot caption",  tfoot: "caption",  tr: "tbody tfoot",  td: "th tr",  th: "td tr tbody" }, p = function(e2) {  [  ...r[e2].split(" "),  e2  ].map((t2)=>{  o.close[e2] = o.close[e2.toUpperCase()] = o.close[e2 + t2] = o.close[e2.toUpperCase() + t2] = o.close[e2 + t2.toUpperCase()] = o.close[e2.toUpperCase() + t2.toUpperCase()] = true;  }); }; for(var a in r)p(a); const xhtm = o; class Elemental {  constructor(components = {}, options = {}){  const { middleware: middleware2 , errorComponentFactory } = options;  this.components = components || {};  this.middleware = middleware2 || {};  this.errorComponentFactory = errorComponentFactory || defaultErrorComponentFactory;  this.html = xhtm.bind((...args)=>this.createElement(...args)  );  this.css = Elemental.css;  }  createElement(...args) {  Elemental.debug && console.debug(`args is:`, args);  for (const middleware2 of (this.middleware[Elemental.allTags] || []).concat(this.middleware[args[0]] || [])){  try {  args = eachMiddleWare(args);  } catch (error) {  console.error("[elemental] one of the middleware functions failed:", eachMiddleWare, args);  }  }  let [key, properties, ...children] = args;  Elemental.debug && console.debug(`key, properties, children is:`, key, properties, children);  if (this.components[key] instanceof Function) {  key = this.components[key];  }  if (key instanceof Function) {  let output;  try {  output = isConstructor(key) ? new key({  ...properties,  children  }) : key({  ...properties,  children  });  } catch (error) {  return this.errorComponentFactory({  ...properties,  children  }, key, error);  }  if (output instanceof Promise) {  const elementPromise = output;  const placeholder = elementPromise.placeholder || document.createElement("div");  setTimeout(async ()=>placeholder.replaceWith(await elementPromise)  , 0);  return placeholder;  } else {  return output;  }  }  const isSvg = Elemental.exclusivelySvgElements.has(key);  const element = isSvg ? document.createElementNS("http://www.w3.org/2000/svg", key) : document.createElement(key);  if (properties instanceof Object) {  for (const [key2, value] of Object.entries(properties)){  try {  if (isSvg) {  const kebabCase = key2.replace(/(?<=[a-z])([A-Z])(?=[a-z])/g, (each2)=>`-${each2.toLowerCase()}`  );  element.setAttribute(kebabCase, value);  } else {  element.setAttribute(key2.toLowerCase(), value);  }  } catch (error) {}  try {  element[key2] = value;  } catch (error1) {}  }  }  return appendChildren(element, ...children);  }  extend(additionalComponents = {}, options = {}) {  const { additionalMiddleware , ...other } = options;  return new Elemental({  ...this.components,  ...additionalComponents  }, {  middleware: {  ...this.middleware,  ...middleware  },  ...other  });  } } Elemental.allTags = Symbol.for("allTags"); Elemental.exclusivelySvgElements = new Set([  "svg",  "animate",  "animateMotion",  "animateTransform",  "circle",  "clipPath",  "defs",  "desc",  "discard",  "ellipse",  "feBlend",  "feColorMatrix",  "feComponentTransfer",  "feComposite",  "feConvolveMatrix",  "feDiffuseLighting",  "feDisplacementMap",  "feDistantLight",  "feDropShadow",  "feFlood",  "feFuncA",  "feFuncB",  "feFuncG",  "feFuncR",  "feGaussianBlur",  "feImage",  "feMerge",  "feMergeNode",  "feMorphology",  "feOffset",  "fePointLight",  "feSpecularLighting",  "feSpotLight",  "feTile",  "feTurbulence",  "filter",  "foreignObject",  "g",  "hatch",  "hatchpath",  "image",  "line",  "linearGradient",  "marker",  "mask",  "mesh",  "meshgradient",  "meshpatch",  "meshrow",  "metadata",  "mpath",  "path",  "pattern",  "polygon",  "polyline",  "radialGradient",  "rect",  "set",  "stop",  "switch",  "symbol",  "text",  "textPath",  "tspan",  "unknown",  "use",  "view" ]); Elemental.css = function(...args) {  const element = document.createElement("div");  if (args.length == 1) {  if (args instanceof Object) {  Object.assign(element.style, args);  }  } else if (args.length > 1) {  const [strings, ...values] = args;  let finalString = "";  for (const each2 of strings){  finalString += each2;  if (values.length > 0) {  finalString += `${values.shift()}`;  }  }  element.style = finalString;  }  return element.style; }; function appendChildren(element, ...children) {  for (const each2 of children){  if (typeof each2 == "string") {  element.appendChild(new window.Text(each2));  } else if (each2 == null) {  element.appendChild(new window.Text(""));  } else if (!(each2 instanceof Object)) {  element.appendChild(new window.Text(`${each2}`));  } else if (each2 instanceof Node) {  element.appendChild(each2);  } else if (each2 instanceof Array) {  appendChildren(element, ...each2);  } else if (each2 instanceof Function) {  appendChildren(element, each2());  } else if (each2 instanceof Promise) {  const elementPromise = each2;  const placeholder = elementPromise.placeholder || document.createElement("div");  setTimeout(async ()=>placeholder.replaceWith(await elementPromise)  , 0);  element.appendChild(placeholder);  } else if (each2 != null && each2 instanceof Object) {  element.appendChild(each2);  }  }  return element; } function defaultErrorComponentFactory({ children , ...properties }, key, error) {  const element = document.createElement("div");  const errorDetails = document.createElement("code");  const childContainer = document.createElement("div");  element.style.all = "unset";  element.style.display = "flex";  element.style.flexDirection = "column";  element.style.padding = "1.5em";  element.style.backgroundColor = "#f5a5a8";  element.style.color = "white";  element.style.fontFamily = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif';  element.style.fontSize = "18px";  element.style.fontWeight = "400";  element.style.overflow = "auto";  element.innerHTML = `I'm sorry, there was an error when loading this part of the page \u{1F641} `;  let errorElementPart;  if (typeof key == "string") {  errorElementPart = `<${key} />`;  } else {  try {  errorElementPart = `<${key.prototype.constructor.name} />`;  } catch (error2) {  errorElementPart = `<${key} />`;  }  }  let errorJsonObject = {};  for (const [key2, value] of Object.entries(properties)){  try {  errorJsonObject[key2] = JSON.parse(JSON.stringify(value));  } catch (error2) {  errorJsonObject[key2] = `${value}`;  }  }  errorDetails.innerHTML = `tag: ${errorElementPart} properties: ${JSON.stringify(errorJsonObject)} error: ${error}`;  errorDetails.style.padding = "1em";  errorDetails.style.backgroundColor = "#161b22";  errorDetails.style.color = "#789896";  element.appendChild(errorDetails);  childContainer.style.all = "unset";  childContainer.style.display = "flex";  childContainer.style.flexDirection = "column";  childContainer.style.marginTop = "1.3em";  if (children instanceof Array) {  for (const [key2, value] of Object.entries(children)){  if (typeof each == "string") {  childContainer.appendChild(new window.Text(value));  } else if (value instanceof Node) {  childContainer.appendChild(value);  }  }  }  element.appendChild(childContainer);  return element; } function isConstructor(obj) {  return !!obj.prototype && !!obj.prototype.constructor.name; } const originalHead = document.head; Object.defineProperty(document, "head", {  set: (element)=>appendChildren(originalHead, ...element.childNodes)  ,  get: ()=>originalHead }); const html = new Elemental().html; const css = Elemental.css; const allTags = Elemental.allTags; var ElementalLibrary = {  Elemental,  html,  css,  allTags }; const htmlEventHandlers = new Set([  "onabort",  "onanimationcancel",  "onanimationend",  "onanimationiteration",  "onanimationstart",  "onauxclick",  "onblur",  "onerror",  "onfocus",  "oncancel",  "oncanplay",  "oncanplaythrough",  "onchange",  "onclick",  "onclose",  "oncontextmenu",  "oncuechange",  "ondblclick",  "ondrag",  "ondragend",  "ondragenter",  "ondragleave",  "ondragover",  "ondragstart",  "ondrop",  "ondurationchange",  "onemptied",  "onended",  "onformdata",  "ongotpointercapture",  "oninput",  "oninvalid",  "onkeydown",  "onkeypress",  "onkeyup",  "onload",  "onloadeddata",  "onloadedmetadata",  "onloadend",  "onloadstart",  "onlostpointercapture",  "onmousedown",  "onmouseenter",  "onmouseleave",  "onmousemove",  "onmouseout",  "onmouseover",  "onmouseup",  "onmousewheel",  "onwheel",  "onpause",  "onplay",  "onplaying",  "onpointerdown",  "onpointermove",  "onpointerup",  "onpointercancel",  "onpointerover",  "onpointerout",  "onpointerenter",  "onpointerleave",  "onpointerlockchange",  "onpointerlockerror",  "onprogress",  "onratechange",  "onreset",  "onresize",  "onscroll",  "onsecuritypolicyviolation",  "onseeked",  "onseeking",  "onselect",  "onselectstart",  "onselectionchange",  "onshow",  "onslotchange",  "onstalled",  "onsubmit",  "onsuspend",  "ontimeupdate",  "onvolumechange",  "ontouchcancel",  "ontouchend",  "ontouchmove",  "ontouchstart",  "ontransitioncancel",  "ontransitionend",  "ontransitionrun",  "ontransitionstart",  "onwaiting" ]); const fixedAttributes = new Set([  "accept",  "accept-charset",  "accesskey",  "action",  "align",  "allow",  "alt",  "async",  "autocapitalize",  "autocomplete",  "autofocus",  "autoplay",  "background",  "bgcolor",  "border",  "buffered",  "capture",  "challenge",  "charset",  "checked",  "cite",  "class",  "code",  "codebase",  "color",  "cols",  "colspan",  "content",  "contenteditable",  "contextmenu",  "controls",  "coords",  "crossorigin",  "csp",  "data",  "datetime",  "decoding",  "default",  "defer",  "dir",  "dirname",  "disabled",  "download",  "draggable",  "enctype",  "enterkeyhint",  "for",  "form",  "formaction",  "formenctype",  "formmethod",  "formnovalidate",  "formtarget",  "headers",  "height",  "hidden",  "high",  "href",  "hreflang",  "http-equiv",  "icon",  "id",  "importance",  "integrity",  "intrinsicsize",  "inputmode",  "ismap",  "itemprop",  "keytype",  "kind",  "label",  "lang",  "language",  "loading",  "list",  "loop",  "low",  "manifest",  "max",  "maxlength",  "minlength",  "media",  "method",  "min",  "multiple",  "muted",  "name",  "novalidate",  "open",  "optimum",  "pattern",  "ping",  "placeholder",  "poster",  "preload",  "radiogroup",  "readonly",  "referrerpolicy",  "rel",  "required",  "reversed",  "rows",  "rowspan",  "sandbox",  "scope",  "scoped",  "selected",  "shape",  "size",  "sizes",  "slot",  "span",  "spellcheck",  "src",  "srcdoc",  "srclang",  "srcset",  "start",  "step",  "style",  "summary",  "tabindex",  "target",  "title",  "translate",  "type",  "usemap",  "value",  "width",  "wrap",  ...htmlEventHandlers ]); const isAnHtmlAttribute = (string)=>{  if (fixedAttributes.has(string)) {  return true;  } else if (string.startsWith("data-")) {  return true;  }  return false; }; const cssHmtlOverlap = new Set([  "width",  "height",  "background",  "border",  "color" ]); const splitHtmlCssAttributes = (object)=>{  const htmlAttributes = {};  const cssAttributes = {};  for (const [key, value] of Object.entries(object)){  if (cssHmtlOverlap.has(key)) {  htmlAttributes[key] = value;  cssAttributes[key] = value;  } else if (isAnHtmlAttribute(key)) {  htmlAttributes[key] = value;  } else {  cssAttributes[key] = value;  }  }  return [  htmlAttributes,  cssAttributes  ]; }; const computeDirection = (row, column, reverse)=>{  const output = row ? "row" : "column";  if (!reverse) {  return output;  } else {  return `${output}-reverse`;  } }; const humanPositionToCssPosition = (humanPosition)=>{  if (humanPosition === "relativeToParent") {  return "absolute";  } else if (humanPosition === "relativeToSelf") {  return "relative";  } else if (humanPosition === "relativeToWindow") {  return "fixed";  } else if (humanPosition === "sticky") {  return "sticky";  } else if (typeof humanPosition === "string") {  console.warn(`positionSelf needs to be one of [ 'relativeToParent', 'relativeToSelf', 'relativeToWindow', 'sticky' ] but instead it was: '${humanPosition}'`);  }  return void 0; }; const humanPositionToCssFlexbox = (humanWord)=>{  if (humanWord.match(/^(top|left)$/i)) {  return "flex-start";  } else if (humanWord.match(/^(bottom|right)$/i)) {  return "flex-end";  } else {  return humanWord;  } }; const columnAlignment = (horizontalAlignment, verticalAlignment, innerAlignment, wrap)=>{  if (!wrap) {  return {  justifyContent: verticalAlignment,  alignItems: horizontalAlignment  };  } else {  return {  justifyContent: verticalAlignment,  alignItems: innerAlignment,  alignContent: horizontalAlignment  };  } }; const rowAlignment = (horizontalAlignment, verticalAlignment, innerAlignment, wrap)=>{  if (!wrap) {  return {  justifyContent: horizontalAlignment,  alignItems: verticalAlignment  };  } else {  return {  justifyContent: horizontalAlignment,  alignItems: innerAlignment,  alignContent: verticalAlignment  };  } }; const computeFlexAlignmentAttributes = (directionIsRow, horizontalAlignment, verticalAlignment, innerAlignment, wrap)=>{  horizontalAlignment = humanPositionToCssFlexbox(horizontalAlignment);  verticalAlignment = humanPositionToCssFlexbox(verticalAlignment);  if (directionIsRow) {  return rowAlignment(horizontalAlignment, verticalAlignment, innerAlignment, wrap);  } else {  return columnAlignment(horizontalAlignment, verticalAlignment, innerAlignment, wrap);  } }; const setProperties = (element, properties)=>{  for (const [key, value] of Object.entries(properties)){  try {  const kebabCase = key.replace(/(?<=[a-z])([A-Z])(?=[a-z])/g, (each)=>`-${each.toLowerCase()}`  );  element.setAttribute(kebabCase, value);  } catch (error) {}  element[key] = value;  } }; const elementSymbol = Symbol.for("element"); function appendChildren1(element, ...children) {  for (const each of children){  if (typeof each == "string") {  element.appendChild(new window.Text(each));  } else if (each == null) {  element.appendChild(new window.Text(""));  } else if (!(each instanceof Object)) {  element.appendChild(new window.Text(`${each}`));  } else if (each[elementSymbol]) {  element.appendChild(each[elementSymbol]);  } else if (each instanceof Node) {  element.appendChild(each);  } else if (each instanceof Array) {  appendChildren1(element, ...each);  } else if (each instanceof Function) {  appendChildren1(element, each());  } else if (each instanceof Promise) {  const elementPromise = each;  const placeholder = elementPromise.placeholder || document.createElement("div");  setTimeout(async ()=>placeholder.replaceWith(await elementPromise)  , 0);  element.appendChild(placeholder);  } else if (each != null && each instanceof Object) {  element.appendChild(each);  }  }  return element; } var ContainerLibrary = ({ row , column , reverse , wrap , positionSelf ="relativeToSelf" , verticalAlignment ="top" , horizontalAlignment ="left" , innerAlignment ="center" , textWrapAlignment , children , ...props })=>{  const [htmlAttributes, cssAttributes] = splitHtmlCssAttributes(props);  const element = document.createElement("div");  Object.assign(element.style, {  position: humanPositionToCssPosition(positionSelf) || "relative",  display: "flex",  flexDirection: computeDirection(row, column, reverse),  flexWrap: wrap === "reverse" ? "wrap-reverse" : wrap && "wrap",  textAlign: textWrapAlignment || horizontalAlignment,  ...computeFlexAlignmentAttributes(row, horizontalAlignment, verticalAlignment, innerAlignment, wrap),  ...cssAttributes  });  setProperties(element, {  name: "positioner",  ...htmlAttributes  });  appendChildren1(element, children);  return element; }; return [ElementalLibrary, ContainerLibrary]})()
-        // const { Elemental } = ElementalLibrary
-        import { Elemental } from "https://deno.land/x/elementalist@0.5.34/main/deno.js?code"
-        // import ContainerLibrary from "https://raw.githubusercontent.com/jeff-hykin/vanilla-container/master/main.mjs"
-        const htmlEventHandlers = new Set(['onabort', 'onanimationcancel', 'onanimationend', 'onanimationiteration', 'onanimationstart', 'onauxclick', 'onblur', 'onerror', 'onfocus', 'oncancel', 'oncanplay', 'oncanplaythrough', 'onchange', 'onclick', 'onclose', 'oncontextmenu', 'oncuechange', 'ondblclick', 'ondrag', 'ondragend', 'ondragenter', 'ondragleave', 'ondragover', 'ondragstart', 'ondrop', 'ondurationchange', 'onemptied', 'onended', 'onformdata', 'ongotpointercapture', 'oninput', 'oninvalid', 'onkeydown', 'onkeypress', 'onkeyup', 'onload', 'onloadeddata', 'onloadedmetadata', 'onloadend', 'onloadstart', 'onlostpointercapture', 'onmousedown', 'onmouseenter', 'onmouseleave', 'onmousemove', 'onmouseout', 'onmouseover', 'onmouseup', 'onmousewheel', 'onwheel', 'onpause', 'onplay', 'onplaying', 'onpointerdown', 'onpointermove', 'onpointerup', 'onpointercancel', 'onpointerover', 'onpointerout', 'onpointerenter', 'onpointerleave', 'onpointerlockchange', 'onpointerlockerror', 'onprogress', 'onratechange', 'onreset', 'onresize', 'onscroll', 'onsecuritypolicyviolation', 'onseeked', 'onseeking', 'onselect', 'onselectstart', 'onselectionchange', 'onshow', 'onslotchange', 'onstalled', 'onsubmit', 'onsuspend', 'ontimeupdate', 'onvolumechange', 'ontouchcancel', 'ontouchend', 'ontouchmove', 'ontouchstart', 'ontransitioncancel', 'ontransitionend', 'ontransitionrun', 'ontransitionstart', 'onwaiting', ])
-        const fixedAttributes = new Set(['accept', 'accept-charset', 'accesskey', 'action', 'align', 'allow', 'alt', 'async', 'autocapitalize', 'autocomplete', 'autofocus', 'autoplay', 'background', 'bgcolor', 'border', 'buffered', 'capture', 'challenge', 'charset', 'checked', 'cite', 'class', 'code', 'codebase', 'color', 'cols', 'colspan', 'content', 'contenteditable', 'contextmenu', 'controls', 'coords', 'crossorigin', 'csp', 'data', 'datetime', 'decoding', 'default', 'defer', 'dir', 'dirname', 'disabled', 'download', 'draggable', 'enctype', 'enterkeyhint', 'for', 'form', 'formaction', 'formenctype', 'formmethod', 'formnovalidate', 'formtarget', 'headers', 'height', 'hidden', 'high', 'href', 'hreflang', 'http-equiv', 'icon', 'id', 'importance', 'integrity', 'intrinsicsize', 'inputmode', 'ismap', 'itemprop', 'keytype', 'kind', 'label', 'lang', 'language', 'loading', 'list', 'loop', 'low', 'manifest', 'max', 'maxlength', 'minlength', 'media', 'method', 'min', 'multiple', 'muted', 'name', 'novalidate', 'open', 'optimum', 'pattern', 'ping', 'placeholder', 'poster', 'preload', 'radiogroup', 'readonly', 'referrerpolicy', 'rel', 'required', 'reversed', 'rows', 'rowspan', 'sandbox', 'scope', 'scoped', 'selected', 'shape', 'size', 'sizes', 'slot', 'span', 'spellcheck', 'src', 'srcdoc', 'srclang', 'srcset', 'start', 'step', 'style', 'summary', 'tabindex', 'target', 'title', 'translate', 'type', 'usemap', 'value', 'width', 'wrap', ...htmlEventHandlers]) 
-        const isAnHtmlAttribute = (string) => {
-            if (fixedAttributes.has(string)) {
-                return true
-            } else if (string.startsWith('data-')) {
-                return true
+            const htmlEventHandlers = new Set(['onabort', 'onanimationcancel', 'onanimationend', 'onanimationiteration', 'onanimationstart', 'onauxclick', 'onblur', 'onerror', 'onfocus', 'oncancel', 'oncanplay', 'oncanplaythrough', 'onchange', 'onclick', 'onclose', 'oncontextmenu', 'oncuechange', 'ondblclick', 'ondrag', 'ondragend', 'ondragenter', 'ondragleave', 'ondragover', 'ondragstart', 'ondrop', 'ondurationchange', 'onemptied', 'onended', 'onformdata', 'ongotpointercapture', 'oninput', 'oninvalid', 'onkeydown', 'onkeypress', 'onkeyup', 'onload', 'onloadeddata', 'onloadedmetadata', 'onloadend', 'onloadstart', 'onlostpointercapture', 'onmousedown', 'onmouseenter', 'onmouseleave', 'onmousemove', 'onmouseout', 'onmouseover', 'onmouseup', 'onmousewheel', 'onwheel', 'onpause', 'onplay', 'onplaying', 'onpointerdown', 'onpointermove', 'onpointerup', 'onpointercancel', 'onpointerover', 'onpointerout', 'onpointerenter', 'onpointerleave', 'onpointerlockchange', 'onpointerlockerror', 'onprogress', 'onratechange', 'onreset', 'onresize', 'onscroll', 'onsecuritypolicyviolation', 'onseeked', 'onseeking', 'onselect', 'onselectstart', 'onselectionchange', 'onshow', 'onslotchange', 'onstalled', 'onsubmit', 'onsuspend', 'ontimeupdate', 'onvolumechange', 'ontouchcancel', 'ontouchend', 'ontouchmove', 'ontouchstart', 'ontransitioncancel', 'ontransitionend', 'ontransitionrun', 'ontransitionstart', 'onwaiting', ])
+            const fixedAttributes = new Set(['accept', 'accept-charset', 'accesskey', 'action', 'align', 'allow', 'alt', 'async', 'autocapitalize', 'autocomplete', 'autofocus', 'autoplay', 'background', 'bgcolor', 'border', 'buffered', 'capture', 'challenge', 'charset', 'checked', 'cite', 'class', 'code', 'codebase', 'color', 'cols', 'colspan', 'content', 'contenteditable', 'contextmenu', 'controls', 'coords', 'crossorigin', 'csp', 'data', 'datetime', 'decoding', 'default', 'defer', 'dir', 'dirname', 'disabled', 'download', 'draggable', 'enctype', 'enterkeyhint', 'for', 'form', 'formaction', 'formenctype', 'formmethod', 'formnovalidate', 'formtarget', 'headers', 'height', 'hidden', 'high', 'href', 'hreflang', 'http-equiv', 'icon', 'id', 'importance', 'integrity', 'intrinsicsize', 'inputmode', 'ismap', 'itemprop', 'keytype', 'kind', 'label', 'lang', 'language', 'loading', 'list', 'loop', 'low', 'manifest', 'max', 'maxlength', 'minlength', 'media', 'method', 'min', 'multiple', 'muted', 'name', 'novalidate', 'open', 'optimum', 'pattern', 'ping', 'placeholder', 'poster', 'preload', 'radiogroup', 'readonly', 'referrerpolicy', 'rel', 'required', 'reversed', 'rows', 'rowspan', 'sandbox', 'scope', 'scoped', 'selected', 'shape', 'size', 'sizes', 'slot', 'span', 'spellcheck', 'src', 'srcdoc', 'srclang', 'srcset', 'start', 'step', 'style', 'summary', 'tabindex', 'target', 'title', 'translate', 'type', 'usemap', 'value', 'width', 'wrap', ...htmlEventHandlers]) 
+            const isAnHtmlAttribute = (string) => {
+                if (fixedAttributes.has(string)) {
+                    return true
+                } else if (string.startsWith('data-')) {
+                    return true
+                }
+                return false
             }
-            return false
-        }
+            
+            const cssHmtlOverlap = new Set(['width', 'height', 'background', 'border', 'color'])
+            const splitHtmlCssAttributes = (object)=> {
+                const htmlAttributes = {}
+                const cssAttributes = {}
+                for (const [key, value] of Object.entries(object)) {
+                    if (cssHmtlOverlap.has(key)) {
+                        htmlAttributes[key] = value
+                        cssAttributes[key] = value
+                    } else if (isAnHtmlAttribute(key)) {
+                        htmlAttributes[key] = value
+                    } else {
+                        cssAttributes[key] = value
+                    }
+                }
+                return [htmlAttributes, cssAttributes]
+            }
 
-        const cssHmtlOverlap = new Set(['width', 'height', 'background', 'border', 'color'])
-        const splitHtmlCssAttributes = (object)=> {
-            const htmlAttributes = {}
-            const cssAttributes = {}
-            for (const [key, value] of Object.entries(object)) {
-                if (cssHmtlOverlap.has(key)) {
-                    htmlAttributes[key] = value
-                    cssAttributes[key] = value
-                } else if (isAnHtmlAttribute(key)) {
-                    htmlAttributes[key] = value
+            const computeDirection = (row, column, reverse) => {
+                const output = row ? 'row' : 'column'
+                if (!reverse) {
+                    return output
                 } else {
-                    cssAttributes[key] = value
+                    return `${output}-reverse`
                 }
             }
-            return [htmlAttributes, cssAttributes]
-        }
 
-        const computeDirection = (row, column, reverse) => {
-            const output = row ? 'row' : 'column'
-            if (!reverse) {
-                return output
-            } else {
-                return `${output}-reverse`
-            }
-        }
-
-        const humanPositionToCssPosition = (humanPosition) => {
-            if (humanPosition === 'relativeToParent') {
-                return 'absolute'
-            } else if (humanPosition === 'relativeToSelf') {
-                return 'relative'
-            } else if (humanPosition === 'relativeToWindow') {
-                return 'fixed'
-            } else if (humanPosition === 'sticky') {
-                return 'sticky'
-            } else if (typeof humanPosition === 'string') {
-                console.warn(`positionSelf needs to be one of [ 'relativeToParent', 'relativeToSelf', 'relativeToWindow', 'sticky' ]\nbut instead it was: '${humanPosition}'`)
-            }
-            return undefined
-        }
-
-        const humanPositionToCssFlexbox = (humanWord) => {
-            if (humanWord.match(/^(top|left)$/i)) {
-                return 'flex-start'
-            } else if (humanWord.match(/^(bottom|right)$/i)) {
-                return 'flex-end'
-            } else {
-                return humanWord
-            }
-        }
-
-        const columnAlignment = (horizontalAlignment, verticalAlignment, innerAlignment, wrap) => {
-            if (!wrap) {
-                return {
-                    justifyContent: verticalAlignment,
-                    alignItems: horizontalAlignment,
+            const humanPositionToCssPosition = (humanPosition) => {
+                if (humanPosition === 'relativeToParent') {
+                    return 'absolute'
+                } else if (humanPosition === 'relativeToSelf') {
+                    return 'relative'
+                } else if (humanPosition === 'relativeToWindow') {
+                    return 'fixed'
+                } else if (humanPosition === 'sticky') {
+                    return 'sticky'
+                } else if (typeof humanPosition === 'string') {
+                    console.warn(`positionSelf needs to be one of [ 'relativeToParent', 'relativeToSelf', 'relativeToWindow', 'sticky' ]\nbut instead it was: '${humanPosition}'`)
                 }
-            } else {
-                return {
-                    // still just vertical space between
-                    justifyContent: verticalAlignment,
-                    // when wrapped this becomes the inner item alignment
-                    alignItems: innerAlignment,
-                    // when wrapped this becomes the horizontal space between
-                    alignContent: horizontalAlignment,
+                return undefined
+            }
+
+            const humanPositionToCssFlexbox = (humanWord) => {
+                if (humanWord.match(/^(top|left)$/i)) {
+                    return 'flex-start'
+                } else if (humanWord.match(/^(bottom|right)$/i)) {
+                    return 'flex-end'
+                } else {
+                    return humanWord
                 }
             }
-        }
 
-        const rowAlignment = (horizontalAlignment, verticalAlignment, innerAlignment, wrap) => {
-            if (!wrap) {
-                return {
-                    justifyContent: horizontalAlignment,
-                    alignItems: verticalAlignment,
-                }
-            } else {
-                return {
-                    // still just horizontal space between
-                    justifyContent: horizontalAlignment,
-                    // when wrapped this becomes the inner item alignment
-                    alignItems: innerAlignment,
-                    // when wrapped this becomes the vertical space between
-                    alignContent: verticalAlignment,
-                }
-            }
-        }
-
-        const computeFlexAlignmentAttributes = (directionIsRow, horizontalAlignment, verticalAlignment, innerAlignment, wrap) => {
-            // convert to css form
-            horizontalAlignment = humanPositionToCssFlexbox(horizontalAlignment)
-            verticalAlignment = humanPositionToCssFlexbox(verticalAlignment)
-            // then pick the correct one
-            if (directionIsRow) {
-                return rowAlignment(horizontalAlignment, verticalAlignment, innerAlignment, wrap)
-            } else {
-                return columnAlignment(horizontalAlignment, verticalAlignment, innerAlignment, wrap)
-            }
-        }
-
-        const setProperties = (element, properties)=>{
-            for (const [key, value] of Object.entries(properties)) {
-                try {
-                    const kebabCase = key.replace(/(?<=[a-z])([A-Z])(?=[a-z])/g, (each)=>`-${each.toLowerCase()}`)
-                    element.setAttribute(kebabCase, value)
-                } catch (error) {
-                }
-                element[key] = value
-            }
-        }
-
-        const elementSymbol = Symbol.for("element")
-        function appendChildren(element, ...children) {
-            for (const each of children) {
-                if (typeof each == 'string') {
-                    element.appendChild(new window.Text(each))
-                } else if (each == null) {
-                    // empty node
-                    element.appendChild(new window.Text(""))
-                } else if (!(each instanceof Object)) {
-                    element.appendChild(new window.Text(`${each}`))
-                } else if (each[elementSymbol]) {
-                    element.appendChild(each[elementSymbol])
-                } else if (each instanceof Node) {
-                    element.appendChild(each)
-                } else if (each instanceof Array) {
-                    appendChildren(element, ...each)
-                } else if (each instanceof Function) {
-                    // recursively
-                    appendChildren(element, each())
-                } else if (each instanceof Promise) {
-                    const elementPromise = each
-                    const placeholder = elementPromise.placeholder || document.createElement("div")
-                    setTimeout(async () => placeholder.replaceWith(await elementPromise), 0)
-                    element.appendChild(placeholder)
-                // some elements are not HTML nodes and are still valid
-                } else if (each != null && each instanceof Object) {
-                    element.appendChild(each)
+            const columnAlignment = (horizontalAlignment, verticalAlignment, innerAlignment, wrap) => {
+                if (!wrap) {
+                    return {
+                        justifyContent: verticalAlignment,
+                        alignItems: horizontalAlignment,
+                    }
+                } else {
+                    return {
+                        // still just vertical space between
+                        justifyContent: verticalAlignment,
+                        // when wrapped this becomes the inner item alignment
+                        alignItems: innerAlignment,
+                        // when wrapped this becomes the horizontal space between
+                        alignContent: horizontalAlignment,
+                    }
                 }
             }
-            return element
-        }
 
-        const ContainerLibrary = ({ row, column, reverse, wrap, positionSelf='relativeToSelf', verticalAlignment='top', horizontalAlignment='left', innerAlignment='center', textWrapAlignment, children, ...props })=>{
-            const [htmlAttributes, cssAttributes] = splitHtmlCssAttributes(props)
-            const element = document.createElement("div")
-            // 
-            // style
-            // 
-            Object.assign(element.style, {
-                position: humanPositionToCssPosition(positionSelf) || 'relative',
-                display: 'flex',
-                flexDirection: computeDirection(row, column, reverse),
-                flexWrap: wrap === 'reverse' ? 'wrap-reverse' : (wrap&&'wrap'),
-                // text-align (effects how text will look when wrapped)
-                textAlign: textWrapAlignment || horizontalAlignment,
-                // handle the justifyContent/alignContent attributes
-                ...computeFlexAlignmentAttributes(
-                    row,
-                    horizontalAlignment,
-                    verticalAlignment,
-                    innerAlignment,
-                    wrap,
-                ),
-                ...cssAttributes,
-            })
-            // 
-            // attributes
-            // 
-            setProperties(element, {name: "positioner", ...htmlAttributes})
-            appendChildren(element, children)
-            return element
-        }
+            const rowAlignment = (horizontalAlignment, verticalAlignment, innerAlignment, wrap) => {
+                if (!wrap) {
+                    return {
+                        justifyContent: horizontalAlignment,
+                        alignItems: verticalAlignment,
+                    }
+                } else {
+                    return {
+                        // still just horizontal space between
+                        justifyContent: horizontalAlignment,
+                        // when wrapped this becomes the inner item alignment
+                        alignItems: innerAlignment,
+                        // when wrapped this becomes the vertical space between
+                        alignContent: verticalAlignment,
+                    }
+                }
+            }
+
+            const computeFlexAlignmentAttributes = (directionIsRow, horizontalAlignment, verticalAlignment, innerAlignment, wrap) => {
+                // convert to css form
+                horizontalAlignment = humanPositionToCssFlexbox(horizontalAlignment)
+                verticalAlignment = humanPositionToCssFlexbox(verticalAlignment)
+                // then pick the correct one
+                if (directionIsRow) {
+                    return rowAlignment(horizontalAlignment, verticalAlignment, innerAlignment, wrap)
+                } else {
+                    return columnAlignment(horizontalAlignment, verticalAlignment, innerAlignment, wrap)
+                }
+            }
+
+            const setProperties = (element, properties)=>{
+                for (const [key, value] of Object.entries(properties)) {
+                    try {
+                        const kebabCase = key.replace(/(?<=[a-z])([A-Z])(?=[a-z])/g, (each)=>`-${each.toLowerCase()}`)
+                        element.setAttribute(kebabCase, value)
+                    } catch (error) {
+                    }
+                    element[key] = value
+                }
+            }
+
+            const elementSymbol = Symbol.for("element")
+            function appendChildren(element, ...children) {
+                for (const each of children) {
+                    if (typeof each == 'string') {
+                        element.appendChild(new window.Text(each))
+                    } else if (each == null) {
+                        // empty node
+                        element.appendChild(new window.Text(""))
+                    } else if (!(each instanceof Object)) {
+                        element.appendChild(new window.Text(`${each}`))
+                    } else if (each[elementSymbol]) {
+                        element.appendChild(each[elementSymbol])
+                    } else if (each instanceof Node) {
+                        element.appendChild(each)
+                    } else if (each instanceof Array) {
+                        appendChildren(element, ...each)
+                    } else if (each instanceof Function) {
+                        // recursively
+                        appendChildren(element, each())
+                    } else if (each instanceof Promise) {
+                        const elementPromise = each
+                        const placeholder = elementPromise.placeholder || document.createElement("div")
+                        setTimeout(async () => placeholder.replaceWith(await elementPromise), 0)
+                        element.appendChild(placeholder)
+                    // some elements are not HTML nodes and are still valid
+                    } else if (each != null && each instanceof Object) {
+                        element.appendChild(each)
+                    }
+                }
+                return element
+            }
+
+            const ContainerLibrary = ({ row, column, reverse, wrap, positionSelf='relativeToSelf', verticalAlignment='top', horizontalAlignment='left', innerAlignment='center', textWrapAlignment, children, ...props })=>{
+                const [htmlAttributes, cssAttributes] = splitHtmlCssAttributes(props)
+                const element = document.createElement("div")
+                // 
+                // style
+                // 
+                Object.assign(element.style, {
+                    position: humanPositionToCssPosition(positionSelf) || 'relative',
+                    display: 'flex',
+                    flexDirection: computeDirection(row, column, reverse),
+                    flexWrap: wrap === 'reverse' ? 'wrap-reverse' : (wrap&&'wrap'),
+                    // text-align (effects how text will look when wrapped)
+                    textAlign: textWrapAlignment || horizontalAlignment,
+                    // handle the justifyContent/alignContent attributes
+                    ...computeFlexAlignmentAttributes(
+                        row,
+                        horizontalAlignment,
+                        verticalAlignment,
+                        innerAlignment,
+                        wrap,
+                    ),
+                    ...cssAttributes,
+                })
+                // 
+                // attributes
+                // 
+                setProperties(element, {name: "positioner", ...htmlAttributes})
+                appendChildren(element, children)
+                return element
+            }
         const nullFunc = ()=>0
         const addDynamicStylerFlags = (element, flagKeys) => {
             element.dynamicStyler = element.dynamicStyler||nullFunc
@@ -897,35 +360,6 @@
             LinePadding,
             Graph,
         })
-        
-        // 
-        // animations
-        // 
-        const [ fadeIn, fadeOut ] = [
-            [
-                [
-                    { offset: 0.0, opacity: 0, },
-                    { offset: 0.1, opacity: 0, },
-                    { offset: 1.0, opacity: 1, },
-                ], {
-                    duration: 1000,
-                    easing: 'ease-out',
-                    iterations: 1
-                }
-            ],
-            [
-                [
-                    { offset: 0.0, opacity: 1, },
-                    { offset: 0.1, opacity: 1, },
-                    { offset: 1.0, opacity: 0, },
-                ], {
-                    duration: 1000,
-                    easing: 'ease-out',
-                    iterations: 1
-                }
-            ],
-        ]
-    
     // 
     // 
     // Main Code
@@ -961,7 +395,7 @@
                             
                             <span>Example Paper DOI: <a href="https://sci-hub.se/10.1155/2014/413629">10.1155/2014/413629</a></span>
                         </Container>
-                </Container>`}
+                </λ  Container>`}
                 ${graphContainer = html`<Container
                     name="MainArea"
                     column
@@ -990,23 +424,21 @@
                         placeholder="Enter DOI like: 10.1155/2014/413629"
                         oninput=${(event)=>{
                             bouncedListener.call(()=>{
-                                new Toastify({
-                                    text: `loading new nodes`,
+                                showToast(`loading new nodes`, {
                                     position: 'right',
                                     backgroundColor: theme.accent,
                                     color: 'white',
                                     gravity: "bottom",
                                     duration: 8000,
-                                }).showToast()
+                                })
                                 getNodesAndLinksFor(event.target.value).then(loadNewGraph).then(()=>{
-                                    new Toastify({
-                                        text: `Done ✅`,
+                                    showToast(`Done ✅`, {
                                         position: 'right',
                                         backgroundColor: theme.accent,
                                         color: 'white',
                                         gravity: "bottom",
                                         duration: 1000,
-                                    }).showToast()
+                                    })
                                 })
                             })
                         }}
@@ -1017,12 +449,14 @@
             </Container>
         </body>
     `
-    const remainingText = window.location.href.replace(/.+?#/,"")
-    setTimeout(() => {
-        if (remainingText) {
-            getNodesAndLinksFor(remainingText).then(loadNewGraph)
-        }
-    }, 0);
+    if (window.location.href.match(/#/)) {
+        const remainingText = window.location.href.replace(/.+?#/,"")
+        setTimeout(() => {
+            if (remainingText) {
+                getNodesAndLinksFor(remainingText).then(loadNewGraph)
+            }
+        }, 0);
+    }
     document.body.animate(...fadeIn)
     // 
     // 
@@ -1055,23 +489,21 @@
                             style="cursor: pointer;"
                             background="${theme.accent}"
                             onclick=${()=>{
-                                new Toastify({
-                                    text: `loading new nodes`,
+                                showToast(`loading new nodes`, {
                                     position: 'right',
                                     backgroundColor: theme.accent,
                                     color: 'white',
                                     gravity: "bottom",
                                     duration: 8000,
-                                }).showToast()
+                                })
                                 getNodesAndLinksFor(nodeData.id).then(loadNewGraph).then(()=>{
-                                    new Toastify({
-                                        text: `Done ✅`,
+                                    showToast(`Done ✅`, {
                                         position: 'right',
                                         backgroundColor: theme.accent,
                                         color: 'white',
                                         gravity: "bottom",
                                         duration: 1000,
-                                    }).showToast()
+                                    })
                                 })
                             }}
                             >
@@ -1110,7 +542,21 @@
             // title: "Individual differences in the effects of chronic stress on memory: Behavioral and neurochemical correlates of resiliency"
         }
         function getPaperInfo(paperOrDoi) {
-            return window.paper = fetch(`https://api.crossref.org/works/${paperOrDoi?.DOI||paperOrDoi}`).then(result=>result.json()).then(result=>result.message)
+            let doiFullString = paperOrDoi
+            if (paperOrDoi instanceof Object && typeof paperOrDoi.DOI == 'string') {
+                doiFullString = paperOrDoi.DOI
+            }
+            if (!(typeof doiFullString == "string")) {
+                return
+            }
+            const doiPart = doiFullString.match(/.*\b(\d+\.\d+\/\d+)/)
+            if (doiPart) {
+                const doi = doiPart[1] 
+                const paperPromise = fetch(`https://api.crossref.org/works/${doiPart}`).then(result=>result.json()).then(result=>result.message).catch(()=>{
+                    showToast(`Sorry :/\nIt looks like api.crossref.org doesn't have any info on that paper\n(DOI: ${doiFullString}) :/`, { backgroundColor: theme.errorColor, duration: 8000 })
+                })
+                return paperPromise
+            }
             // result.DOI
             // result.abstract
             // result.author[0].given // first name
@@ -1765,7 +1211,11 @@
             // }
         }
         async function getNodesAndLinksFor(paperOrDoi, limit=Infinity) {
+            console.debug(`getNodesAndLinksFor(paperOrDoi) is:`,paperOrDoi)
             const paperInfo = await getPaperInfo(paperOrDoi)
+            if (!paperInfo) {
+                return { nodes: [ { id: 0, yearCreated: "Sorry :/", authorLastName: "(not in database)" } ], links: [] }
+            }
             const dois = (paperInfo?.reference||[]).map(each=>each.DOI).filter(each=>each).slice(0,limit)
             const relatedPapers = await Promise.all(
                 dois.map(each=>getPaperInfo(each))
@@ -1836,7 +1286,6 @@
                 graphContainer.children[0],
             )
         }
-        getNodesAndLinksFor().then(loadNewGraph)
     // 
     // 
     // Components
@@ -1907,7 +1356,14 @@
                 const largestYear = Math.max(...years)
                 const smallestYear = Math.min(...years)
                 const yearRange = largestYear-smallestYear
-                const normalizer = (year)=>year&&((year-smallestYear)/yearRange)
+                const normalizer = (year)=>{
+                    const normlized = ((year-smallestYear)/yearRange)
+                    if (normlized==normlized) {
+                        return normalized
+                    } else {
+                        return 1
+                    }
+                }
                     
                 const node = container.append("g")
                     .attr("class", "nodes")
@@ -1915,7 +1371,14 @@
                     .data(nodes)
                     .enter().append("circle")
                     //I made the article/source nodes larger than the entity nodes
-                    .attr("r", each=>each.size != null? each.size: nodeSize+(35*Math.pow(normalizer(each.yearCreated),1.7))-5)
+                    .attr("r", each=>{
+                        if (each.size != null) {
+                            return each.size
+                        } else {
+                            const normlizedNumber = normalizer(each.yearCreated)
+                            return nodeSize+(35*Math.pow(normalizer(each.yearCreated),1.7))-5
+                        }
+                    }) 
                     .attr("id", each=>each.id)
                 
                 if (onNodeClick) {
