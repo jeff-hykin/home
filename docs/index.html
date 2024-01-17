@@ -4582,7 +4582,11 @@
                             <div style="flex-grow: 5; overflow: auto; width: 100%; position: relative; box-shadow: 0 24px 38px 3px rgba(0,0,0,0.14),0 9px 46px 8px rgba(0,0,0,0.12),0 11px 15px -7px rgba(0,0,0,0.2);" max-height=70vh>
                                 <!-- Super roundout because of https://stackoverflow.com/questions/821359/reload-an-iframe-without-adding-to-the-history -->
                                 <!-- using innerHTML is the way of getter around setting it as an attribute -->
-                                ${iframe = html`<div innerHTML=${`<iframe style="visibility: hidden;" src="${JSON.stringify(`https://sci-hub.hkvisa.net/${nodeData.DOI}`)}" height=100 width=100></iframe>`}></div>`.children[0]}
+                                ${iframe = html`
+                                    <div innerHTML=${`
+                                        <iframe style="visibility: hidden;" src=${JSON.stringify(`https://sci-hub.hkvisa.net/${nodeData.DOI}`)} height=100 width=100></iframe>
+                                    `}></div>`.children[0]
+                                }
                                 ${hoverMessageElement = html`<Container horizontalAlignment="center" verticalAlignment=center width=100% height="100%" background-color="#00000022" position="absolute" top=0>
                                     <h5>
                                         Hover here to preview PDF
