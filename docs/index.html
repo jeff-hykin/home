@@ -4077,7 +4077,9 @@
     });
     var router = window.router = {
     config: {
-        urlBase: window.location.origin=="null"?window.location.href:window.location.origin,
+        get urlBase() {
+            return window.location.href.split(/(\?|#)/g)[0]
+        }
     },
     goTo(object) {
         quietlySetPageInfo(object);
@@ -5434,7 +5436,7 @@
          * @returns output.x - description
          *
          */
-        function Graph({nodes, links, style={}, nodeSize=18, nodeColor=theme.accent, minZoom=0.5, maxZoom=2, onNodeClick, labelAnchor="left", labelSize="10pt", }) {
+        function Graph({nodes, links, style={}, nodeSize=18, nodeColor=theme.accent, minZoom=0.2, maxZoom=3, onNodeClick, labelAnchor="left", labelSize="10pt", }) {
             try {
                 
                 const graph = html`<div></div>`
