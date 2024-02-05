@@ -25,8 +25,8 @@ const modifiers = [
 ]
 
 const layerKeys = [
-    'semicolon',
     'quote',
+    'period',
 ]
 const layerInteractionKeys = Object.fromEntries(layerKeys.map(each=>[`${each}_layer`, []]))
 layerInteractionKeys["spacebar_layer"] = []
@@ -129,9 +129,9 @@ const layerKeyShiftFixer = ({ layer, keys, conditions }) => {
 
 const karabinerMapping = {
     "title": `Hold Space for ijkl arrow keys and more: ${Math.random()}`,
-    "rules": [
+     "rules": [
         {
-            "description": "Hold Space for ijkl arrow keys and more",
+            "description": "Hold Space for ijkl arrow keys and more" ,
             "manipulators": [
 
                 // 
@@ -142,7 +142,7 @@ const karabinerMapping = {
                     ...whenLayers({
                         layerValues: {
                             spacebar_layer: 1,
-                            semicolon_layer: 0,
+                            period_layer: 0,
                             quote_layer: 0,
                         },
                         keyBehaviors: [
@@ -286,6 +286,24 @@ const karabinerMapping = {
                                 ],
                             },
                             // 
+                            // plus equals
+                            // 
+                            {
+                                "from": {
+                                    "key_code": "comma",
+                                    "modifiers": {
+                                        "optional": [
+                                            "any"
+                                        ]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "equal_sign",
+                                    }
+                                ],
+                            }
+                            // 
                             //  brackets 
                             // 
                             {
@@ -340,45 +358,10 @@ const karabinerMapping = {
                                         }
                                     ],
                                 },
+                            
                         // 
-                        // comma jump
-                        // 
-                            {
-                                "from": {
-                                    "key_code": "period",
-                                    "modifiers": {
-                                        "optional": [
-                                            "any"
-                                        ]
-                                    }
-                                },
-                                "to": [
-                                    {
-                                        "key_code": "period",
-                                        "modifiers": [
-                                            "left_alt"
-                                        ]
-                                    }
-                                ],
-                            },
-                            {
-                                "from": {
-                                    "key_code": "comma",
-                                    "modifiers": {
-                                        "optional": [
-                                            "any"
-                                        ]
-                                    }
-                                },
-                                "to": [
-                                    {
-                                        "key_code": "comma",
-                                        "modifiers": [
-                                            "left_alt"
-                                        ]
-                                    }
-                                ],
-                            },
+                        // alternative backspace
+                        //
                             {
                                 "from": {
                                     "key_code": "semicolon",
@@ -396,224 +379,6 @@ const karabinerMapping = {
                             },
                         ],
                     }),
-                // 
-                // semicolon layer
-                //
-                    ...whenLayers({
-                        layerValues: {
-                            spacebar_layer: 0,
-                            semicolon_layer: 1,
-                            quote_layer: 0,
-                        },
-                        keyBehaviors: [
-                            ...leftOrRight("shift").map(shift=>({
-                                from: {
-                                    "key_code": "k",
-                                    "modifiers": {
-                                        "mandatory": [
-                                            shift
-                                        ]
-                                    }
-                                },
-                                "to": [
-                                    {
-                                        "key_code": "hyphen",
-                                        "modifiers": [
-                                        ]
-                                    }
-                                ],
-                            })),
-                            {
-                                from: {
-                                    "key_code": "k",
-                                    "modifiers": {
-                                        "optional": [
-                                            "any"
-                                        ]
-                                    }
-                                },
-                                "to": [
-                                    {
-                                        "key_code": "hyphen",
-                                        "modifiers": [
-                                            "left_shift"
-                                        ]
-                                    }
-                                ],
-                            },
-                        ]
-                    }),
-                // 
-                // backspace
-                // 
-                    {
-                        "type": "basic",
-                        "from": {
-                            "key_code": "0",
-                            "modifiers": {
-                                "optional": [
-                                    "any"
-                                ]
-                            }
-                        },
-                        "to": [
-                            {
-                                "key_code": "delete_or_backspace"
-                            }
-                        ],
-                        "conditions": [
-                            {
-                                "type": "variable_if",
-                                "name": "spacebar_layer pressed",
-                                "value": 1
-                            }
-                        ]
-                    },
-                // 
-                // alternaive underscore
-                // 
-                    // {
-                    //     "type": "basic",
-                    //     "from": {
-                    //         "key_code": "k",
-                    //         "modifiers": {
-                    //             "mandatory": [
-                    //                 "left_shift"
-                    //             ],
-                    //         }
-                    //     },
-                    //     "to": [
-                    //         {
-                    //             "key_code": "hyphen",
-                    //             "modifiers": [
-                    //             ]
-                    //         }
-                    //     ],
-                    //     "conditions": [
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "quote_layer pressed",
-                    //             "value": 1
-                    //         },
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "semicolon_layer pressed",
-                    //             "value": 0
-                    //         },
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "spacebar_layer pressed",
-                    //             "value": 0
-                    //         }
-                    //     ]
-                    // },
-                    // {
-                    //     "type": "basic",
-                    //     "from": {
-                    //         "key_code": "k",
-                    //         "modifiers": {
-                    //             "optional": [
-                    //                 ...modifiers.filter(each=>!each.endsWith("_shift"))
-                    //             ],
-                    //         }
-                    //     },
-                    //     "to": [
-                    //         {
-                    //             "key_code": "hyphen",
-                    //             "modifiers": [
-                    //                 "left_shift",
-                    //             ]
-                    //         }
-                    //     ],
-                    //     "conditions": [
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "quote_layer pressed",
-                    //             "value": 1
-                    //         },
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "semicolon_layer pressed",
-                    //             "value": 0
-                    //         },
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "spacebar_layer pressed",
-                    //             "value": 0
-                    //         }
-                    //     ]
-                    // },
-                    // {
-                    //     "type": "basic",
-                    //     "from": {
-                    //         "key_code": "l",
-                    //         "modifiers": {
-                    //             "mandatory": [
-                    //                 "left_shift"
-                    //             ],
-                    //         }
-                    //     },
-                    //     "to": [
-                    //         {
-                    //             "key_code": "hyphen",
-                    //             "modifiers": [
-                    //             ]
-                    //         }
-                    //     ],
-                    //     "conditions": [
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "quote_layer pressed",
-                    //             "value": 1
-                    //         },
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "semicolon_layer pressed",
-                    //             "value": 0
-                    //         },
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "spacebar_layer pressed",
-                    //             "value": 0
-                    //         }
-                    //     ]
-                    // },
-                    // {
-                    //     "type": "basic",
-                    //     "from": {
-                    //         "key_code": "l",
-                    //         "modifiers": {
-                    //             "optional": [
-                    //                 ...modifiers.filter(each=>!each.endsWith("_shift"))
-                    //             ],
-                    //         }
-                    //     },
-                    //     "to": [
-                    //         {
-                    //             "key_code": "hyphen",
-                    //             "modifiers": [
-                    //                 "left_shift",
-                    //             ]
-                    //         }
-                    //     ],
-                    //     "conditions": [
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "quote_layer pressed",
-                    //             "value": 1
-                    //         },
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "semicolon_layer pressed",
-                    //             "value": 0
-                    //         },
-                    //         {
-                    //             "type": "variable_if",
-                    //             "name": "spacebar_layer pressed",
-                    //             "value": 0
-                    //         }
-                    //     ]
-                    // },
                 // 
                 // quote jump
                 // 
@@ -643,7 +408,7 @@ const karabinerMapping = {
                             },
                             {
                                 "type": "variable_if",
-                                "name": "semicolon_layer pressed",
+                                "name": "period_layer pressed",
                                 "value": 0
                             },
                             {
@@ -679,8 +444,83 @@ const karabinerMapping = {
                             },
                             {
                                 "type": "variable_if",
-                                "name": "semicolon_layer pressed",
+                                "name": "period_layer pressed",
                                 "value": 0
+                            },
+                            {
+                                "type": "variable_if",
+                                "name": "spacebar_layer pressed",
+                                "value": 1
+                            }
+                        ]
+                    },
+                // 
+                // period jump
+                // 
+                    {
+                        "type": "basic",
+                        "from": {
+                            "key_code": "l",
+                            "modifiers": {
+                                "optional": [
+                                    "any"
+                                ]
+                            }
+                        },
+                        "to": [
+                            {
+                                "key_code": "quote",
+                                "modifiers": [
+                                    "left_alt"
+                                ]
+                            }
+                        ],
+                        "conditions": [
+                            {
+                                "type": "variable_if",
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            },
+                            {
+                                "type": "variable_if",
+                                "name": "period_layer pressed",
+                                "value": 1
+                            },
+                            {
+                                "type": "variable_if",
+                                "name": "spacebar_layer pressed",
+                                "value": 1
+                            }
+                        ]
+                    },
+                    {
+                        "type": "basic",
+                        "from": {
+                            "key_code": "j",
+                            "modifiers": {
+                                "optional": [
+                                    "any"
+                                ]
+                            }
+                        },
+                        "to": [
+                            {
+                                "key_code": "comma",
+                                "modifiers": [
+                                    "left_alt"
+                                ]
+                            }
+                        ],
+                        "conditions": [
+                            {
+                                "type": "variable_if",
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            },
+                            {
+                                "type": "variable_if",
+                                "name": "period_layer pressed",
+                                "value": 1
                             },
                             {
                                 "type": "variable_if",
@@ -718,7 +558,7 @@ const karabinerMapping = {
                     //         },
                     //         {
                     //             "type": "variable_if",
-                    //             "name": "semicolon_layer pressed",
+                    //             "name": "period_layer pressed",
                     //             "value": 1
                     //         },
                     //         {
@@ -754,7 +594,7 @@ const karabinerMapping = {
                     //         },
                     //         {
                     //             "type": "variable_if",
-                    //             "name": "semicolon_layer pressed",
+                    //             "name": "period_layer pressed",
                     //             "value": 1
                     //         },
                     //         {
