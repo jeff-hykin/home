@@ -302,7 +302,7 @@ const karabinerMapping = {
                                         "key_code": "equal_sign",
                                     }
                                 ],
-                            }
+                            },
                             // 
                             //  brackets 
                             // 
