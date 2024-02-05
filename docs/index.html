@@ -4513,6 +4513,7 @@
         })
     }))
     if (router.pageInfo.doi) {
+        showToast(`loading (might take a moment)`)
         setTimeout(() => {
             getNodesAndLinksFor(router.pageInfo.doi).then(loadNewGraph)
         }, 0);
@@ -4539,6 +4540,7 @@
                 <Container name=summary display=relative width=100% gap=1.4rem display=flex overflow=visible flex-grow=1 opacity=${withTempColoring?0.5:1}>
                     <span style="color: #FFFFFF22;">DOI: ${nodeData.DOI}</span>
                     ${nodeData.title&&html`<h4 style="color: white;font-size: 1.5em;" innerHTML=${nodeData.title}></h4>`}
+                    ${`https://sci-hub.hkvisa.net/${nodeData.DOI}`}
                     
                     ${nodeData.authorLastName&&nodeData.yearCreated&&html`
                         <h5>
@@ -5305,8 +5307,16 @@
             //     }
             // }
         }
-        async function getNodesAndLinksFor(paperOrDoi, limit=Infinity) {
-            const paperInfo = await getPaperInfo(paperOrDoi, { showError: true })
+        async function getNodesAndLinksFor(paperOrDoi, limit=150) {
+            const getPaperInfoWrapper = (...args)=>{
+                if (limit<=0) {
+                    return "hitLimit"
+                } else {
+                    limit-=1
+                    return getPaperInfo(...args)
+                }
+            }
+            const paperInfo = await getPaperInfoWrapper(paperOrDoi, { showError: true })
             if (!paperInfo) {
                 return { nodes: [ { id: 0, yearCreated: "Sorry :/", authorLastName: "(not in database)" } ], links: [] }
             }
@@ -5323,9 +5333,20 @@
             if (dois.length == 0) {
                 showToast(`Note: the paper is in the database, but I don't see any related references`, {duration: 9000})
             }
-            const relatedPapers = await Promise.all(
-                dois.map(each=>getPaperInfo(each))
+            let relatedPapers = await Promise.all(
+                dois.map(each=>getPaperInfoWrapper(each))
             )
+            limit -= relatedPapers.length
+            const relatedRelatedPapers = await Promise.all(
+                relatedPapers.map(eachPaper=>
+                    (eachPaper?.reference||[]).map(each=>each.DOI).filter(each=>each)
+                ).flat(Infinity).filter(eachDoi=>!dois.includes(eachDoi)).map(
+                    eachDoi=>getPaperInfoWrapper(eachDoi)
+                )
+            )
+            relatedPapers = relatedPapers.concat(relatedRelatedPapers)
+            relatedPapers = relatedPapers.filter(each=>each!="hitLimit")
+            console.debug(`relatedPapers.length is:`,relatedPapers.length)
             const papers = Object.fromEntries(zip(dois, relatedPapers))
             papers[paperInfo.DOI] = paperInfo
             // NOTE: some references don't have a DOI
@@ -5362,6 +5383,7 @@
                 }
                 nodesById[node.id] = node
             }
+            console.debug(`Object.values(nodesById).length is:`,Object.values(nodesById).length)
             removeAllChildElements(infoArea)
             if (papersWithoutInfo.length > 0) {
                 infoArea.appendChild(html`

@@ -364,7 +364,7 @@ const karabinerMapping = {
                         //
                             {
                                 "from": {
-                                    "key_code": "semicolon",
+                                    "key_code": "p",
                                     "modifiers": {
                                         "optional": [
                                             "any"
