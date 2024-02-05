@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+import os
+import pandas
+
+def pascal_case_with_spaces(string):
+    string = f"{string}"
+    digits = "1234567890-"
+    valid_word_contents = "1234567890qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM-"
+    new_string = " "
+    # get pairwise elements
+    for each_character in string:
+        prev_character = new_string[-1]
+        prev_is_lowercase = prev_character.lower() == prev_character
+        each_is_uppercase = each_character.lower() != each_character
+        
+        # remove misc characters (handles snake case, kebab case, etc)
+        if each_character not in valid_word_contents:
+            new_string += " "
+        # start of word
+        elif prev_character not in valid_word_contents:
+            new_string += each_character.upper()
+        # start of number
+        elif prev_character not in digits and each_character in digits:
+            new_string += each_character
+        # end of number
+        elif prev_character in digits and each_character not in digits:
+            new_string += each_character.upper()
+        # camel case
+        elif prev_is_lowercase and each_is_uppercase:
+            new_string += " "+each_character.upper()
+        else:
+            new_string += each_character
+    
+    # flatten out all the whitespace
+    new_string = new_string.strip()
+    while "  " in new_string:
+        new_string = new_string.replace("  "," ")
+    
+    return new_string
+
+
+def simplify_names(names, show_warnings=True):
+    transform_name = lambda each: pascal_case_with_spaces(each.strip()).replace(" ", "_").lower()
+            
+    # simplify the names if needed
+    names = [ transform_name(each) for each in names ]
+    return make_headers_unique(names, rename_warning=show_warnings)
+
+def make_headers_unique(header, rename_warning=False):
+    theres_a_duplicate = len(set(header)) != len(header)
+    if not theres_a_duplicate:
+        return header
+    
+    working_header = list(header)
+    while theres_a_duplicate:
+        def remove_number_base(string):
+            if "_" in string:
+                *parts, last = string.split("_")
+                if last.isdigit():
+                    return string[0:-(len(last)+1)]
+            return string
+        
+        duplicates = []
+        duplicate_checker = []
+        for each_column_name in working_header:
+            if each_column_name in duplicate_checker:
+                duplicates.append(each_column_name)
+            else:
+                duplicate_checker.append(each_column_name)
+        
+        basename_duplicates = tuple(set(remove_number_base(each) for each in duplicates))
+        new_header_names = []
+        basename_counts = { key: 0 for key in basename_duplicates }
+        for each_column_name in working_header:
+            basename = remove_number_base(each_column_name)
+            if basename in basename_duplicates:
+                basename_counts[basename] += 1
+                new_name = f'{basename}_{basename_counts[basename]}'
+                new_header_names.append(new_name)
+            else:
+                new_header_names.append(each_column_name)
+        
+        working_header = new_header_names
+        theres_a_duplicate = len(set(working_header)) != len(working_header)
+    
+    rename_warning and print("Needed to rename some column names to avoid duplicates")
+    for each_old_name, each_new_name in zip(header, working_header):
+        if each_old_name != each_new_name:
+            rename_warning and print(f"    {repr(each_old_name)} => {repr(each_new_name)}")
+    
+    return working_header
+
+def excel_to_csv(file_path, output_folder=None, show_warnings=True):
+    # Read the Excel file
+    xls = pandas.ExcelFile(file_path)
+    
+    # make the containing folder
+    directory = output_folder or f'{os.path.dirname(file_path)}/{pascal_case_with_spaces(os.path.basename(file_path).split(".")[0]).replace(" ","_").lower()}_csv_files/'
+    if directory == '': directory = '.'
+    os.makedirs(directory, exist_ok=True)
+
+    # Get the names of all sheets in the Excel file
+    sheet_names = xls.sheet_names
+    simplified_sheet_names = simplify_names(sheet_names, show_warnings=show_warnings)
+
+    # Loop through each sheet and save it as a CSV file
+    for sheet_name, simplified_name in tuple(zip(sheet_names, simplified_sheet_names)):
+        first_15_lines = 15
+        for index in range(0,first_15_lines):
+            try:
+                df = xls.parse(sheet_name, header=index)
+                if df.columns[0] != 'Unnamed: 0':
+                    break
+            except Exception as error:
+                pass
+        
+        output_path = f'{directory}/{simplified_name}.csv'
+        if not all(type(each)== str for each in df.columns):
+            print("    ")
+            print(f"    Warning: sheet: {sheet_name} has not-string headers")
+            print(f"             see: {output_path}")
+            print("    ")
+        else:
+            names = tuple(zip(df.columns, simplify_names(df.columns)))
+            df.rename(columns={
+                old_name: new_name
+                    for old_name, new_name in names
+            })
+
+        # Save the DataFrame as a CSV file
+        df.to_csv(output_path, index=False)
+
+import sys
+which_file = sys.argv[1]
+excel_to_csv(which_file)
