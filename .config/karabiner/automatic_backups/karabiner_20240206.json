@@ -28,7 +28,7 @@
                                         "value": 1
                                     },
                                     {
-                                        "name": "semicolon_layer pressed",
+                                        "name": "period_layer pressed",
                                         "type": "variable_if",
                                         "value": 0
                                     },
@@ -61,7 +61,7 @@
                                         "value": 1
                                     },
                                     {
-                                        "name": "semicolon_layer pressed",
+                                        "name": "period_layer pressed",
                                         "type": "variable_if",
                                         "value": 0
                                     },
@@ -94,7 +94,7 @@
                                         "value": 1
                                     },
                                     {
-                                        "name": "semicolon_layer pressed",
+                                        "name": "period_layer pressed",
                                         "type": "variable_if",
                                         "value": 0
                                     },
@@ -127,7 +127,7 @@
                                         "value": 1
                                     },
                                     {
-                                        "name": "semicolon_layer pressed",
+                                        "name": "period_layer pressed",
                                         "type": "variable_if",
                                         "value": 0
                                     },
@@ -327,7 +327,7 @@
                                         "value": 1
                                     },
                                     {
-                                        "name": "semicolon_layer pressed",
+                                        "name": "period_layer pressed",
                                         "type": "variable_if",
                                         "value": 0
                                     },
@@ -363,7 +363,7 @@
                                         "value": 1
                                     },
                                     {
-                                        "name": "semicolon_layer pressed",
+                                        "name": "period_layer pressed",
                                         "type": "variable_if",
                                         "value": 0
                                     },
@@ -399,7 +399,7 @@
                                         "value": 0
                                     },
                                     {
-                                        "name": "semicolon_layer pressed",
+                                        "name": "period_layer pressed",
                                         "type": "variable_if",
                                         "value": 1
                                     },
@@ -419,7 +419,7 @@
                                 },
                                 "to": [
                                     {
-                                        "key_code": "period",
+                                        "key_code": "quote",
                                         "modifiers": [
                                             "left_alt"
                                         ]
@@ -435,7 +435,7 @@
                                         "value": 0
                                     },
                                     {
-                                        "name": "semicolon_layer pressed",
+                                        "name": "period_layer pressed",
                                         "type": "variable_if",
                                         "value": 1
                                     },
@@ -11861,7 +11861,7 @@
                             },
                             {
                                 "from": {
-                                    "key_code": "semicolon",
+                                    "key_code": "period",
                                     "modifiers": {
                                         "optional": [
                                             "left_alt",
@@ -11877,7 +11877,7 @@
                                 "to": [
                                     {
                                         "set_variable": {
-                                            "name": "semicolon_layer pressed",
+                                            "name": "period_layer pressed",
                                             "value": 1
                                         }
                                     }
@@ -11885,21 +11885,21 @@
                                 "to_after_key_up": [
                                     {
                                         "set_variable": {
-                                            "name": "semicolon_layer pressed",
+                                            "name": "period_layer pressed",
                                             "value": 0
                                         }
                                     }
                                 ],
                                 "to_if_alone": [
                                     {
-                                        "key_code": "semicolon"
+                                        "key_code": "period"
                                     }
                                 ],
                                 "type": "basic"
                             },
                             {
                                 "from": {
-                                    "key_code": "semicolon",
+                                    "key_code": "period",
                                     "modifiers": {
                                         "mandatory": [
                                             "left_shift"
@@ -11909,13 +11909,13 @@
                                 "to": [
                                     {
                                         "set_variable": {
-                                            "name": "semicolon_layer pressed",
+                                            "name": "period_layer pressed",
                                             "value": 1
                                         }
                                     },
                                     {
                                         "set_variable": {
-                                            "name": "semicolon_shift_layer pressed",
+                                            "name": "period_shift_layer pressed",
                                             "value": 1
                                         }
                                     }
@@ -11923,20 +11923,20 @@
                                 "to_after_key_up": [
                                     {
                                         "set_variable": {
-                                            "name": "semicolon_layer pressed",
+                                            "name": "period_layer pressed",
                                             "value": 0
                                         }
                                     },
                                     {
                                         "set_variable": {
-                                            "name": "semicolon_shift_layer pressed",
+                                            "name": "period_shift_layer pressed",
                                             "value": 0
                                         }
                                     }
                                 ],
                                 "to_if_alone": [
                                     {
-                                        "key_code": "semicolon",
+                                        "key_code": "period",
                                         "modifiers": [
                                             "left_shift"
                                         ]
@@ -11946,7 +11946,7 @@
                             },
                             {
                                 "from": {
-                                    "key_code": "semicolon",
+                                    "key_code": "period",
                                     "modifiers": {
                                         "mandatory": [
                                             "right_shift"
@@ -11956,13 +11956,13 @@
                                 "to": [
                                     {
                                         "set_variable": {
-                                            "name": "semicolon_layer pressed",
+                                            "name": "period_layer pressed",
                                             "value": 1
                                         }
                                     },
                                     {
                                         "set_variable": {
-                                            "name": "semicolon_shift_layer pressed",
+                                            "name": "period_shift_layer pressed",
                                             "value": 1
                                         }
                                     }
@@ -11970,20 +11970,20 @@
                                 "to_after_key_up": [
                                     {
                                         "set_variable": {
-                                            "name": "semicolon_layer pressed",
+                                            "name": "period_layer pressed",
                                             "value": 0
                                         }
                                     },
                                     {
                                         "set_variable": {
-                                            "name": "semicolon_shift_layer pressed",
+                                            "name": "period_shift_layer pressed",
                                             "value": 0
                                         }
                                     }
                                 ],
                                 "to_if_alone": [
                                     {
-                                        "key_code": "semicolon",
+                                        "key_code": "period",
                                         "modifiers": [
                                             "right_shift"
                                         ]

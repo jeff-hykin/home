@@ -26,7 +26,7 @@ const modifiers = [
 
 const layerKeys = [
     'quote',
-    'period',
+    'semicolon',
 ]
 const layerInteractionKeys = Object.fromEntries(layerKeys.map(each=>[`${each}_layer`, []]))
 layerInteractionKeys["spacebar_layer"] = []
@@ -142,7 +142,7 @@ const karabinerMapping = {
                     ...whenLayers({
                         layerValues: {
                             spacebar_layer: 1,
-                            period_layer: 0,
+                            semicolon_layer: 0,
                             quote_layer: 0,
                         },
                         keyBehaviors: [
@@ -408,7 +408,7 @@ const karabinerMapping = {
                             },
                             {
                                 "type": "variable_if",
-                                "name": "period_layer pressed",
+                                "name": "semicolon_layer pressed",
                                 "value": 0
                             },
                             {
@@ -444,7 +444,7 @@ const karabinerMapping = {
                             },
                             {
                                 "type": "variable_if",
-                                "name": "period_layer pressed",
+                                "name": "semicolon_layer pressed",
                                 "value": 0
                             },
                             {
@@ -469,7 +469,7 @@ const karabinerMapping = {
                         },
                         "to": [
                             {
-                                "key_code": "quote",
+                                "key_code": "period",
                                 "modifiers": [
                                     "left_alt"
                                 ]
@@ -483,7 +483,7 @@ const karabinerMapping = {
                             },
                             {
                                 "type": "variable_if",
-                                "name": "period_layer pressed",
+                                "name": "semicolon_layer pressed",
                                 "value": 1
                             },
                             {
@@ -519,7 +519,7 @@ const karabinerMapping = {
                             },
                             {
                                 "type": "variable_if",
-                                "name": "period_layer pressed",
+                                "name": "semicolon_layer pressed",
                                 "value": 1
                             },
                             {
@@ -558,7 +558,7 @@ const karabinerMapping = {
                     //         },
                     //         {
                     //             "type": "variable_if",
-                    //             "name": "period_layer pressed",
+                    //             "name": "semicolon_layer pressed",
                     //             "value": 1
                     //         },
                     //         {
@@ -594,7 +594,7 @@ const karabinerMapping = {
                     //         },
                     //         {
                     //             "type": "variable_if",
-                    //             "name": "period_layer pressed",
+                    //             "name": "semicolon_layer pressed",
                     //             "value": 1
                     //         },
                     //         {

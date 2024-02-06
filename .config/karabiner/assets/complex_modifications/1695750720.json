@@ -1,5 +1,5 @@
 {
-    "title": "Hold Space for ijkl arrow keys and more: 0.38671096116294623",
+    "title": "Hold Space for ijkl arrow keys and more: 0.4552152071102391",
     "rules": [
         {
             "description": "Hold Space for ijkl arrow keys and more",
@@ -27,7 +27,7 @@
                         },
                         {
                             "type": "variable_if",
-                            "name": "period_layer pressed",
+                            "name": "semicolon_layer pressed",
                             "value": 0
                         },
                         {
@@ -60,7 +60,7 @@
                         },
                         {
                             "type": "variable_if",
-                            "name": "period_layer pressed",
+                            "name": "semicolon_layer pressed",
                             "value": 0
                         },
                         {
@@ -93,7 +93,7 @@
                         },
                         {
                             "type": "variable_if",
-                            "name": "period_layer pressed",
+                            "name": "semicolon_layer pressed",
                             "value": 0
                         },
                         {
@@ -126,7 +126,7 @@
                         },
                         {
                             "type": "variable_if",
-                            "name": "period_layer pressed",
+                            "name": "semicolon_layer pressed",
                             "value": 0
                         },
                         {
@@ -329,7 +329,7 @@
                         },
                         {
                             "type": "variable_if",
-                            "name": "period_layer pressed",
+                            "name": "semicolon_layer pressed",
                             "value": 0
                         },
                         {
@@ -365,7 +365,7 @@
                         },
                         {
                             "type": "variable_if",
-                            "name": "period_layer pressed",
+                            "name": "semicolon_layer pressed",
                             "value": 0
                         },
                         {
@@ -387,7 +387,7 @@
                     },
                     "to": [
                         {
-                            "key_code": "quote",
+                            "key_code": "period",
                             "modifiers": [
                                 "left_alt"
                             ]
@@ -401,7 +401,7 @@
                         },
                         {
                             "type": "variable_if",
-                            "name": "period_layer pressed",
+                            "name": "semicolon_layer pressed",
                             "value": 1
                         },
                         {
@@ -437,7 +437,7 @@
                         },
                         {
                             "type": "variable_if",
-                            "name": "period_layer pressed",
+                            "name": "semicolon_layer pressed",
                             "value": 1
                         },
                         {
@@ -11846,7 +11846,7 @@
                 {
                     "type": "basic",
                     "from": {
-                        "key_code": "period",
+                        "key_code": "semicolon",
                         "modifiers": {
                             "optional": [
                                 "left_alt",
@@ -11861,13 +11861,13 @@
                     },
                     "to_if_alone": [
                         {
-                            "key_code": "period"
+                            "key_code": "semicolon"
                         }
                     ],
                     "to": [
                         {
                             "set_variable": {
-                                "name": "period_layer pressed",
+                                "name": "semicolon_layer pressed",
                                 "value": 1
                             }
                         }
@@ -11875,7 +11875,7 @@
                     "to_after_key_up": [
                         {
                             "set_variable": {
-                                "name": "period_layer pressed",
+                                "name": "semicolon_layer pressed",
                                 "value": 0
                             }
                         }
@@ -11884,7 +11884,7 @@
                 {
                     "type": "basic",
                     "from": {
-                        "key_code": "period",
+                        "key_code": "semicolon",
                         "modifiers": {
                             "mandatory": [
                                 "left_shift"
@@ -11893,7 +11893,7 @@
                     },
                     "to_if_alone": [
                         {
-                            "key_code": "period",
+                            "key_code": "semicolon",
                             "modifiers": [
                                 "left_shift"
                             ]
@@ -11902,13 +11902,13 @@
                     "to": [
                         {
                             "set_variable": {
-                                "name": "period_layer pressed",
+                                "name": "semicolon_layer pressed",
                                 "value": 1
                             }
                         },
                         {
                             "set_variable": {
-                                "name": "period_shift_layer pressed",
+                                "name": "semicolon_shift_layer pressed",
                                 "value": 1
                             }
                         }
@@ -11916,13 +11916,13 @@
                     "to_after_key_up": [
                         {
                             "set_variable": {
-                                "name": "period_layer pressed",
+                                "name": "semicolon_layer pressed",
                                 "value": 0
                             }
                         },
                         {
                             "set_variable": {
-                                "name": "period_shift_layer pressed",
+                                "name": "semicolon_shift_layer pressed",
                                 "value": 0
                             }
                         }
@@ -11931,7 +11931,7 @@
                 {
                     "type": "basic",
                     "from": {
-                        "key_code": "period",
+                        "key_code": "semicolon",
                         "modifiers": {
                             "mandatory": [
                                 "right_shift"
@@ -11940,7 +11940,7 @@
                     },
                     "to_if_alone": [
                         {
-                            "key_code": "period",
+                            "key_code": "semicolon",
                             "modifiers": [
                                 "right_shift"
                             ]
@@ -11949,13 +11949,13 @@
                     "to": [
                         {
                             "set_variable": {
-                                "name": "period_layer pressed",
+                                "name": "semicolon_layer pressed",
                                 "value": 1
                             }
                         },
                         {
                             "set_variable": {
-                                "name": "period_shift_layer pressed",
+                                "name": "semicolon_shift_layer pressed",
                                 "value": 1
                             }
                         }
@@ -11963,13 +11963,13 @@
                     "to_after_key_up": [
                         {
                             "set_variable": {
-                                "name": "period_layer pressed",
+                                "name": "semicolon_layer pressed",
                                 "value": 0
                             }
                         },
                         {
                             "set_variable": {
-                                "name": "period_shift_layer pressed",
+                                "name": "semicolon_shift_layer pressed",
                                 "value": 0
                             }
                         }
