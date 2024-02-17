@@ -20,13 +20,14 @@ import crypto from "node:crypto"
 
 import { toRepresentation } from "https://deno.land/x/good@1.4.4.3/string.js";
 import { green, blue } from "https://deno.land/x/quickr@0.6.42/main/console.js";
+# import { FileSystem } from "https://deno.land/x/quickr@0.6.63/main/file_system.js";
 import { debounce as denoDebounce } from "https://deno.land/std@0.198.0/async/debounce.ts";
 
 const Buffer = buffer.Buffer
 
 
 const numberOfProcessesToShowAtOnce = 20
-const nameProportionOfScreen = 0.8
+const nameProportionOfScreen = 0.7
 
 const highlight = ({keyString, baseString, color})=>{
     if (!baseString || baseString.length == 0 || !keyString || keyString.length == 0) {
@@ -65393,7 +65394,15 @@ var init_interactive = __esm({
 			}
 			return 0;
 		};
-		preferHeurisicallyInterestingProcesses = (a, b) => {
+		preferHeurisicallyInterestingProcesses = (input) => (a, b) => {
+            const aHasInput = JSON.stringify(a).includes(input)
+            const bHasInput = JSON.stringify(b).includes(input)
+            if (aHasInput&&!bHasInput) {
+                return -1
+            }
+            if (bHasInput&&!aHasInput) {
+                return 1
+            }
 			let result;
 			result = preferNotDeprioritized(a, b);
 			if (result !== 0) {
@@ -65426,7 +65435,7 @@ var init_interactive = __esm({
             const argsLength = displayStringLength-(largestNameLength+5)
 			return filteredProcesses
                 .filter(eachProcess=>eachProcess.pid!=Deno.pid) // e.g. dont kill ourselves
-				.sort(preferHeurisicallyInterestingProcesses)
+				.sort(preferHeurisicallyInterestingProcesses(input))
 				.map((process_) => {
 					const renderPercentage = (percents) => {
 						const digits = Math.floor(percents * 10)
@@ -65585,7 +65594,7 @@ var init_interactive = __esm({
 					name: "processes",
 					message: "Running processes:",
 					type: "autocomplete",
-					pageSize: numberOfProcessesToShowAtOnce,
+					pageSize: Math.min([numberOfProcessesToShowAtOnce, Deno.consoleSize().rows-2]),
 					source: async (answers, input) => {
                         const output = internalFunc(answers, input)
                         return output
