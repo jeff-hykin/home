@@ -91,45 +91,39 @@ fi
 # 
 # install ssh server
 # 
-if ! [ -n "$(command -v "nix")" ]
-then
-    question="do you want enable the ssh server? [y/n]";answer=''
-    while true; do
-        echo "$question"; read response
-        case "$response" in
-            [Yy]* ) answer='yes'; break;;
-            [Nn]* ) answer='no'; break;;
-            * ) echo "Please answer yes or no.";;
-        esac
-    done
-    if [ "$answer" = 'yes' ]; then
-        echo "got it, setting up"
-        . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server)
-        echo "done"
-    else
-        echo okay
-    fi
+question="do you want enable the ssh server? [y/n]";answer=''
+while true; do
+    echo "$question"; read response
+    case "$response" in
+        [Yy]* ) answer='yes'; break;;
+        [Nn]* ) answer='no'; break;;
+        * ) echo "Please answer yes or no.";;
+    esac
+done
+if [ "$answer" = 'yes' ]; then
+    echo "got it, setting up"
+    . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server)
+    echo "done"
+else
+    echo okay
 fi
 
 # 
 # install zerotier
 # 
-if ! [ -n "$(command -v "nix")" ]
-then
-    question="do you want enable zerotier? [y/n]";answer=''
-    while true; do
-        echo "$question"; read response
-        case "$response" in
-            [Yy]* ) answer='yes'; break;;
-            [Nn]* ) answer='no'; break;;
-            * ) echo "Please answer yes or no.";;
-        esac
-    done
-    if [ "$answer" = 'yes' ]; then
-        echo "got it, setting up"
-        . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_zerotier || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_zerotier)
-        echo "done"
-    else
-        echo okay
-    fi
+question="do you want enable zerotier? [y/n]";answer=''
+while true; do
+    echo "$question"; read response
+    case "$response" in
+        [Yy]* ) answer='yes'; break;;
+        [Nn]* ) answer='no'; break;;
+        * ) echo "Please answer yes or no.";;
+    esac
+done
+if [ "$answer" = 'yes' ]; then
+    echo "got it, setting up"
+    . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_zerotier || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_zerotier)
+    echo "done"
+else
+    echo okay
 fi
