@@ -6,6 +6,11 @@ A bunch of tools I use for setting up new machines. Mostly Debian-based and MacO
 . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_main || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_main)
 ```
 
+### Apt-get update, and questions for nix/ssh-server etc
+```shell
+. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_linux || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_linux)
+```
+
 ### Installing Nix
 ```shell
 . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix)
