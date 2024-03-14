@@ -210,7 +210,8 @@
       "inputs": {
         "cowsay": "cowsay",
         "nixpkgs": "nixpkgs",
-        "snowfall-lib": "snowfall-lib_3"
+        "snowfall-lib": "snowfall-lib_3",
+        "thing": "thing"
       }
     },
     "snowfall-lib": {
@@ -294,6 +295,22 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "thing": {
+      "locked": {
+        "lastModified": 1710260386,
+        "narHash": "sha256-p24tancWcokG6SQhyhiidAGkS86Hv7tWjQoxmrSGNB4=",
+        "owner": "jeff-hykin",
+        "repo": "snowball",
+        "rev": "909217601e390f95f0773072c2fd8fd730ace838",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jeff-hykin",
+        "repo": "snowball",
+        "rev": "909217601e390f95f0773072c2fd8fd730ace838",
         "type": "github"
       }
     },

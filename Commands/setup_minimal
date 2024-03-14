@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+# if apt-get exists and if curl not exists
+if [ -n "$(command -v "apt-get")" ] && [ -n "$(command -v "curl")" ]
+then
+    sudo apt-get update -y 
+    sudo apt-get install -y curl
+fi
+
+# make sure xcode tools are installed
+if [ "$(uname)" = "Darwin" ]
+then
+    # if non-interactive, then install without prompting
+    if [ -z "$PS1" ]; then
+        xcode-select -p &> /dev/null
+        if [ $? -ne 0 ]; then
+            echo "Command Line Tools for Xcode not found. Installing from softwareupdate…"
+            # This temporary file prompts the 'softwareupdate' utility to list the Command Line Tools
+            echo 
+            echo "This is probably going to take 5-30min to install" 
+            touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress;
+            PROD=$(softwareupdate -l | grep "\*.*Command Line" | tail -n 1 | sed 's/^[^C]* //')
+            softwareupdate -i "$PROD" --verbose;
+        else
+            echo "Command Line Tools for Xcode have been installed."
+        fi
+    # use prompt so the user sees a time estimate and progress
+    else
+        check="$((xcode-\select --install) 2>&1)"
+        echo $check
+        str="xcode-select: note: install requested for command line developer tools"
+        while [[ "$check" == "$str" ]];
+        do
+           xcode-select --install
+           echo "waiting for xcode command line tools to be installed"
+           sleep 10
+        done
+    fi
+    echo "passed xcode tools installed"
+fi
+
+echo "Running install Nix script"
+# install nix
+. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix)
+# install git
+nix-env -iA nixpkgs.git
+
+# setup home
+echo "Running setup home script"
+. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_home)
+
+# install all the basics with nix
+echo "Installing basics using nix"
+. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_cli_stuff || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_cli_stuff)

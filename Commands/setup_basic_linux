@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+
+# 
+# apt-get udate
+# 
+# if apt-get exists and if curl not exists
+if [ -n "$(command -v "apt-get")" ] && [ -n "$(command -v "curl")" ]
+then
+    sudo apt-get update -y 
+    sudo apt-get install -y curl
+fi
+
+# 
+# disable auto updates
+# 
+question="do you want to disable auto updates? [y/n]";answer=''
+while true; do
+    echo "$question"; read response
+    case "$response" in
+        [Yy]* ) answer='yes'; break;;
+        [Nn]* ) answer='no'; break;;
+        * ) echo "Please answer yes or no.";;
+    esac
+done
+if [ "$answer" = 'yes' ]; then
+    echo "got it"
+    # check if file exists
+    if [ -f "/etc/apt/apt.conf.d/20auto-upgrades" ]
+    then
+        sudo sed -i 's/APT::Periodic::UnattendedUpgrade "1"/APT::Periodic::UnattendedUpgrade "0"/g' /etc/apt/apt.conf.d/20auto-upgrades
+        echo done
+    else
+        echo I didnt see a /etc/apt/apt.conf.d/20auto-upgrades file
+    fi
+else
+    echo okay
+fi
+
+# 
+# install nix
+# 
+if ![ -n "$(command -v "nix")" ]
+then
+    question="do you want to install nix? [y/n]";answer=''
+    while true; do
+        echo "$question"; read response
+        case "$response" in
+            [Yy]* ) answer='yes'; break;;
+            [Nn]* ) answer='no'; break;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
+    if [ "$answer" = 'yes' ]; then
+        echo "got it, installing latest nix"
+        . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix)
+    else
+        echo okay
+    fi
+fi
+
+# 
+# git
+# 
+if ![ -n "$(command -v "git")" ] && [ -n "$(command -v "nix")" ]
+then
+    nix-env -f "<nixpkgs>" -iA nixpkgs.git || nix-env -f "<nixpkgs>" -iA git
+fi
+# username
+if ! git config --global user.name
+then
+    echo "Whats your git username? (empty='username')"
+    read answer
+    if [ -z "$answer" ]
+    then
+        answer="username"
+    fi
+    git config --global user.name "$answer"
+fi
+# email
+if ! git config --global user.email
+then
+    echo "Whats your git email? (empty='email@email.com')"
+    read answer
+    if [ -z "$answer" ]
+    then
+        answer="email@email.com"
+    fi
+    git config --global user.email "$answer"
+fi
+
+# 
+# install ssh server
+# 
+if ![ -n "$(command -v "nix")" ]
+then
+    question="do you want enable the ssh server? [y/n]";answer=''
+    while true; do
+        echo "$question"; read response
+        case "$response" in
+            [Yy]* ) answer='yes'; break;;
+            [Nn]* ) answer='no'; break;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
+    if [ "$answer" = 'yes' ]; then
+        echo "got it, setting up"
+        . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server)
+        echo "done"
+    else
+        echo okay
+    fi
+fi
+
+# 
+# install zerotier
+# 
+if ![ -n "$(command -v "nix")" ]
+then
+    question="do you want enable zerotier? [y/n]";answer=''
+    while true; do
+        echo "$question"; read response
+        case "$response" in
+            [Yy]* ) answer='yes'; break;;
+            [Nn]* ) answer='no'; break;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
+    if [ "$answer" = 'yes' ]; then
+        echo "got it, setting up"
+        . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_zerotier || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_zerotier)
+        echo "done"
+    else
+        echo okay
+    fi
+fi
