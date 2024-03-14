@@ -3,12 +3,26 @@
 # 
 # apt-get udate
 # 
-# if apt-get exists and if curl not exists
-if [ -n "$(command -v "apt-get")" ] && [ -n "$(command -v "curl")" ]
-then
-    sudo apt-get update -y 
-    sudo apt-get install -y curl
+question="have you already done apt-update? [y/n]";answer=''
+while true; do
+    echo "$question"; read response
+    case "$response" in
+        [Yy]* ) answer='yes'; break;;
+        [Nn]* ) answer='no'; break;;
+        * ) echo "Please answer yes or no.";;
+    esac
+done
+if [ "$answer" = 'yes' ]; then
+    echo "okay"
+else
+    # if apt-get exists and if curl not exists
+    if [ -n "$(command -v "apt-get")" ] && [ -n "$(command -v "curl")" ]
+    then
+        sudo apt-get update -y 
+        sudo apt-get install -y curl
+    fi
 fi
+
 
 # 
 # disable auto updates
