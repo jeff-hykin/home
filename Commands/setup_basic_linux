@@ -39,7 +39,7 @@ fi
 # 
 # install nix
 # 
-if ![ -n "$(command -v "nix")" ]
+if ! [ -n "$(command -v "nix")" ]
 then
     question="do you want to install nix? [y/n]";answer=''
     while true; do
@@ -61,7 +61,7 @@ fi
 # 
 # git
 # 
-if ![ -n "$(command -v "git")" ] && [ -n "$(command -v "nix")" ]
+if ! [ -n "$(command -v "git")" ] && [ -n "$(command -v "nix")" ]
 then
     nix-env -f "<nixpkgs>" -iA nixpkgs.git || nix-env -f "<nixpkgs>" -iA git
 fi
@@ -91,7 +91,7 @@ fi
 # 
 # install ssh server
 # 
-if ![ -n "$(command -v "nix")" ]
+if ! [ -n "$(command -v "nix")" ]
 then
     question="do you want enable the ssh server? [y/n]";answer=''
     while true; do
@@ -114,7 +114,7 @@ fi
 # 
 # install zerotier
 # 
-if ![ -n "$(command -v "nix")" ]
+if ! [ -n "$(command -v "nix")" ]
 then
     question="do you want enable zerotier? [y/n]";answer=''
     while true; do
