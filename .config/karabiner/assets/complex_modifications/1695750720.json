@@ -1,5 +1,5 @@
 {
-    "title": "Hold Space for ijkl arrow keys and more: 0.5279186208611863",
+    "title": "Hold Space for ijkl arrow keys and more: 0.8675117007206778",
     "rules": [
         {
             "description": "Hold Space for ijkl arrow keys and more",
@@ -459,10 +459,21 @@
                     },
                     "to": [
                         {
-                            "key_code": "vk_none"
+                            "key_code": "escape"
                         },
                         {
-                            "key_code": "escape"
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 1
+                            }
+                        }
+                    ],
+                    "to_after_key_up": [
+                        {
+                            "set_variable": {
+                                "name": "quote_layer pressed",
+                                "value": 0
+                            }
                         }
                     ],
                     "conditions": [
