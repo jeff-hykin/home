@@ -71,7 +71,7 @@ const layerKeyShiftFixer = ({ layer, keys, conditions }) => {
                 },
                 "to": [
                     {
-                        "key_code": "quote",
+                        "key_code": layer,
                         ...(
                             shiftOfLayerInput ?
                                 { modifiers: [ shift ] }
@@ -107,6 +107,11 @@ const layerKeyShiftFixer = ({ layer, keys, conditions }) => {
                         "type": "variable_if",
                         "name": `${layer}_layer pressed`,
                         "value": 1
+                    },
+                    {
+                        "type": "variable_if",
+                        "name": `spacebar_layer pressed`,
+                        "value": 0,
                     },
                     {
                         "type": "variable_if",
@@ -607,6 +612,40 @@ const karabinerMapping = {
                 // 
                 // disable stuff
                 // 
+                    {
+                        "type": "basic",
+                        "from": {
+                            "key_code": "quote",
+                            "modifiers": {
+                                "optional": [
+                                    "any"
+                                ]
+                            }
+                        },
+                        "to": [
+                            {
+                                "key_code": "vk_none",
+                            },
+                            {
+                                "key_code": "escape",
+                            }
+                        ],
+                        // "to_after_key_up": [
+                        //     {
+                        //         "set_variable": {
+                        //             "name": "spacebar_layer pressed",
+                        //             "value": 0
+                        //         }
+                        //     }
+                        // ]
+                        "conditions": [
+                            {
+                                "type": "variable_if",
+                                "name": `spacebar_layer pressed`,
+                                "value": 1
+                            },
+                        ],
+                    },
                     // 
                     // disable underscore
                     // 
