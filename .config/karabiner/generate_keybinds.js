@@ -624,20 +624,23 @@ const karabinerMapping = {
                         },
                         "to": [
                             {
-                                "key_code": "vk_none",
+                                "key_code": "escape",
                             },
                             {
-                                "key_code": "escape",
+                                "set_variable": {
+                                    "name": "quote_layer pressed",
+                                    "value": 1
+                                }
                             }
                         ],
-                        // "to_after_key_up": [
-                        //     {
-                        //         "set_variable": {
-                        //             "name": "spacebar_layer pressed",
-                        //             "value": 0
-                        //         }
-                        //     }
-                        // ]
+                        "to_after_key_up": [
+                            {
+                                "set_variable": {
+                                    "name": "quote_layer pressed",
+                                    "value": 0
+                                }
+                            }
+                        ],
                         "conditions": [
                             {
                                 "type": "variable_if",
