@@ -38,6 +38,11 @@ while true; do
 done
 if [ "$answer" = 'yes' ]; then
     echo "got it"
+    
+    # disable apps auto-updating
+    sudo systemctl stop snapd
+    sudo apt purge -y snapd
+
     # check if file exists
     if [ -f "/etc/apt/apt.conf.d/20auto-upgrades" ]
     then
