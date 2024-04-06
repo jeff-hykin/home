@@ -439,6 +439,11 @@ split_by ()  {
 
 process_on_port () {
     lsof -i tcp:$@
+    # if netstat exists
+    if [ -n "$(command -v "netstat")" ]
+    then
+        sudo $(which netstat) -tunlp | grep "$@"
+    fi
 }
 
 most_recent_file () {
