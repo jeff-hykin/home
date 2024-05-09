@@ -1,0 +1,53 @@
+echo "I'm going to show you the available disks, okay?";read ANSWER;echo
+if [ "$(uname)" = "Darwin" ] 
+then
+    diskutil list | cat
+else
+    sudo fdisk -l
+fi
+
+
+echo "What is the disk that you want to duplicate"
+echo "AKA the good disk that will be safe"
+echo "(should be something like '/dev/disk4')"
+read ANSWER
+
+if [ -n "$ANSWER" ]
+then
+    input_disk="$ANSWER"
+    
+    # 
+    # unmount input
+    # 
+    if [ "$(uname)" = "Darwin" ] 
+    then
+        diskutil unmount "$input_disk" 2>/dev/null
+        diskutil unmountDisk "$input_disk" 2>/dev/null
+    else
+        sudo umount "$input_disk" 2>/dev/null
+    fi
+    echo 
+    echo "What is the disk that will be DESTROYED (overwritten)"
+    echo "(should be something like '/dev/disk4')"
+    read ANSWER
+    if [ -n "$ANSWER" ]
+    then
+        output_disk="$ANSWER"
+        echo ""
+        echo "Alright, $output_disk is about to be overwritten/destroyed"
+        echo ""
+        echo "Press enter to continue, CTRL+C to cancel";read ANSWER;echo
+        # 
+        # unmount input
+        # 
+        if [ "$(uname)" = "Darwin" ] 
+        then
+            diskutil unmount "$output_disk" 2>/dev/null
+            diskutil unmountDisk "$output_disk" 2>/dev/null
+        else
+            sudo umount "$output_disk" 2>/dev/null
+        fi
+        sudo umount "$output_disk" 2>/dev/null
+        sudo dd if="$input_disk" of="$output_disk" bs=1M status=progress
+    fi
+fi
