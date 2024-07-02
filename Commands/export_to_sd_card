@@ -41,7 +41,8 @@ fi
 # 
 # list disks
 # 
-echo "I'm going to show you the available disks, okay?";read ANSWER;echo
+echo "I'm going to show you the available disks, okay?
+NOTE: its going to take a second so please wait";read ANSWER;echo
 if [ "$(uname)" = "Darwin" ] 
 then
     diskutil list | cat
@@ -58,6 +59,16 @@ then
     output_disk="$ANSWER"
     echo ""
     echo "Alright, $output_disk is about to be overwritten with $target_path"
+    # 
+    # unmount input
+    # 
+    if [ "$(uname)" = "Darwin" ] 
+    then
+        diskutil unmount "$output_disk" 2>/dev/null
+        diskutil unmountDisk "$output_disk" 2>/dev/null
+    else
+        sudo umount "$output_disk" 2>/dev/null
+    fi
     echo "Press enter to continue, CTRL+C to cancel";read ANSWER;echo
     sudo umount "$output_disk" 2>/dev/null
     sudo dd if="$target_path" of="$output_disk" bs=1M status=progress

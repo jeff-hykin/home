@@ -62,8 +62,8 @@ DISABLE_UPDATE_PROMPT="true"
 # see 'man strftime' for details.
 # HIST_STAMPS="mm/dd/yyyy"
 export HISTFILE="$HOME/.zsh_history"
-export HISTSIZE=10000
-export SAVEHIST=10000
+export HISTSIZE=50000
+export SAVEHIST=50000
 setopt appendhistory
 
 # Would you like to use another custom folder than $ZSH/custom?
