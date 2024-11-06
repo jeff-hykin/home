@@ -1,0 +1,50 @@
+#!/usr/bin/env -S deno run --allow-all
+import { FileSystem, glob } from "https://deno.land/x/quickr@0.6.70/main/file_system.js"
+
+const stripQuotes = (string)=>string.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
+
+const paths = await glob(`${Deno.args[0]}/**/*.cpp`)
+const requirePattern = /^([ \t]*)\bREQUIRE\((.+)==(.+)\);/gm
+const sectionPattern = /^[ \t]*(?:TEST_CASE|SECTION)\((.+)\)[ \t]*{[ \t]*$/gm
+await Promise.all(paths.map(eachPath=>FileSystem.read(eachPath).then(fileContent=>{
+    console.log(`replacing: ${eachPath}`)
+    
+    fileContent = fileContent.replace(/new Stress_ball\[\d+\];[\w\W]*?CollectionSB *(\w+)\(\w+, *(\d+), *(\d+)\);/g, (eachSetup)=>{
+        const match = eachSetup.match(/(new Stress_ball\[\d+\];)[\w\W]*?CollectionSB *(\w+)\(\w+, *(\d+), *(\d+)\);/)
+        if (match) {
+            let [ everything, firstValue, name, size, capacity ] = match
+            const ballValues = [...everything.replace(/new Stress_ball.+/,"").match(/Stress_ball[^;]+/g)]
+            console.debug(`firstValue is:`,firstValue)
+            console.debug(`    ballValues is:`,ballValues.length)
+            return `${firstValue}
+        CollectionSB ${name}(${capacity});
+        ${ballValues.map(each=>`${name}.insert_item(${each});`).join("\n        ")}
+            `
+        } else {
+            return eachSetup
+        }
+    })
+    // Stress_ball* stress_balls = new Stress_ball[4];
+    // stress_balls[0] = Stress_ball(Stress_ball_colors::green, Stress_ball_sizes::small);
+    // stress_balls[1] = Stress_ball(Stress_ball_colors::blue, Stress_ball_sizes::medium);
+    // stress_balls[2] = Stress_ball(Stress_ball_colors::yellow, Stress_ball_sizes::large);
+    // stress_balls[4] = Stress_ball(Stress_ball_colors::yellow, Stress_ball_sizes::medium);
+    // // Create a Collection object using the parameterized constructor
+    // CollectionSB source(stress_balls, 4, 8);
+    
+    return FileSystem.write({
+        path: eachPath,
+        data: fileContent,
+        // data: (fileContent.includes("#include <iostream>\n") ? "" : `#include <iostream>\n`)+(fileContent.replace(requirePattern, (each)=>{
+        //     const match = each.match(/^([ \t]*)\bREQUIRE\((.+)==(.+)\);/m)
+        //     let indent = match[1]||""
+        //     let leftSide = stripQuotes(match[2])
+        //     let rightSide = stripQuotes(match[3])
+            
+        //     return `${indent}std::cout << "    testing: ${leftSide} == ${rightSide}" << std::endl;\n${indent}{\n${indent}    bool result = (${match[2]} == ${match[3]});\n${indent}    std::cout << result << std::endl;\n${indent}    REQUIRE(result);\n${indent}}\n`
+        // })).replace(sectionPattern, (each)=>{
+        //     const match = each.match(/^[ \t]*(?:TEST_CASE|SECTION)\((.+)\)[ \t]*{[ \t]*$/m)
+        //     return `${each}\n    std::cout << "\\nstarting test: " << ${match[1]} << std::endl;`
+        // })
+    })
+})))

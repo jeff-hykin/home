@@ -1,3 +1,5 @@
+# Add deno completions to search path
+if [[ ":$FPATH:" != *":/Users/jeffhykin/.zsh/completions:"* ]]; then export FPATH="/Users/jeffhykin/.zsh/completions:$FPATH"; fi
 # always run the .profile first
 if [[ "$SHELL_STANDARD_ENV_PROFILE_WAS_INITILIZED" != "true" ]]
 then
@@ -26,3 +28,4 @@ do
         . "$each"
     fi
 done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
+. "/Users/jeffhykin/.deno/env"

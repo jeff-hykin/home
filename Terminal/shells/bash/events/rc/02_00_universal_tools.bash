@@ -442,7 +442,7 @@ process_on_port () {
     # if netstat exists
     if [ -n "$(command -v "netstat")" ]
     then
-        sudo $(which netstat) -tunlp | grep "$@"
+        sudo $(which netstat) -tunlp tcp | grep "$@"
     fi
 }
 
