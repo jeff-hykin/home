@@ -138,6 +138,11 @@ const karabinerMapping = {
         {
             "description": "Hold Space for ijkl arrow keys and more" ,
             "manipulators": [
+                // 
+                // 
+                // ljkllj
+                // 
+                // 
 
                 // 
                 // 

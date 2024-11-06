@@ -80,3 +80,4 @@ then
     unset __temp_var__default_nix_bin
 fi
     
+. "/Users/jeffhykin/.deno/env"
