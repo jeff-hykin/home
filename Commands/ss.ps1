@@ -21,7 +21,7 @@ if (help) {
     console.log(`    ss \\`)
     console.log(`       --find '.+'`)
     console.log(`       --name-filter 'path=>path.endsWith(".js")'`)
-    console.log(`       --replace '({ path, absPath, ext, name, basename, parentPath, folders }, match)=>math.replace("")'`)
+    console.log(`       --replace '(matchString, { path, absPath, ext, name, basename, parentPath, folders, index, str }, ...groups)=>math.replace("")'`)
     console.log(`       ./*`)
 }
 
@@ -30,6 +30,7 @@ var output = parseArgs({
     fields: [
         [["--find"], required, (str)=>new RegExp(str, "g")],
         [["--name-filter"], initialValue(()=>true), (str)=>eval(str)],
+        [["--dry"], flag],
         [["--replace"], initialValue(null), (str)=>eval(str)],
         [["--print"], initialValue((...args)=>console.log(args[0])), (str)=>eval(str)],
         // [["--explcit-arg1"], initialValue(null), (str)=>parseInt(str)],
@@ -60,29 +61,37 @@ await Promise.all(output.argList.map(async (eachPath)=>{
         let contents = await FileSystem.read(eachPath)
         const absPath = FileSystem.makeAbsolutePath(eachPath)
         const [ folders, name, itemExtensionWithDot ] = FileSystem.pathPieces(absPath)
+        let relativePath =FileSystem.makeRelativePath({from: FileSystem.pwd, to:absPath})
         const argHelp = {
-            path: FileSystem.makeRelativePath({from: FileSystem.pwd, to:absPath}),
+            path: relativePath,
             absPath,
             ext: itemExtensionWithDot,
             name,
             basename: FileSystem.basename(eachPath),
             parentPath: FileSystem.parentPath(absPath),
-            folders,
+            folders: folders.filter(each=>each.length),
         }
         if (args.replace) {
             let replaceCount = 0
-            contents = contents.replaceAll(args.find, (...argss)=>{
+            contents = contents.replaceAll(args.find, (g0,...groupsAndOther)=>{
+                const [ index, str ] = groupsAndOther.splice(-2,2)
                 replaceCount++
-                return args.replace(...argss)
+                let output = args.replace(g0, {...argHelp, index, str}, ...groupsAndOther)
+                if (args.dry) {
+                    const lineNumber = str.slice(0,index).split(/\n/g).length
+                    console.log(`from: "${green(JSON.stringify(g0).slice(1,-1))}", to: "${cyan(JSON.stringify(output).slice(1,-1))}", at: ${JSON.stringify(relativePath+":"+lineNumber)}`)
+                }
             })
-            await FileSystem.write({
-                path: info.path,
-                data: contents,
-            })
-            console.log(`replaced ${green(replaceCount)} in ${cyan(info.path)}`)
+            if (!args.dry) {
+                await FileSystem.write({
+                    path: info.path,
+                    data: contents,
+                })
+                console.log(`replaced ${green(replaceCount)} in ${cyan(info.path)}`)
+            }
         } else {
             contents.replaceAll(args.find, (...argss)=>{
-                return args.print(...argss)
+                return args.print(argss.shift(), argHelp, ...argss)
             })
         }
     }
