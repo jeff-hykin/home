@@ -79,8 +79,9 @@ await Promise.all(output.argList.map(async (eachPath)=>{
                 let output = args.replace(g0, {...argHelp, index, str}, ...groupsAndOther)
                 if (args.dry) {
                     const lineNumber = str.slice(0,index).split(/\n/g).length
-                    console.log(`from: "${green(JSON.stringify(g0).slice(1,-1))}", to: "${cyan(JSON.stringify(output).slice(1,-1))}", at: ${JSON.stringify(relativePath+":"+lineNumber)}`)
+                    console.log(`from: "${green(JSON.stringify(g0).slice(1,-1))}", to: "${cyan(JSON.stringify(output).slice(1,-1))}", at: ${dim(JSON.stringify(relativePath+":"+lineNumber))}`)
                 }
+                return output
             })
             if (!args.dry) {
                 await FileSystem.write({
