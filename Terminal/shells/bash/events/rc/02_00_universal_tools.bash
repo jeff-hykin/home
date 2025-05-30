@@ -202,7 +202,7 @@ cd () {
 
 f ()  {
     args="$@"
-    ls -lA | grep "$args"
+    ls -1A | grep "$args"
 }
 
 flocal ()  {

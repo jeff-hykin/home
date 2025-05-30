@@ -1,0 +1,5 @@
+#!/usr/bin/env -S deno run --allow-all
+import { FileSystem, glob } from "https://deno.land/x/quickr@0.6.70/main/file_system.js"
+import * as yaml from "https://deno.land/std@0.168.0/encoding/yaml.ts"
+const stdinString = await new Response(Deno.stdin.readable).text()
+console.log(yaml.stringify(JSON.parse(stdinString)))
