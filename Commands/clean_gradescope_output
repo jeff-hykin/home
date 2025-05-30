@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run --allow-all
 let stdinString = await new Response(Deno.stdin.readable).text()
 if (stdinString.includes("FAILED:")) {
-    stdinString = stdinString.replace(/(\w|\W)+?with messages:/g, "")
+    stdinString = stdinString.replace(/(\w|\W)+?\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\.\./g, "")
     stdinString = stdinString.replace(/===============================================================================\ntest cases:(\w|\W)+/g, "")
 }
 console.log(stdinString)
