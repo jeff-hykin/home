@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-all
+#!/usr/bin/env -S deno run --allow-all --no-check
 import { getPorts, open } from "https://esm.sh/gh/jeff-hykin/deno_serial@0.0.1.0/mod.ts"
 
 const ports = getPorts()
