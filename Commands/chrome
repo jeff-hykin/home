@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+"/Users/jeffhykin/Downloads/chrome-mac 7/Chromium.app/Contents/MacOS/Chromium" "$@"
