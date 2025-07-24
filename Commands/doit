@@ -1,14 +1,22 @@
 #!/usr/bin/env -S deno run --allow-all
 import { Console, blue } from "https://deno.land/x/quickr@0.6.28/main/console.js"
 import { FileSystem } from "https://deno.land/x/quickr@0.6.28/main/file_system.js"
-import { run, Stdout, returnAsString, Overwrite, Cwd } from "https://deno.land/x/quickr@0.6.28/main/run.js"
+import $ from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts"
+const $$ = (...args)=>$(...args).noThrow()
 
 // 
-// args
+// helpers
+// 
+function shellEscape(string) {
+    return `'${string.replace(/'/g,`'"'"'`)}'`
+}
+
+// 
+// setup
 // 
 const tempFilePath = await Deno.makeTempFile()
-const recreateEnvPosix = Object.entries(key).map(
-    (key,value)=>`${key}=${shellEscape(value)}`
+const recreateEnvPosix = Object.entries(Console.env).map(
+    ([key, value])=>`${key}=${shellEscape((console.log([key,value]),`${value??""}`))}`
 ).join("\n")
 await FileSystem.write({
     data: recreateEnvPosix,
@@ -16,11 +24,4 @@ await FileSystem.write({
 })
 
 // sources a temp file with the same ENV as the current env, then runs the rest of the args as a command in that env
-await run`sudo -- ${Console.env.SHELL} -c ${`. ${shellEscape(tempFilePath)};${Deno.args.map(shellEscape).join(" ")}`}`
-
-// 
-// interactive 
-// 
-function shellEscape(string) {
-    return `'${string.replace(/'/g,`'"'"'`)}'`
-}
+await $$`sudo -- ${Console.env.SHELL} -c ${`. ${shellEscape(tempFilePath)};${Deno.args.map(shellEscape).join(" ")}`}`
