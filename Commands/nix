@@ -1,2 +1,16 @@
 #!/usr/bin/env bash
-"/nix/var/nix/profiles/default/bin/nix" --extra-experimental-features nix-command "$@"
+__nix_executable="/nix/var/nix/profiles/default/bin/nix"
+if ! [ -x "$__nix_executable" ]; then
+    __nix_executable="$HOME/.nix-profile/bin/nix"
+    if ! [ -x "$__nix_executable" ]; then
+        __nix_executable="/nix/var/nix/profiles/per-user/$(whoami)/profile/bin/nix"
+        if ! [ -x "$__nix_executable" ]; then
+            echo "ERROR: nix executable not found!"
+            echo I checked the following paths, but nix was not found:
+            echo - "/nix/var/nix/profiles/default/bin/nix"
+            echo - "$HOME/.nix-profile/bin/nix"
+            echo - "/nix/var/nix/profiles/per-user/$(whoami)/profile/bin/nix"
+        fi
+    fi
+fi
+"$__nix_executable" --extra-experimental-features nix-command --extra-experimental-features flakes --show-trace "$@"
