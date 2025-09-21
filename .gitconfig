@@ -1,6 +1,7 @@
 [user]
 	name = Jeff Hykin
 	email = jeff.hykin@gmail.com
+	signingkey = /Users/jeffhykin/.ssh/id_rsa.pub
 [pull]
 	rebase = false
 [color]
@@ -17,3 +18,7 @@
 	tool = vscode
 [difftool "vscode"]
 	cmd = "code --wait --diff  "
+[gpg]
+	format = ssh
+[commit]
+	gpgsign = true
