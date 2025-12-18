@@ -1,7 +1,7 @@
 [user]
 	name = Jeff Hykin
 	email = jeff.hykin@gmail.com
-	signingkey = /Users/jeffhykin/.ssh/id_rsa.pub
+	signingkey = D358F55B52C65F12
 [pull]
 	rebase = false
 [color]
@@ -19,6 +19,11 @@
 [difftool "vscode"]
 	cmd = "code --wait --diff  "
 [gpg]
-	format = ssh
+	program = gpg
 [commit]
 	gpgsign = true
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true

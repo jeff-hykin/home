@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-__nix_executable="/nix/var/nix/profiles/default/bin/nix"
+__nix_executable="$HOME/.nix-profile/bin/nix"
 if ! [ -x "$__nix_executable" ]; then
-    __nix_executable="$HOME/.nix-profile/bin/nix"
+    __nix_executable="/nix/var/nix/profiles/default/bin/nix"
     if ! [ -x "$__nix_executable" ]; then
         __nix_executable="/nix/var/nix/profiles/per-user/$(whoami)/profile/bin/nix"
         if ! [ -x "$__nix_executable" ]; then

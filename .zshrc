@@ -1,4 +1,6 @@
 # Add deno completions to search path
+if [[ ":$FPATH:" != *":/Users/jeffhykin/completions:"* ]]; then export FPATH="/Users/jeffhykin/completions:$FPATH"; fi
+# Add deno completions to search path
 if [[ ":$FPATH:" != *":/Users/jeffhykin/.zsh/completions:"* ]]; then export FPATH="/Users/jeffhykin/.zsh/completions:$FPATH"; fi
 # always run the .profile first
 if [[ "$SHELL_STANDARD_ENV_PROFILE_WAS_INITILIZED" != "true" ]]
