@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+pr_number="$1" 
+from_branch="$2"
+if [ -z "$pr_number" ]; then
+    echo "whats the PR number?"
+    read pr_number
+fi
+if [ -z "$from_branch" ]; then
+    from_branch='origin'
+fi
+temp_pr_name='@__temp__/pull_request' 
+git_delete_branch "$temp_pr_name"
+git fetch "$from_branch" "pull/$pr_number/head:$temp_pr_name"
+git checkout "$temp_pr_name"

@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+nix-env -q --out-path "$@" 2>/dev/null || nix profile list | grep "$1"

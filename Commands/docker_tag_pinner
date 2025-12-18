@@ -2,10 +2,10 @@
 import $ from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts"
 
 //
-// check args
+// check arg
 //
 if (!Deno.args[0]) {
-    console.error("Ex:\n    docker_pin_tag.js 'docker.io/electronuserland/builder:wine'\n    docker_pin_tag.js 'docker.io/electronuserland/builder:wine@sha256:8bb6fa0f99a00a5b845521910508958ebbb682b59221f0aa4b82102c22174164'")
+    console.error("Ex:\n    docker_tag_pinner 'docker.io/electronuserland/builder:wine'\n    docker_tag_pinner 'docker.io/electronuserland/builder:wine@sha256:8bb6fa0f99a00a5b845521910508958ebbb682b59221f0aa4b82102c22174164'")
     Deno.exit(1)
 }
 // ex: fromStatment="docker.io/electronuserland/builder:wine@sha256:8bb6fa0f99a00a5b845521910508958ebbb682b59221f0aa4b82102c22174164"
@@ -33,7 +33,7 @@ if (tag.includes("@")) {
 }
 
 //
-// get the digest if its missing
+// if digest missing get with `docker images --digests` 
 //
 try_again: while (true) {
     if (!hashVersion) {
@@ -52,6 +52,7 @@ try_again: while (true) {
             }
         }
         hashVersion = relevantRows[0].Digest
+        console.log(`digest is: ${hashVersion}`)
     }
     break
 }
@@ -59,7 +60,7 @@ try_again: while (true) {
 hashVersion = hashVersion.replace(/^sha256:/, "")
 
 //
-// find the tag names
+// fetch the tag pages
 //
 let i = 0
 while (true) {
@@ -68,8 +69,8 @@ while (true) {
         console.log(`\x1b[35mSleeping for 7 seconds on page ${i}...\x1b[0m`)
         await new Promise((resolve) => setTimeout(resolve, 7000))
     }
-
-    console.log(`Looking into page: ${i}`)
+    
+    console.log(`\x1b[35mLooking into page: ${i}\x1b[0m`)
     const url = `https://registry.hub.docker.com/v2/repositories/${namespace}/${repo}/tags/?page=${i}`
 
     const res = await fetch(url)
@@ -120,18 +121,21 @@ while (true) {
     //     ]
     // }
     const results = data.results ?? []
-    const matches = results.filter((each) => each.digest === `sha256:${hashVersion}` || (each.images || []).some((each) => each.digest === `sha256:${hashVersion}`))
+    const matchesWithCorrectHash = results.filter((each) => each.digest === `sha256:${hashVersion}` || (each.images || []).some((each) => each.digest === `sha256:${hashVersion}`))
+    const usefulMatches = matchesWithCorrectHash.filter(each=>each.name!=tag)
     // console.debug(`matches is:`,matches)
-    if (matches.length > 0) {
-        for (const each of matches) {
-            console.log(`FROM docker.io/${namespace}/${repo}:${each.name}   # last updated: ${each.last_updated}, e.g. ${monthsAgo(each.last_updated)} months ago`)
+    if (usefulMatches.length > 0) {
+        console.log(`Found ${usefulMatches.length} matches:`)
+        for (const each of usefulMatches) {
+            console.log(`    \x1b[34mFROM docker.io/${namespace}/${repo}:${each.name}\x1b[0m   # last updated: ${monthsAgo(each.last_updated)} months ago`)
         }
-        if (confirm("Should I stop here?")) {
+        if (confirm("\nThere could be more matches on other pages. Should I STOP here?")) {
             Deno.exit(0)
         }
     }
 }
 
+// helper function
 function monthsAgo(dateString) {
     const pastDate = new Date(dateString)
     const today = new Date()

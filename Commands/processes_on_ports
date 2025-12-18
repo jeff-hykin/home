@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+lsof -nP -iTCP -sTCP:LISTEN +c 0

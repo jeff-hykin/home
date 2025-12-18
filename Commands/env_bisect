@@ -1,0 +1,134 @@
+#!/usr/bin/env -S deno run --allow-all --no-lock
+import $ from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts"
+const $$ = (...args: Parameters<typeof $>) => $(...args).noThrow()
+
+const command = Deno.args
+type EnvPair = [string, string]
+
+// ------------------------------------------------------------------------------------------------
+// Known-required env vars — these are *never* removed.
+// You may add more here depending on your environment.
+// ------------------------------------------------------------------------------------------------
+const KNOWN_REQUIRED = new Set<string>([
+  "PATH",
+  "HOME",
+  "SHELL",
+  "USER",
+  "LOGNAME",
+  "PWD",
+  "LANG",
+  "LC_ALL",
+  "TERM",
+])
+
+// capture current env
+const allEnv: EnvPair[] = Object.entries(Deno.env.toObject())
+
+// separate required from candidate vars
+const requiredBase: EnvPair[] = []
+const candidates: EnvPair[] = []
+
+for (const pair of allEnv) {
+  if (KNOWN_REQUIRED.has(pair[0])) {
+    requiredBase.push(pair)
+  } else {
+    candidates.push(pair)
+  }
+}
+
+async function runWithEnv(env: EnvPair[]): Promise<boolean> {
+    const envArgs = env.map(([key, value]) => `${key}=${value}`)
+
+    console.log(`\nRunning command with ${envArgs.length} env vars...`)
+    console.log("(Close the shell when you're ready to answer.)")
+
+    // env -i VAR1=... VAR2=... nix develop --command bash --norc --noprofile
+    await $$`env -i ${envArgs} ${command}`
+
+    const answer = (prompt("Did it work? (y/n) ") ?? "").trim().toLowerCase()
+    return answer.startsWith("y")
+}
+
+/**
+ * Delta-debugging / binary-search-ish minimization:
+ */
+async function minimizeEnv(env: EnvPair[]): Promise<EnvPair[]> {
+  let current = env.slice()
+  let n = 2
+
+  while (current.length >= 1) {
+    const chunkSize = Math.ceil(current.length / n)
+    let removedAny = false
+
+    for (let start = 0; start < current.length; start += chunkSize) {
+      const end = Math.min(start + chunkSize, current.length)
+      const chunk = current.slice(start, end)
+      const candidate = current.slice(0, start).concat(current.slice(end))
+
+      console.log(
+        `\n=== Trying to remove ${chunk.length} vars (indices ${start}..${
+          end - 1
+        }) ===`,
+      )
+
+      // Always include known-required vars
+      const effectiveEnv = requiredBase.concat(candidate)
+
+      const ok = await runWithEnv(effectiveEnv)
+      if (ok) {
+        console.log("✅ That chunk is NOT required; dropping it.")
+        current = candidate
+        removedAny = true
+        break
+      } else {
+        console.log("❌ Chunk is required; keeping it.")
+      }
+    }
+
+    if (!removedAny) {
+      if (n >= current.length) break
+      n = Math.min(current.length, n * 2)
+    }
+  }
+
+  return current
+}
+
+// ---------------------------------------------------------------------------------------------
+
+console.log(`Initial env var count: ${allEnv.length}`)
+console.log(`Known-required vars locked in: ${requiredBase.length}`)
+console.log("First, verify the command works with your FULL ENV.")
+
+const worksWithAll = await runWithEnv(allEnv)
+if (!worksWithAll) {
+  console.error(
+    "\n❌ Command does NOT work with full environment. Cannot proceed.",
+  )
+  Deno.exit(1)
+}
+
+console.log(
+  "\nGreat! Now minimizing environment vars EXCEPT for known-required ones.",
+)
+
+const requiredDynamic = await minimizeEnv(candidates)
+const finalRequired = requiredBase.concat(requiredDynamic)
+
+// ---------------------------------------------------------------------------------------------
+
+console.log("\n================ RESULT ================")
+console.log(`Original total vars          : ${allEnv.length}`)
+console.log(`Known-required (pre-filled)  : ${requiredBase.length}`)
+console.log(`Discovered required          : ${requiredDynamic.length}`)
+console.log(`Final required total         : ${finalRequired.length}\n`)
+
+console.log("# Export lines for REQUIRED env vars:\n")
+for (const [key, value] of finalRequired) {
+  console.log(`export ${key}=${JSON.stringify(value)}`)
+}
+
+console.log("\n# Vars that appear to be NOT required:\n")
+const requiredKeys = new Set(finalRequired.map(([k]) => k))
+const discarded = allEnv.filter(([k]) => !requiredKeys.has(k))
+for (const [key] of discarded) console.log(key)

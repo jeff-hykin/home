@@ -1,0 +1,5 @@
+#!/usr/bin/env -S deno run --allow-all
+const shellEscape = (arg)=>arg.replace(/'/g,`'"'"'`)
+for (const [key, value] of Object.entries(Deno.env.toObject())) {
+    console.log(`export ${key}='${shellEscape(value)}'`);
+}

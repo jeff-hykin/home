@@ -1,3 +1,4 @@
+export NIX_PATH='https://github.com/NixOS/nixpkgs/archive/refs/tags/25.05.tar.gz'
 export NIXPKGS_ALLOW_UNFREE=1
 
 if [ -e "/home/$(whoami)/.nix-profile/etc/profile.d/nix.sh" ]
