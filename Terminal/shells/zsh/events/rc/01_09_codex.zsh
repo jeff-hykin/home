@@ -1,7 +1,7 @@
 # if codex exists
 if ! [ -n "$(command -v "codex")" ]
 then
-    alias codex="npx codex"
+    alias codex="npx @openai/codex@0.87.0"
 fi
 
 if ! [ -n "$(command -v "pixi")" ]
