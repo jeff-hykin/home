@@ -1,2 +1,7 @@
 #!/usr/bin/env bash
-claude --allowedTools "Read" "Grep" "Glob" "Edit" "Write(./*/**)" "Bash(*)" -p "$@"
+args="$@"
+if [ -z "$args" ]; then
+    claude --allowedTools "Task,Edit,Read,WebFetch,WebSearch,Glob,Grep,Write(./**/*),Bash(*)"
+else
+    claude --allowedTools "Task,Edit,Read,WebFetch,WebSearch,Glob,Grep,Write(./**/*),Bash(*)" -p "$args"
+fi
