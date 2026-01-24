@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+claude --allowedTools "Read" "Grep" "Glob" "Edit" "Write(./*/**)" "Bash(*)" -p "$@"
