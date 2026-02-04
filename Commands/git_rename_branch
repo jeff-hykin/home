@@ -29,23 +29,32 @@ else
     has_remote=true
 fi
 
-# Check if old branch exists locally
-if ! git show-ref --verify --quiet "refs/heads/$old_name"; then
-    echo "Error: Local branch '$old_name' does not exist" >&2
-    exit 1
-fi
-
 # Check if new branch already exists locally
 if git show-ref --verify --quiet "refs/heads/$new_name"; then
     echo "Error: Local branch '$new_name' already exists" >&2
     exit 1
 fi
 
-# Check if new branch already exists on remote
+# Refresh remotes before checking remote refs
 if [ "$has_remote" = true ]; then
     git fetch "$remote" --prune &>/dev/null || true
+fi
+
+# Check if new branch already exists on remote
+if [ "$has_remote" = true ]; then
     if git show-ref --verify --quiet "refs/remotes/$remote/$new_name"; then
         echo "Error: Remote branch '$remote/$new_name' already exists" >&2
+        exit 1
+    fi
+fi
+
+# Ensure old branch exists locally; if not, try to pull from remote
+if ! git show-ref --verify --quiet "refs/heads/$old_name"; then
+    if [ "$has_remote" = true ] && git show-ref --verify --quiet "refs/remotes/$remote/$old_name"; then
+        git branch "$old_name" "$remote/$old_name"
+        echo "Created local branch '$old_name' from '$remote/$old_name'"
+    else
+        echo "Error: Local branch '$old_name' does not exist" >&2
         exit 1
     fi
 fi
@@ -65,14 +74,15 @@ fi
 # Handle remote branch if remote exists
 if [ "$has_remote" = true ]; then
     if git show-ref --verify --quiet "refs/remotes/$remote/$old_name"; then
-        git push "$remote" "$new_name"
-        echo "Pushed '$new_name' to $remote"
+        # Push explicitly to the new remote ref and set upstream in one step.
+        git push -u "$remote" "$new_name:refs/heads/$new_name"
+        echo "Pushed '$new_name' to $remote and set upstream"
         git push "$remote" --delete "$old_name"
         echo "Deleted '$old_name' from $remote"
-        git branch --set-upstream-to="$remote/$new_name" "$new_name"
-        echo "Set upstream for '$new_name' to '$remote/$new_name'"
     else
-        echo "Note: Branch '$old_name' does not exist on remote '$remote'. Only renamed locally."
+        # If the old branch doesn't exist remotely, still publish the new branch.
+        git push -u "$remote" "$new_name:refs/heads/$new_name"
+        echo "Pushed '$new_name' to $remote and set upstream"
     fi
 fi
 
