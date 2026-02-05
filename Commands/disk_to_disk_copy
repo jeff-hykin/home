@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+echo "I'm going to show you the available disks, okay?"; read ANSWER; echo
+if [ "$(uname)" = "Darwin" ]
+then
+    diskutil list | cat
+else
+    sudo fdisk -l
+fi
+
+echo "What is the disk that you want to COPY FROM (source)"
+echo "(should be something like '/dev/disk4')"
+read ANSWER
+if [ -z "$ANSWER" ]
+then
+    echo "No source disk provided (aborting)"
+    exit 1
+fi
+input_disk="$ANSWER"
+
+echo "What is the disk that will be DESTROYED (overwritten, destination)"
+echo "(should be something like '/dev/disk5')"
+read ANSWER
+if [ -z "$ANSWER" ]
+then
+    echo "No destination disk provided (aborting)"
+    exit 1
+fi
+output_disk="$ANSWER"
+
+if [ "$input_disk" = "$output_disk" ]
+then
+    echo "Source and destination are the same (aborting)"
+    exit 1
+fi
+
+echo ""
+echo "About to copy from $input_disk to $output_disk"
+echo "Press enter to continue, CTRL+C to cancel"; read ANSWER; echo
+
+if [ "$(uname)" = "Darwin" ]
+then
+    diskutil unmount "$input_disk" 2>/dev/null
+    diskutil unmountDisk "$input_disk" 2>/dev/null
+    diskutil unmount "$output_disk" 2>/dev/null
+    diskutil unmountDisk "$output_disk" 2>/dev/null
+else
+    sudo umount "$input_disk" 2>/dev/null
+    sudo umount "$output_disk" 2>/dev/null
+fi
+
+sudo dd if="$input_disk" of="$output_disk" bs=1M status=progress
+sync
