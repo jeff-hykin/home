@@ -1,7 +1,7 @@
 [user]
 	name = Jeff Hykin
 	email = jeff.hykin@gmail.com
-	signingkey = D358F55B52C65F12
+	signingkey = /Users/jeffhykin/.ssh/id_ed25519_signing.pub
 [pull]
 	rebase = false
 [color]
@@ -20,6 +20,7 @@
 	cmd = "code --wait --diff  "
 [gpg]
 	program = gpg
+	format = ssh
 [commit]
 	gpgsign = true
 [filter "lfs"]
