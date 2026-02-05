@@ -53,45 +53,51 @@ doit () {
 #     }
 # fi
 
+# helper for making wrapper commands
+which_num() {                                                                                              
+    local cmd="$1"
+    local index="$2"                                                                                       
+                
+    if [ -z "$cmd" ] || [ -z "$index" ]; then
+        echo "Usage: which_num <command> <index>" >&2
+        return 1
+    fi
+
+    # Use whence -ap in zsh (path search only), type -ap in bash
+    if command -v whence >/dev/null 2>&1; then
+        whence -ap "$cmd" | sed -n "$((index + 1))p"
+    else
+        type -ap "$cmd" | sed -n "$((index + 1))p"
+    fi
+}
 
 # 
 # mkdir
 #
-if [[ -z "$__XD_builtin_mkdir" ]]
-then
-    __XD_builtin_mkdir="$(which mkdir)"
-fi 
 mkdir () {
     # always use the -p option
-    "$__XD_builtin_mkdir" -p "$@"
+    "$(which_num "mkdir" 0)" -p "$@"
 }
 
 # 
 # touch
 # 
-if [[ -z "$__XD_builtin_touch" ]]
-then
-    __XD_builtin_touch="$(which touch)"
-fi
 touch () {
     # make any parent folders
     mkdir -p "$(dirname "$1")" 
-    "$__XD_builtin_touch" "$1"
+    "$(which_num "touch" 0)" "$@"
 }
 
 # 
 # rm
 # 
-if [[ -z "$__XD_builtin_rm" ]]
-then
-    __XD_builtin_rm="$(which rm)"
-fi
 rm () {
     if [[ "$1" == "-rf" ]]
     then
-        "$__XD_builtin_rm" "-rf" "$arg"
+        shift
+        "$(which_num "rm" 0)" "-rf" "$@"
     else
-        "$__XD_builtin_rm" -rf "$@"
+        "$(which_num "rm" 0)" -rf "$@"
     fi
 }
 
