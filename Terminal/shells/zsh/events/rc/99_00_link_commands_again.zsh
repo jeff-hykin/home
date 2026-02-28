@@ -1,1 +1,1 @@
-export PATH="/Users/jeffhykin/Commands/:$PATH"
+export PATH="$HOME/Commands/:$PATH"

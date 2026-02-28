@@ -1,7 +1,7 @@
 # if codex exists
 if ! [ -n "$(command -v "codex")" ]
 then
-    alias codex="npx @openai/codex@0.87.0"
+    alias codex="npx @openai/codex@0.98.0"
 fi
 
 if ! [ -n "$(command -v "pixi")" ]
@@ -13,3 +13,6 @@ then
         export PATH="$HOME/.cargo/bin:$PATH" 
     fi
 fi
+
+# openclaw for some reason
+export PATH="$HOME/repos/rerun_pureish/.npm-global/bin:$PATH"
