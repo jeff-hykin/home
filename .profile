@@ -80,4 +80,8 @@ then
     unset __temp_var__default_nix_bin
 fi
     
-. "/Users/jeffhykin/.deno/env"
+deno_env="$HOME/.deno/env"
+# check if file exists
+if [ -f "$deno_env" ]; then
+    . "$deno_env"
+fi

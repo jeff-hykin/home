@@ -25,4 +25,8 @@ do
         . "$each"
     fi
 done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
-. "/Users/jeffhykin/.deno/env"
+deno_env="$HOME/.deno/env"
+# check if file exists
+if [ -f "$deno_env" ]; then
+    . "$deno_env"
+fi
