@@ -1,7 +1,7 @@
 # Add deno completions to search path
-if [[ ":$FPATH:" != *":/Users/jeffhykin/completions:"* ]]; then export FPATH="/Users/jeffhykin/completions:$FPATH"; fi
+if [[ ":$FPATH:" != *":$HOME/completions:"* ]]; then export FPATH="$HOME/completions:$FPATH"; fi
 # Add deno completions to search path
-if [[ ":$FPATH:" != *":/Users/jeffhykin/.zsh/completions:"* ]]; then export FPATH="/Users/jeffhykin/.zsh/completions:$FPATH"; fi
+if [[ ":$FPATH:" != *":$HOME/.zsh/completions:"* ]]; then export FPATH="$HOME/.zsh/completions:$FPATH"; fi
 # always run the .profile first
 if [[ "$SHELL_STANDARD_ENV_PROFILE_WAS_INITILIZED" != "true" ]]
 then
@@ -30,4 +30,14 @@ do
         . "$each"
     fi
 done < "$__temp_var__temp_folder/pipe_for_while_$__NESTED_WHILE_COUNTER";__NESTED_WHILE_COUNTER="$((__NESTED_WHILE_COUNTER - 1))"; unset for_each_item_in;
-. "/Users/jeffhykin/.deno/env"
+. "$HOME/.deno/env"
+
+# for dimos
+if [ "$(uname)" = "Darwin" ]; then
+    export ARCHFLAGS="-arch $(uname -m)"
+fi
+
+# OpenClaw PATH and Completion
+export PATH="$HOME/repos/rerun_pureish/.npm-global/bin:$PATH"
+source "$HOME/.openclaw/completions/openclaw.zsh"
+export GIT_LFS_SKIP_SMUDGE=1

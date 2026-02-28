@@ -40,10 +40,15 @@ then
 fi
 
 echo "Running install Nix script"
-# install nix
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix)
+# if nix doesnt exist
+if [ -z "$(command -v "nix")" ]
+then
+    # install nix
+    . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix)
+fi
+
 # install git
-nix-env -iA nixpkgs.git
+nix-env -iA nixpkgs.git || nix profile add 'nixpkgs#git' || nix profile install 'nixpkgs#git'
 
 # setup home
 echo "Running setup home script"

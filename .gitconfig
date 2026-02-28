@@ -1,7 +1,7 @@
 [user]
 	name = Jeff Hykin
 	email = jeff.hykin@gmail.com
-	signingkey = /Users/jeffhykin/.ssh/id_ed25519_signing.pub
+	signingkey = /Users/jeffhykin/.ssh/git_signing.pub
 [pull]
 	rebase = false
 [color]

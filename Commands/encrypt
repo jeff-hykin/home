@@ -1,4 +1,4 @@
-#!/usr/bin/env -S /Users/jeffhykin/.nix-profile/bin/deno run --allow-all
+#!deno run --allow-all
 import { Console, blue } from "https://deno.land/x/quickr@0.3.14/main/console.js"
 import { FileSystem } from "https://deno.land/x/quickr@0.3.14/main/file_system.js"
 import { run, Stdout, returnAsString, Overwrite, Cwd } from "https://deno.land/x/quickr@0.3.14/main/run.js"
