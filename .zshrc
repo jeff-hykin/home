@@ -41,3 +41,9 @@ fi
 export PATH="$HOME/repos/rerun_pureish/.npm-global/bin:$PATH"
 source "$HOME/.openclaw/completions/openclaw.zsh"
 export GIT_LFS_SKIP_SMUDGE=1
+
+# Fix Starship ghost characters (Unicode width miscalculation)
+if [ "$(uname)" = "Linux" ]; then
+    export LANG=en_US.UTF-8
+    export LC_ALL=en_US.UTF-8
+fi
