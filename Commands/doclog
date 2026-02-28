@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+docker logs $(docker ps --format '{{.ID}} {{.Names}}' | awk '{print $1}') | less
