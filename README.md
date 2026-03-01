@@ -23,7 +23,7 @@ nix-env -i -f https://github.com/jeff-hykin/home/archive/master.tar.gz
 
 ### Setup Home
 ```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_home.ps1 || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_home.ps1)
+. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_home || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_home)
 ```
 
 ### Installing Basics
@@ -34,12 +34,12 @@ nix-env -i -f https://github.com/jeff-hykin/home/archive/master.tar.gz
 
 ### Setting up SSH (server)
 ```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server.ps1 || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server.ps1)
+. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server)
 ```
 
 ### Setting up SSH keys (needs Deno, which is installed with basics)
 ```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_keys.ps1 || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_keys.ps1)
+. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_keys || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_keys)
 ```
 
 ### Setting up ZeroTier
