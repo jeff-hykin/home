@@ -42,6 +42,20 @@ fi
 echo "Running install Nix script"
 # install nix
 . <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix)
+
+# ensure nix flakes are enabled
+nix_conf="${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf"
+mkdir -p "$(dirname "$nix_conf")"
+if [ ! -f "$nix_conf" ]; then
+    echo "experimental-features = nix-command flakes" > "$nix_conf"
+    echo "Enabled nix flakes in $nix_conf"
+elif ! grep -q "flakes" "$nix_conf"; then
+    echo "experimental-features = nix-command flakes" >> "$nix_conf"
+    echo "Enabled nix flakes in $nix_conf"
+else
+    echo "Nix flakes already enabled"
+fi
+
 # install git
 nix-env -iA nixpkgs.git
 
