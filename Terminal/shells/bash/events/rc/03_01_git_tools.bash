@@ -476,7 +476,7 @@ alias gp="git_sync"
 alias gm="git merge"
 alias gfpull="git_force_pull"
 alias gfpush="git_force_push"
-alias gc="git_checkout"
+## gc is now ~/Commands/gc (interactive deno script)
 alias gb="git branch -a"
 alias gnb="git_new_branch"
 alias gd="git_delete_changes"
