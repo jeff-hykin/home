@@ -1,0 +1,24 @@
+#!/usr/bin/env -S deno run --allow-all
+// Walk up from PWD looking for .ignore.enhance, then run its ./run/pull
+import $ from "https://esm.sh/dax-sh@0.42.0"
+import { resolve, dirname, join } from "https://esm.sh/path-browserify@1.0.1"
+
+let dir = Deno.cwd()
+while (true) {
+    const candidate = join(dir, ".ignore.enhance")
+    try {
+        const stat = await Deno.stat(candidate)
+        if (stat.isDirectory) {
+            console.log(`Found enhance dir: ${candidate}`)
+            await $`${join(candidate, "run", "pull")}`
+            Deno.exit(0)
+        }
+    } catch { /* not found, keep walking */ }
+
+    const parent = dirname(dir)
+    if (parent === dir) {
+        console.error("No .ignore.enhance directory found in any parent directory")
+        Deno.exit(1)
+    }
+    dir = parent
+}
