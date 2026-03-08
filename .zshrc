@@ -47,3 +47,5 @@ if [ "$(uname)" = "Linux" ]; then
     export LANG=en_US.UTF-8
     export LC_ALL=en_US.UTF-8
 fi
+# Kill all running Docker containers
+alias dkill="docker kill \$(docker ps -q)"

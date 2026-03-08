@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-args="$@"
-if [ -z "$args" ]; then
-    claude --allowedTools "Task,Edit,Read,Update,Write,WebFetch,WebSearch,Glob,Grep,Write(./**/*),Bash(*)"
+TOOLS="Task,Edit,Read,Update,Write,WebFetch,WebSearch,Glob,Grep,Write(./**/*),Bash(*)"
+
+if [ "$1" = "--resume" ]; then
+    shift
+    claude --allowedTools "$TOOLS" -c "$@"
+elif [ -z "$*" ]; then
+    claude --allowedTools "$TOOLS"
 else
-    claude --allowedTools "Task,Edit,Read,Update,Write,WebFetch,WebSearch,Glob,Grep,Write(./**/*),Bash(*)" -p "$args"
+    claude --allowedTools "$TOOLS" -p "$@"
 fi

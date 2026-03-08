@@ -1,0 +1,7 @@
+#!/bin/sh
+ids=$(docker ps -q)
+if [ -z "$ids" ]; then
+    echo "No running containers."
+else
+    docker kill $ids
+fi
