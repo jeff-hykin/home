@@ -1,7 +1,6 @@
 [user]
 	name = Jeff Hykin
 	email = jeff.hykin@gmail.com
-	signingkey = /Users/jeffhykin/.ssh/git_signing.pub
 [pull]
 	rebase = false
 [color]
@@ -21,8 +20,6 @@
 [gpg]
 	program = gpg
 	format = ssh
-[commit]
-	gpgsign = true
 [filter "lfs"]
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f

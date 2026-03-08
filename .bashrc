@@ -29,4 +29,3 @@ deno_env="$HOME/.deno/env"
 # check if file exists
 if [ -f "$deno_env" ]; then
     . "$deno_env"
-fi

@@ -1,0 +1,97 @@
+#!/usr/bin/env -S deno run --allow-all --no-lock
+import $ from "https://esm.sh/dax-sh"
+import { Select } from "https://esm.sh/jsr/@cliffy/prompt"
+import { format as timeago } from "https://esm.sh/timeago.js"
+
+const TOOLS = "Task,Edit,Read,Update,Write,WebFetch,WebSearch,Glob,Grep,Write(./**/*),Bash(*)"
+const PROJECTS_DIR = `${Deno.env.get("HOME")}/.claude/projects`
+
+interface Session {
+  id: string
+  cwd: string
+  gitBranch: string
+  firstMessage: string
+  timestamp: Date
+}
+
+// Collect all sessions across all project dirs
+const sessions: Session[] = []
+
+for await (const projectEntry of Deno.readDir(PROJECTS_DIR)) {
+  if (!projectEntry.isDirectory) continue
+  const projectPath = `${PROJECTS_DIR}/${projectEntry.name}`
+
+  for await (const fileEntry of Deno.readDir(projectPath)) {
+    if (!fileEntry.isFile || !fileEntry.name.endsWith(".jsonl")) continue
+    // Skip subagent files (they live in subdirs, not here, but belt-and-suspenders)
+    const sessionId = fileEntry.name.replace(".jsonl", "")
+    // Must look like a UUID
+    if (!/^[0-9a-f-]{36}$/.test(sessionId)) continue
+
+    const filePath = `${projectPath}/${fileEntry.name}`
+    let cwd = ""
+    let gitBranch = ""
+    let firstMessage = ""
+    let timestamp: Date | null = null
+
+    try {
+      const stat = await Deno.stat(filePath)
+      timestamp = stat.mtime ?? new Date(0)
+
+      const text = await Deno.readTextFile(filePath)
+      for (const line of text.split("\n")) {
+        if (!line.trim()) continue
+        let obj: Record<string, unknown>
+        try { obj = JSON.parse(line) } catch { continue }
+
+        if (obj.type === "user" && obj.message && !firstMessage) {
+          cwd = (obj.cwd as string) ?? ""
+          gitBranch = (obj.gitBranch as string) ?? ""
+          const msg = obj.message as Record<string, unknown>
+          const content = msg.content
+          if (typeof content === "string") {
+            firstMessage = content.slice(0, 120).replace(/\n/g, " ")
+          } else if (Array.isArray(content)) {
+            const textPart = content.find((c: unknown) => (c as Record<string,unknown>).type === "text")
+            firstMessage = textPart
+              ? String((textPart as Record<string,unknown>).text).slice(0, 120).replace(/\n/g, " ")
+              : "[non-text message]"
+          }
+          break
+        }
+      }
+    } catch {
+      continue
+    }
+
+    if (!firstMessage) continue
+
+    sessions.push({ id: sessionId, cwd, gitBranch, firstMessage, timestamp })
+  }
+}
+
+// Sort by most recent first
+sessions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+
+if (sessions.length === 0) {
+  console.error("No Claude sessions found.")
+  Deno.exit(1)
+}
+
+// Shorten cwd for display
+function shortCwd(p: string): string {
+  const home = Deno.env.get("HOME") ?? ""
+  return p.startsWith(home) ? "~" + p.slice(home.length) : p
+}
+
+const selected = await Select.prompt({
+  message: "Resume Claude session:",
+  search: true,
+  options: sessions.map(s => ({
+    name: `${s.firstMessage.slice(0, 80)}`,
+    value: s.id,
+    description: `${timeago(s.timestamp)}  ${shortCwd(s.cwd)}${s.gitBranch ? "  [" + s.gitBranch + "]" : ""}`,
+  })),
+})
+
+await $`claude --allowedTools ${TOOLS} --resume ${selected}`
