@@ -51,6 +51,7 @@
 !/.config/alacritty/
 !/.config/fish/
 !/.config/karabiner/
+!/.config/starship.toml
 !/.config/Code/
 /.config/Code/*
 !/.config/Code/User

@@ -1,0 +1,77 @@
+# Starship config: ASCII-only prompt to avoid unicode width glitches with zsh-autosuggestions
+
+[character]
+success_symbol = "[>](bold green)"
+error_symbol = "[>](bold red)"
+
+[git_branch]
+symbol = ""
+
+[git_status]
+ahead = "+"
+behind = "-"
+diverged = "+-"
+renamed = "r"
+deleted = "x"
+conflicted = "!"
+untracked = "?"
+stashed = "$"
+modified = "~"
+staged = "+"
+
+[package]
+symbol = ""
+
+[python]
+symbol = "py "
+
+[rust]
+symbol = "rs "
+
+[golang]
+symbol = "go "
+
+[java]
+symbol = "java "
+
+[nodejs]
+symbol = "node "
+
+[ruby]
+symbol = "rb "
+
+[docker_context]
+symbol = "docker "
+
+[aws]
+symbol = "aws "
+
+[gcloud]
+symbol = "gcp "
+
+[kubernetes]
+symbol = "k8s "
+
+[terraform]
+symbol = "tf "
+
+[nix_shell]
+symbol = "nix "
+
+[lua]
+symbol = "lua "
+
+[c]
+symbol = "c "
+
+[cmake]
+symbol = "cmake "
+
+[directory]
+truncation_symbol = ".../"
+
+[cmd_duration]
+min_time = 2_000
+
+[battery]
+disabled = true
