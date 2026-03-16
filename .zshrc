@@ -38,7 +38,7 @@ if [ "$(uname)" = "Darwin" ]; then
 fi
 
 # OpenClaw PATH and Completion
-export PATH="$HOME/repos/rerun_pureish/.npm-global/bin:$PATH"
+export PATH="$HOME/.npm-global/bin:$PATH"
 source "$HOME/.openclaw/completions/openclaw.zsh"
 export GIT_LFS_SKIP_SMUDGE=1
 
@@ -49,3 +49,6 @@ if [ "$(uname)" = "Linux" ]; then
 fi
 # Kill all running Docker containers
 alias dkill="docker kill \$(docker ps -q)"
+
+# OpenClaw Completion
+source "/Users/jeffhykin/.openclaw/completions/openclaw.zsh"

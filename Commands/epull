@@ -10,10 +10,13 @@ while (true) {
         const stat = await Deno.stat(candidate)
         if (stat.isDirectory) {
             console.log(`Found enhance dir: ${candidate}`)
-            await $`${join(candidate, "run", "pull")}`
-            Deno.exit(0)
+            const result = await $`${join(candidate, "run", "pull")}`.noThrow()
+            Deno.exit(result.code)
         }
-    } catch { /* not found, keep walking */ }
+    } catch (e) {
+        if (e instanceof Deno.errors.NotFound) continue
+        throw e
+    }
 
     const parent = dirname(dir)
     if (parent === dir) {

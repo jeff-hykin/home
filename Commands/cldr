@@ -88,9 +88,9 @@ const selected = await Select.prompt({
   message: "Resume Claude session:",
   search: true,
   options: sessions.map(s => ({
-    name: `${s.firstMessage.slice(0, 80)}`,
+    name: `${shortCwd(s.cwd)}  ${s.firstMessage.slice(0, 60)}`,
     value: s.id,
-    description: `${timeago(s.timestamp)}  ${shortCwd(s.cwd)}${s.gitBranch ? "  [" + s.gitBranch + "]" : ""}`,
+    description: `${timeago(s.timestamp)}${s.gitBranch ? "  [" + s.gitBranch + "]" : ""}`,
   })),
 })
 

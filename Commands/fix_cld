@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BACKUP_DIR="$HOME/.claude-auth-backup/$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$BACKUP_DIR"
+
+echo "Backing up auth files to $BACKUP_DIR ..."
+
+for target in \
+  "$HOME/.claude" \
+  "$HOME/.claude.json" \
+  "$HOME/.config/claude-code/auth.json"; do
+  if [ -e "$target" ]; then
+    mv "$target" "$BACKUP_DIR/"
+    echo "  moved: $target"
+  else
+    echo "  skip (not found): $target"
+  fi
+done
+
+echo ""
+echo "Done. Now run:"
+echo "  claude logout   # just in case"
+echo "  claude login"

@@ -6,4 +6,4 @@ case ":$PATH:" in
     *) export PATH="$HOME/.local/bin:$PATH" ;;
 esac
 
-source ~/dimos/.venv/bin/activate
+if [ -f ~/dimos/.venv/bin/activate ]; then source ~/dimos/.venv/bin/activate; fi
