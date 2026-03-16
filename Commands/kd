@@ -1,0 +1,33 @@
+#!/bin/sh
+# Kill all dimos application and Unity processes
+
+echo "Looking for dimos and Unity processes..."
+
+# Find dimos application processes (dimos run, dimos-viewer, dimos2 python workers)
+dimos_pids=$(ps aux | grep -E 'dimos run |dimos-viewer|dimos2/.venv/bin/python3' | grep -v grep | grep -v "claude" | awk '{print $2}')
+
+# Find Unity Model processes
+unity_pids=$(ps aux | grep -E 'Model\.x86_64|Unity|unity_envs' | grep -v grep | grep -v "claude" | awk '{print $2}')
+
+all_pids="$dimos_pids $unity_pids"
+all_pids=$(echo "$all_pids" | xargs)
+
+if [ -z "$all_pids" ]; then
+    echo "No dimos or Unity processes found."
+    exit 0
+fi
+
+echo "Killing PIDs: $all_pids"
+kill -9 $all_pids 2>/dev/null
+
+# Verify
+sleep 0.5
+remaining=$(ps aux | grep -E 'dimos run |dimos-viewer|dimos2/.venv/bin/python3|Model\.x86_64|unity_envs' | grep -v grep | grep -v "claude" | awk '{print $2}' | xargs)
+
+if [ -z "$remaining" ]; then
+    echo "All dimos and Unity processes killed."
+else
+    echo "Some processes still running: $remaining"
+    echo "Retrying..."
+    kill -9 $remaining 2>/dev/null
+fi

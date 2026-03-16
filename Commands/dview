@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Install the custom dimos-viewer wheel (with --connect fix) into dimos venvs
+
+WHEEL="$HOME/auto/dimos-viewer/target/wheels/dimos_viewer-0.30.0a4-cp312-cp312-manylinux_2_39_x86_64.whl"
+
+if [ ! -f "$WHEEL" ]; then
+    echo "ERROR: Wheel not found at $WHEEL"
+    echo "Build it first: cd ~/auto/dimos-viewer && pixi run build"
+    exit 1
+fi
+
+for repo in ~/dimos2 ~/dimos; do
+    venv="$repo/.venv"
+    if [ -d "$venv" ]; then
+        echo "Installing into $repo ..."
+        uv pip install --python "$venv/bin/python" "$WHEEL" --force-reinstall 2>&1 | tail -2
+    else
+        echo "SKIP: No venv at $venv"
+    fi
+done
+
+echo "Done. Installed dimos-viewer $(basename "$WHEEL" | sed 's/dimos_viewer-//;s/-cp.*//')"

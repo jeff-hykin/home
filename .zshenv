@@ -6,4 +6,8 @@ case ":$PATH:" in
     *) export PATH="$HOME/.local/bin:$PATH" ;;
 esac
 
-source ~/dimos/.venv/bin/activate
+# Restore system sbin paths that Nix-managed zsh omits
+for p in /usr/local/sbin /usr/sbin /sbin; do
+    case ":$PATH:" in *":$p:"*) ;; *) PATH="$PATH:$p" ;; esac
+done
+. "$HOME/.cargo/env"

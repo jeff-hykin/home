@@ -406,12 +406,14 @@
         // TODO: local file search
         // TODO: toggle regex 
         
-    // 
-    // 
+    //
+    //
     // Fix default behavior
-    // 
-    // 
-        // none for now
+    //
+    //
+        // new untitled file
+        { "key": "ctrl+n", "command": "workbench.action.files.newUntitledFile", "when": "!isMac" },
+        { "key": "cmd+n", "command": "workbench.action.files.newUntitledFile", "when": "isMac" }
     // 
     // 
     // removed

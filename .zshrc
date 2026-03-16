@@ -49,3 +49,5 @@ if [ "$(uname)" = "Linux" ]; then
 fi
 # Kill all running Docker containers
 alias dkill="docker kill \$(docker ps -q)"
+
+export PATH="/home/dimos/.pixi/bin:$PATH"

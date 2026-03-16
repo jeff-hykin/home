@@ -20,12 +20,12 @@
         "editor.cursorSurroundingLines": 500,
         "editor.copyWithSyntaxHighlighting" : false,
         "editor.stopRenderingLineAfter": -1,
-        "editor.cursorSmoothCaretAnimation" : true,
+        "editor.cursorSmoothCaretAnimation" : "on",
         "editor.showFoldingControls" :"mouseover",
         "extensions.autoCheckUpdates": false,
         "update.mode": "none",
         "editor.suggest.showWords": true,
-        "editor.wordBasedSuggestions": true,
+        "editor.wordBasedSuggestions": "matchingDocuments",
         "editor.suggestOnTriggerCharacters": true,
         "editor.suggest.snippetsPreventQuickSuggestions": false,
         "editor.suggest.localityBonus": true,
@@ -80,7 +80,6 @@
         "editor.quickSuggestionsDelay": 0,
         "editor.multiCursorModifier": "ctrlCmd",
         "zenMode.centerLayout": false,
-        "workbench.activityBar.visible": true,
         "editor.detectIndentation": false,
         "editor.find.seedSearchStringFromSelection": false,
         "workbench.statusBar.feedback.visible": false,
@@ -1188,7 +1187,7 @@
                 "workbench.action.terminal.scrollToNextCommand"
             ],
             "[cpp]": {
-                "editor.wordBasedSuggestions": true,
+                "editor.wordBasedSuggestions": "matchingDocuments",
                 "editor.semanticHighlighting.enabled": false,
             },
             "[javascriptreact]": {

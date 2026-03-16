@@ -85,3 +85,4 @@ deno_env="$HOME/.deno/env"
 if [ -f "$deno_env" ]; then
     . "$deno_env"
 fi
+. "$HOME/.cargo/env"

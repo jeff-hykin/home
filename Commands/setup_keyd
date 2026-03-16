@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+# Setup keyd - a key remapping daemon for Linux
+# Replicates Karabiner Elements-style spacebar layer:
+#   space (tap)    = space
+#   space + i      = up
+#   space + j      = left
+#   space + k      = down
+#   space + l      = right
+#   space + p      = backspace
+#   space + m      = -
+#   space + n      = _
+#   capslock       = ctrl
+
+set -euo pipefail
+
+KEYD_CONFIG='[ids]
+
+*
+
+[main]
+
+capslock = leftcontrol
+space = overload(nav, space)
+
+[nav]
+
+i = up
+j = left
+k = down
+l = right
+p = backspace
+m = -
+n = _
+'
+
+# check for existing install
+if command -v keyd &>/dev/null; then
+    echo "keyd already installed, updating config..."
+else
+    echo "Installing keyd from source..."
+
+    BUILD_DIR="$(mktemp -d)"
+    trap "rm -rf '$BUILD_DIR'" EXIT
+
+    git clone https://github.com/rvaiya/keyd.git "$BUILD_DIR/keyd"
+    cd "$BUILD_DIR/keyd"
+    make
+    sudo make install
+fi
+
+# write config
+sudo mkdir -p /etc/keyd
+echo "$KEYD_CONFIG" | sudo tee /etc/keyd/default.conf > /dev/null
+
+# enable and start
+sudo systemctl enable keyd
+sudo systemctl restart keyd
+
+echo ""
+echo "keyd is running. Mappings:"
+echo "  space (tap)  = space"
+echo "  space + i    = up"
+echo "  space + j    = left"
+echo "  space + k    = down"
+echo "  space + l    = right"
+echo "  space + p    = backspace"
+echo "  space + m    = -"
+echo "  space + n    = _"
+echo "  capslock     = ctrl"
