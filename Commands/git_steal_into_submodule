@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# TODO: not yet implemented (was commented out in original)
+echo "git_steal_into_submodule is not yet implemented"
+exit 1

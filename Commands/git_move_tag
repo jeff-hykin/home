@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+tag_name="$1"
+new_commit_hash="${2:-$(git_current_commit_hash)}"
+git tag -f "$tag_name" "$new_commit_hash"
+git push --force origin "$tag_name"

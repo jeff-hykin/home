@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+remote_url="$1"
+if [ -z "$remote_url" ]; then
+    echo "what is the url to the upstream source?"
+    read remote_url
+fi
+git remote set-url "origin" "$remote_url"

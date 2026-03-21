@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+git submodule foreach --recursive 'git stash save --keep-index --include-untracked'
+git submodule foreach --recursive 'git reset --hard'
+git submodule update --init --recursive
+git reset --
+__temp_var__result="$(git stash save --keep-index --include-untracked)"
+if [ "$__temp_var__result" = "No local changes to save" ]; then
+    echo "no changes to delete (just FYI)"
+else
+    git stash drop
+fi

@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+git reset --soft "$(git_oldest_commit_hash)"

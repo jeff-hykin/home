@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+git log --reverse --oneline | head -n1 | sed -e 's/ .*//'

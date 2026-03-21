@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+name="$1"
+url="$2"
+branch="${3:-master}"
+new_branch_name="$name/$branch"
+echo "create an empty local branch" && \
+git checkout --orphan "$new_branch_name" && \
+echo "ignoring any files from other branches" && \
+echo "making initial commit, otherwise things break" && \
+git reset && \
+touch .keep && \
+git add .keep && \
+git commit -m 'init' && \
+echo "creating upstream branch" && \
+git push --set-upstream origin "$new_branch_name"
+echo "pulling in the external data" && \
+git remote add "@$name" "$url" && \
+git fetch "@$name" "$branch" && \
+git checkout -b "@$name/$branch" "remotes/@$name/$branch" && \
+echo "merging external branch with local branch" && \
+git switch "$new_branch_name" && \
+git merge --allow-unrelated-histories --no-edit "heads/@$new_branch_name" && \
+git push && \
+git status && \
+echo "you're now on branch: $new_branch_name" && \
+echo "" && \
+echo "you probably want to add all the untracked^ files to the .gitignore file"

@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Smart ls: uses exa/eza if available, falls back to gls or ls
+if command -v "eza" &> /dev/null; then
+    cmd="eza"
+elif command -v "exa" &> /dev/null; then
+    cmd="exa"
+else
+    cmd=""
+fi
+
+if [ -z "$cmd" ]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if command -v "gls" &> /dev/null; then
+            gls -lAF --group-directories-first --color "$@"
+        else
+            ls -lAFG "$@"
+        fi
+    else
+        ls -lAF --group-directories-first --color "$@"
+    fi
+else
+    if command -v "tac" &> /dev/null; then
+        "$cmd" --color=always -lF --sort extension --group-directories-first --git --all "$@" | tac
+    elif command -v "tail" &> /dev/null; then
+        "$cmd" --color=always -lF --sort extension --group-directories-first --git --all "$@" | tail -r
+    else
+        "$cmd" --color=always -lF --sort extension --group-directories-first --git --all "$@"
+    fi
+fi

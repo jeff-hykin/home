@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+commit_hash="$1"
+commit_message="$2"
+git reset --soft "$commit_hash" && git add -A && git commit -m "$commit_message" && echo "squash complete"

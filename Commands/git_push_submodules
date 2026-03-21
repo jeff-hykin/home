@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+args="$*"
+if [ "$args" = "" ]; then
+    args="-"
+fi
+git submodule foreach --recursive 'git add -A && git commit -m "'"$args"'"; git push'

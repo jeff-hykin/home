@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+args="$*"
+git reset --soft HEAD~2 && git add -A && git commit -m "$args" && echo "squash complete"
+git_log | tail -n5

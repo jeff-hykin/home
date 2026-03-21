@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+git fetch --all
+git_delete_changes &>/dev/null
+git reset --hard "origin/$(git_current_branch_name)"

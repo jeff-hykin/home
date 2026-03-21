@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+#  date example: '7/25/2022 @ 11:17'
+git commit --amend --date="$1" && git rebase --committer-date-is-author-date 'HEAD^'

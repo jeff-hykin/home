@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+__temp_var__branches="$(git branch -a | sed -e 's/remotes\/origin\/HEAD .*//' | sed -e 's/remotes\/origin\//origin /')"
+printf '%s' "$__temp_var__branches" | grep "$1" 2>/dev/null 1>/dev/null && {
+    git switch "$@"
+    exit 0
+}
+if [ -n "$2" ]; then
+    printf '%s' "$__temp_var__branches" | grep "$2" 2>/dev/null 1>/dev/null && {
+        git switch "$@"
+        exit 0
+    }
+fi
+git checkout "$@"

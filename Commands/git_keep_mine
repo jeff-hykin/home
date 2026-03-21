@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+git checkout --ours .
+git add -u
+git commit -m "_Keeping all existing changes $*"

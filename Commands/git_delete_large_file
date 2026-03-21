@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+filepath="$1"
+if [ -z "$filepath" ]; then
+    echo "what is the path to the file you want to permantly delete?"
+    read filepath
+fi
+if ! [ -f "$filepath" ]; then
+    echo "That file doesn't seem to exist"
+fi
+echo
+echo "PLEASE make a backup (copy whole folder to somewhere else)"
+echo "this is a risky operation EVEN if you're sure you want to delete the file"
+echo
+echo "are you sure you want to continue?"; read ANSWER; echo
+if [[ ! "$ANSWER" =~ ^[Yy] ]]; then
+    exit 0
+fi
+oldest_commit_with_file="$(git log --all --pretty=format:%H -- "$filepath" | tail -n 1)"
+echo "$oldest_commit_with_file"
+rm -rf .git/refs/original/
+FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --index-filter "git rm -rf --cached --ignore-unmatch '$filepath'" "$oldest_commit_with_file"..HEAD
+echo
+echo "Now you need to destroy everyone else's progress by force pushing if you want remote to have the fix"
+echo

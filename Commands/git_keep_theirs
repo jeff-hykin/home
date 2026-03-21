@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+git checkout --theirs .
+git add -u
+git commit -m "_Accepting all incoming changes $*"
