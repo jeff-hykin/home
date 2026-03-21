@@ -184,20 +184,7 @@ del () {
     fi
 }
 
-# 
-# handy navigation
-# 
-cd () {
-    new_directory="$*"
-    if [ $# -eq 0 ]; then
-        new_directory="$HOME"
-    fi;
-    builtin cd "$new_directory" 
-    if [ $? -eq 0 ]
-    then
-        ll || ls -lAF
-    fi
-}
+# cd is just the builtin (no ls on every cd)
 
 f ()  {
     args="$@"

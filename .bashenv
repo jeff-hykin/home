@@ -13,15 +13,22 @@
 #     $BASH_ENV ──> points to .bashenv (set in .profile)
 #
 # To add shell config, create a file in ~/bash_startup/
-# Files are sourced alphabetically. Naming convention:
+# Files are sourced alphabetically by basename. Naming convention:
 #   NN_NN_description.bash                — always runs
 #   NN_NN_description.if_login.bash       — only in login shells
 #   NN_NN_description.if_interactive.bash — only in interactive shells
 #
 # Private/machine-specific config goes in ~/Personal/bash_startup/
 
-for f in $(printf '%s\n' "$HOME/Personal/bash_startup"/* "$HOME/bash_startup"/* 2>/dev/null | sort); do
-    [ -f "$f" ] || continue
+# Collect all files, then sort by basename
+for f in $(
+    for __f in \
+        "$HOME/Personal/bash_startup"/* \
+        "$HOME/bash_startup"/* \
+    ; do
+        [ -f "$__f" ] && echo "${__f##*/}	$__f"
+    done 2>/dev/null | sort -t'	' -k1,1 | cut -f2
+); do
     case "$f" in
         *.if_login.bash)       shopt -q login_shell || continue ;;
         *.if_interactive.bash) [[ $- == *i* ]] || continue ;;
@@ -29,3 +36,4 @@ for f in $(printf '%s\n' "$HOME/Personal/bash_startup"/* "$HOME/bash_startup"/* 
     [[ $- == *i* ]] && echo "[bash] loading: $f"
     . "$f"
 done
+unset __f f
