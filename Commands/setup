@@ -642,6 +642,7 @@ if (selected.has("vscode-ext")) {
         "ziyasal.vscode-open-in-github",
         "earshinov.sort-lines-by-selection",
         "annsk.alignment",
+        "pkief.material-icon-theme",
         "cardinal90.multi-cursor-case-preserve",
     ]
     if (extensions.length > 0) {
