@@ -30,33 +30,35 @@ async function ensureLocalBinOnPath() {
 
     await $`mkdir -p ${binDir}`
 
-    const pathLine = '\nexport PATH="$HOME/.local/bin:$PATH"\n'
-    const pathComment = "# added by grab_commands"
-    const snippet = `\n${pathComment}${pathLine}`
+    // Check if already on PATH
+    const current = Deno.env.get("PATH") ?? ""
+    const alreadyOnPath = current.split(":").some(p => p.replace(/\/+$/, "") === binDir.replace(/\/+$/, ""))
 
-    for (const rcFile of [`${home}/.bashrc`, `${home}/.zshrc`]) {
-        try {
-            const contents = await Deno.readTextFile(rcFile)
-            if (contents.includes('.local/bin')) {
-                success(`${rcFile} already has ~/.local/bin on PATH`)
-                continue
-            }
-            await Deno.writeTextFile(rcFile, contents + snippet)
-            success(`Added ~/.local/bin to PATH in ${rcFile}`)
-        } catch (e) {
-            if (e instanceof Deno.errors.NotFound) {
-                // Create the rc file with the path addition
-                await Deno.writeTextFile(rcFile, snippet)
-                success(`Created ${rcFile} with ~/.local/bin on PATH`)
-            } else {
-                warn(`Could not update ${rcFile}: ${e}`)
+    if (alreadyOnPath) {
+        success("~/.local/bin is already on PATH")
+    } else {
+        const pathLine = '\nexport PATH="$HOME/.local/bin:$PATH"\n'
+        const pathComment = "# added by grab_commands"
+        const snippet = `\n${pathComment}${pathLine}`
+
+        for (const rcFile of [`${home}/.bashrc`, `${home}/.zshrc`]) {
+            try {
+                const contents = await Deno.readTextFile(rcFile)
+                if (contents.includes('.local/bin')) {
+                    continue
+                }
+                await Deno.writeTextFile(rcFile, contents + snippet)
+                success(`Added ~/.local/bin to PATH in ${rcFile}`)
+            } catch (e) {
+                if (e instanceof Deno.errors.NotFound) {
+                    await Deno.writeTextFile(rcFile, snippet)
+                    success(`Created ${rcFile} with ~/.local/bin on PATH`)
+                } else {
+                    warn(`Could not update ${rcFile}: ${e}`)
+                }
             }
         }
-    }
 
-    // Also add to current session
-    const current = Deno.env.get("PATH") ?? ""
-    if (!current.split(":").includes(binDir)) {
         Deno.env.set("PATH", `${binDir}:${current}`)
     }
 }
