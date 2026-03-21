@@ -1,0 +1,146 @@
+#!/usr/bin/env sh
+"\"",`$(echo --% ' |out-null)" >$null;function :{};function getDenoVersion{<#${/*'>/dev/null )` 2>/dev/null;getDenoVersion() { #>
+echo "2.7.7";: --% ' |out-null <#';};DENO_INSTALL="$HOME/.deno/$(getDenoVersion)";deno_version="v$(getDenoVersion)";deno="$DENO_INSTALL/bin/deno";target_script="$0";disable_url_run="";if [ -n "$url_" ] && [ -z "$disable_url_run" ];then if [ "${url_#http}" = "$url_" ];then url_="https://$url_";fi;target_script="$url_";fi;if [ -x "$deno" ];then exec "$deno" run -q -A --no-lock --no-config "$target_script" "$@";elif [ -f "$deno" ];then chmod +x "$deno" && exec "$deno" run -q -A --no-lock --no-config "$target_script" "$@";fi;has () { command -v "$1" >/dev/null;};if ! has curl;then if has wget;then curl () { wget --output-document="$5" "$6";};else echo "Sorry this script needs curl or wget, please install one or the other and re-run";exit 1;fi;fi;if [ "$(uname)" = "Darwin" ];then unzip () { /usr/bin/tar xvf "$4" -C "$2" 2>/dev/null 1>/dev/null;};fi;if ! has unzip && ! has 7z;then echo "Either the unzip or 7z command are needed for this script";echo "Should I try to install unzip for you?";read ANSWER;echo;if [ "$ANSWER" =~ ^[Yy] ];then if has nix-shell;then unzip_path="$(NIX_PATH='nixpkgs=https://github.com/NixOS/nixpkgs/archive/release-25.05.tar.gz' nix-shell -p unzip which --run "which unzip")" alias unzip="$unzip_path" else;if has apt-get;then _install="apt-get install unzip -y";elif has dnf;then _install="dnf install unzip -y";elif has pacman;then _install="pacman -S --noconfirm unzip";else echo "Sorry, I don't know how to install unzip on this system";echo "Please install unzip manually and re-run this script";exit 1;fi;if [ "$(whoami)" = "root" ];then "$_install";elif has sudo;then sudo "$_install";elif has doas;then doas "$_install";else "$_install";fi;fi;fi;if ! has unzip;then echo "";echo "So I couldn't find an 'unzip' or '7z' command";echo "And I tried to auto install unzip, but it seems that failed";echo "Please install the unzip or 7z command manually then re-run this script";exit 1;fi;fi;if ! command -v unzip >/dev/null && ! command -v 7z >/dev/null;then echo "Error: either unzip or 7z is required to install Deno (see: https://github.com/denoland/deno_install#either-unzip-or-7z-is-required )." 1>&2;exit 1;fi;if [ "$OS" = "Windows_NT" ];then target="x86_64-pc-windows-msvc";else case $(uname -sm) in "Darwin x86_64") target="x86_64-apple-darwin" ;;"Darwin arm64") target="aarch64-apple-darwin" ;;"Linux aarch64") target="aarch64-unknown-linux-gnu" ;;*) target="x86_64-unknown-linux-gnu" ;;esac fi;deno_uri="https://dl.deno.land/release/${deno_version}/deno-${target}.zip";deno_install="${DENO_INSTALL:-$HOME/.deno}";bin_dir="$deno_install/bin";exe="$bin_dir/deno";if [ ! -d "$bin_dir" ];then mkdir -p "$bin_dir";fi;curl --fail --location --progress-bar --output "$exe.zip" "$deno_uri";if command -v unzip >/dev/null;then unzip -d "$bin_dir" -o "$exe.zip";else 7z x -o"$bin_dir" -y "$exe.zip";fi;chmod +x "$exe";rm "$exe.zip";exec "$deno" run -q -A --no-lock --no-config "$target_script" "$@";#>};$DenoInstall = "${HOME}/.deno/$(getDenoVersion)";$BinDir = "$DenoInstall/bin";$DenoExe = "$BinDir/deno.exe";$TargetScript = "$PSCommandPath";$DisableUrlRun = "";if ($url_ -and -not($DisableUrlRun)) { if (-not($url -match '^http')) { $url_="https://$url_";} $TargetScript = "$url_";};if (-not(Test-Path -Path "$DenoExe" -PathType Leaf)) { $DenoZip = "$BinDir/deno.zip";$DenoUri = "https://github.com/denoland/deno/releases/download/v$(getDenoVersion)/deno-x86_64-pc-windows-msvc.zip";[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;if (!(Test-Path $BinDir)) { New-Item $BinDir -ItemType Directory | Out-Null;};curl.exe --ssl-revoke-best-effort -Lo $DenoZip $DenoUri;tar.exe xf $DenoZip -C $BinDir;Remove-Item $DenoZip;};& "$DenoExe" run -q -A --no-lock --no-config "$TargetScript" @args;Exit $LastExitCode;<# 
+# */0}`;
+import $ from "https://esm.sh/dax-sh"
+import { Checkbox } from "https://esm.sh/jsr/@cliffy/prompt"
+
+const home = Deno.env.get("HOME")
+const binDir = `${home}/.local/bin`
+const baseUrl = "https://raw.githubusercontent.com/jeff-hykin/home/master/Commands"
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
+function log(msg) {
+    console.log(`\n\x1b[1;36m>>> ${msg}\x1b[0m`)
+}
+
+function warn(msg) {
+    console.log(`\x1b[1;33m  ! ${msg}\x1b[0m`)
+}
+
+function success(msg) {
+    console.log(`\x1b[1;32m  ✓ ${msg}\x1b[0m`)
+}
+
+// ─── Ensure ~/.local/bin is on PATH ──────────────────────────────────────────
+
+async function ensureLocalBinOnPath() {
+    log("Ensuring ~/.local/bin is on PATH")
+
+    await $`mkdir -p ${binDir}`
+
+    const pathLine = '\nexport PATH="$HOME/.local/bin:$PATH"\n'
+    const pathComment = "# added by grab_commands"
+    const snippet = `\n${pathComment}${pathLine}`
+
+    for (const rcFile of [`${home}/.bashrc`, `${home}/.zshrc`]) {
+        try {
+            const contents = await Deno.readTextFile(rcFile)
+            if (contents.includes('.local/bin')) {
+                success(`${rcFile} already has ~/.local/bin on PATH`)
+                continue
+            }
+            await Deno.writeTextFile(rcFile, contents + snippet)
+            success(`Added ~/.local/bin to PATH in ${rcFile}`)
+        } catch (e) {
+            if (e instanceof Deno.errors.NotFound) {
+                // Create the rc file with the path addition
+                await Deno.writeTextFile(rcFile, snippet)
+                success(`Created ${rcFile} with ~/.local/bin on PATH`)
+            } else {
+                warn(`Could not update ${rcFile}: ${e}`)
+            }
+        }
+    }
+
+    // Also add to current session
+    const current = Deno.env.get("PATH") ?? ""
+    if (!current.split(":").includes(binDir)) {
+        Deno.env.set("PATH", `${binDir}:${current}`)
+    }
+}
+
+// ─── Fetch available commands from GitHub ────────────────────────────────────
+
+async function fetchCommandList() {
+    log("Fetching available commands from GitHub...")
+    const resp = await fetch("https://api.github.com/repos/jeff-hykin/home/contents/Commands")
+    if (!resp.ok) {
+        throw new Error(`GitHub API returned ${resp.status}: ${await resp.text()}`)
+    }
+    const entries = await resp.json()
+
+    // Filter to files only, exclude non-portable and meta files
+    const exclude = new Set([
+        "grab_commands",  // this script itself
+    ])
+
+    return entries
+        .filter(e => e.type === "file")
+        .map(e => e.name)
+        .filter(name => !exclude.has(name))
+        .filter(name => !name.endsWith(".ps1"))  // PowerShell scripts
+        .sort()
+}
+
+// ─── Download & install a command ────────────────────────────────────────────
+
+async function installCommand(name) {
+    const url = `${baseUrl}/${encodeURIComponent(name)}`
+    const dest = `${binDir}/${name}`
+
+    try {
+        const resp = await fetch(url)
+        if (!resp.ok) {
+            warn(`Failed to download ${name}: HTTP ${resp.status}`)
+            return false
+        }
+        const content = new Uint8Array(await resp.arrayBuffer())
+        await Deno.writeFile(dest, content)
+        await Deno.chmod(dest, 0o755)
+        return true
+    } catch (e) {
+        warn(`Failed to install ${name}: ${e}`)
+        return false
+    }
+}
+
+// ─── Main ────────────────────────────────────────────────────────────────────
+
+await ensureLocalBinOnPath()
+
+const commands = await fetchCommandList()
+
+const selected = await Checkbox.prompt({
+    message: "Select commands to install to ~/.local/bin",
+    options: commands.map(name => ({ name, value: name })),
+    // all unselected by default
+})
+
+if (selected.length === 0) {
+    warn("No commands selected. Nothing to install.")
+    Deno.exit(0)
+}
+
+log(`Installing ${selected.length} command(s)...`)
+
+let installed = 0
+let failed = 0
+for (const name of selected) {
+    const ok = await installCommand(name)
+    if (ok) {
+        success(`Installed ${name}`)
+        installed++
+    } else {
+        failed++
+    }
+}
+
+console.log()
+log(`Done! ${installed} installed${failed > 0 ? `, ${failed} failed` : ""}.`)
+if (installed > 0) {
+    console.log(`\n  Commands are in ${binDir}`)
+    console.log(`  You may need to restart your shell for PATH changes to take effect.\n`)
+}
+// (this comment is part of universify, dont remove) #>
