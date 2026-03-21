@@ -15,7 +15,7 @@ renamed = "r"
 deleted = "x"
 conflicted = "!"
 untracked = "?"
-stashed = "$"
+stashed = "\\$"
 modified = "~"
 staged = "+"
 
