@@ -664,9 +664,16 @@ const specialInstallers: Record<string, () => Promise<void>> = {
         // Use the official nodejs installer (fnm)
         await $`curl -fsSL https://fnm.vercel.app/install | bash`.noThrow()
         addToPath(`${home}/.local/share/fnm`)
-        // Source fnm env so node is available
-        await $`eval "$(fnm env)" && fnm install --lts`.noThrow()
-        addToPath(`${home}/.local/share/fnm/aliases/default/bin`)
+        addToPath("/opt/homebrew/bin") // fnm may have been installed via brew
+        // Install LTS node via fnm (set FNM_DIR so it knows where to put things)
+        const fnmDir = `${home}/.local/share/fnm`
+        Deno.env.set("FNM_DIR", fnmDir)
+        await $`fnm install --lts`.noThrow()
+        // Add the fnm-managed node to PATH
+        const defaultDir = `${fnmDir}/aliases/default/bin`
+        addToPath(defaultDir)
+        // Also check the fnm multishell-style path
+        addToPath(`${fnmDir}/node-versions/default/installation/bin`)
     },
     "uv": async () => {
         if (await commandExists("uv")) return
