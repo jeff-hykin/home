@@ -375,7 +375,7 @@ async function setupHome() {
         warn("Home directory already has .git — skipping clone")
         return
     } catch { /* doesn't exist, proceed */ }
-    await $`git clone https://github.com/jeff-hykin/home ${home}/__temp_home_clone`.noThrow()
+    await $`git clone git@github.com:jeff-hykin/home.git ${home}/__temp_home_clone`.noThrow()
     await $`mv ${home}/__temp_home_clone/.git ${home}/.git`.noThrow()
     await $`rm -rf ${home}/__temp_home_clone`
     await $`cd ${home} && git stash`.noThrow()
