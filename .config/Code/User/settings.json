@@ -1217,4 +1217,10 @@
             "workbench.colorTheme": "XD Theme - MixItUp",
             "editor.bracketPairColorization.enabled": false,
             "window.zoomLevel": 1,
+            "github.copilot.enable": {
+                "*": false
+            },
+            "github.copilot.chat.agent.enabled": false,
+            "chat.agent.enabled": false,
+            "workbench.panel.chat.defaultVisibility": "hidden",
 }
