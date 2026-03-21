@@ -1,48 +1,12 @@
-A bunch of tools I use for setting up new machines. Mostly Debian-based and MacOS
+Tools for setting up new machines (Debian-based Linux and macOS).
 
-
-### Installing Nix, all the basic tools, and setting up home
+### Setup
 ```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_main || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_main)
+curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup | sh
+```
+or with wget:
+```shell
+wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup | sh
 ```
 
-### Apt-get update, and questions for nix/ssh-server etc
-```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_linux || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_linux)
-```
-
-### Installing Nix
-```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_nix)
-```
-
-### Installing Commands Using nix
-```shell
-nix-env -i -f https://github.com/jeff-hykin/home/archive/master.tar.gz
-```
-
-### Setup Home
-```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_home || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_home)
-```
-
-### Installing Basics
-```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_cli_stuff || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_cli_stuff)
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_desktop_stuff || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_basic_desktop_stuff)
-```
-
-### Setting up SSH (server)
-```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_server)
-```
-
-### Setting up SSH keys (needs Deno, which is installed with basics)
-```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_keys || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_ssh_keys)
-```
-
-### Setting up ZeroTier
-```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_zerotier || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup_zerotier)
-```
+Interactive installer that handles SSH keys, git, brew, nix, deno, zsh, starship, CLI tools, GUI apps, VS Code extensions, and more.

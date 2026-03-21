@@ -91,6 +91,16 @@ async function ensureNix() {
     addToPath("/nix/var/nix/profiles/default/bin")
     addToPath(`${home}/.nix-profile/bin`)
     Deno.env.set("NIXPKGS_ALLOW_UNFREE", "1")
+    // Enable flakes
+    const nixConfDir = `${home}/.config/nix`
+    const nixConf = `${nixConfDir}/nix.conf`
+    await Deno.mkdir(nixConfDir, { recursive: true })
+    let conf = ""
+    try { conf = await Deno.readTextFile(nixConf) } catch { /* */ }
+    if (!conf.includes("experimental-features")) {
+        conf += "\nexperimental-features = nix-command flakes\n"
+        await Deno.writeTextFile(nixConf, conf)
+    }
 }
 
 /** Install a CLI package. Tries brew/apt first, falls back to nix. */
@@ -441,6 +451,7 @@ const mainOptions = [
     { name: "Setup zsh", value: "zsh", checked: true },
     { name: "Setup starship", value: "starship", checked: true },
     { name: "Setup claude", value: "claude", checked: true },
+    { name: "Install nvs (nix version search)", value: "nvs", checked: true },
     { name: "Install ungit", value: "ungit", checked: true },
     { name: "Install dua", value: "dua", checked: true },
     { name: "Install htop", value: "htop", checked: true },
@@ -551,7 +562,14 @@ if (selected.has("starship")) await ensureStarship()
 // 10. claude
 if (selected.has("claude")) await ensureClaude()
 
-// 11. ungit, dua, htop
+// 11. nvs, ungit, dua, htop
+if (selected.has("nvs")) {
+    if (!await commandExists("nvs")) {
+        await ensureNix()
+        log("Installing nvs (nix version search)...")
+        await $`nix profile install 'https://github.com/jeff-hykin/nix_version_search_cli/archive/8053f87f566c1a4d61cfb53436eafd0331918902.tar.gz#nvs'`.noThrow()
+    }
+}
 if (selected.has("ungit")) {
     // ungit is a node-based git GUI
     if (!await commandExists("ungit")) {
