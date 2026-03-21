@@ -9,7 +9,7 @@ Interactive installer that handles SSH keys, git, brew, nix, deno, zsh, starship
 
 ### Grab Commands
 ```shell
-. <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/grab_commands || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/grab_commands)
+curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/grab_commands | sh
 ```
 
 Interactive picker to install individual commands from this repo into `~/.local/bin`. Ensures `~/.local/bin` is on your PATH.
