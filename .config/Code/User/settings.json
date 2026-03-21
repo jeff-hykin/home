@@ -1062,7 +1062,7 @@
             "python.formatting.yapfArgs": ["--style", "{based_on_style: chromium, indent_width: 4, column_limit: 999999, arithmetic_precedence_indication: true, dedent_closing_brackets: false, disable_ending_comma_heuristic: false, each_dict_entry_on_separate_line: true, join_multiple_lines: false, split_arguments_when_comma_terminated: true }"],
         // project
             "projectManager.groupList": false,
-            "projectManager.sortList": "Saved",
+            "projectManager.sortList": "Recent",
         // macros
             "macros": {
                 "GitSync" : [

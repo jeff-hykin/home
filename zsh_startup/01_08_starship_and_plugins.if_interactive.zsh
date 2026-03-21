@@ -9,14 +9,5 @@ elif [ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]; then
     . /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 fi
 
-# zsh-syntax-highlighting (must be loaded last)
-if [ -f "$HOME/.zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
-    . "$HOME/.zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-elif [ -f /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then
-    . /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-elif [ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then
-    . /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-fi
-
 # Starship prompt
 eval "$(starship init zsh)"
