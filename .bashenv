@@ -1,0 +1,31 @@
+# .bashenv — single entry point for all bash startup
+#
+# Bash does NOT have a native "always run" file like zsh's .zshenv.
+# This file is sourced by all bash entry points to unify startup:
+#
+#   Interactive login (ssh, bash -l, first terminal on Linux):
+#     /etc/profile -> ~/.profile ──> sources .bashenv
+#
+#   Interactive non-login (typing "bash", new subshell):
+#     ~/.bashrc ──> sources .bashenv
+#
+#   Non-interactive (scripts):
+#     $BASH_ENV ──> points to .bashenv (set in .profile)
+#
+# To add shell config, create a file in ~/bash_startup/
+# Files are sourced alphabetically. Naming convention:
+#   NN_NN_description.bash                — always runs
+#   NN_NN_description.if_login.bash       — only in login shells
+#   NN_NN_description.if_interactive.bash — only in interactive shells
+#
+# Private/machine-specific config goes in ~/Personal/bash_startup/
+
+for f in $(printf '%s\n' "$HOME/Personal/bash_startup"/* "$HOME/bash_startup"/* 2>/dev/null | sort); do
+    [ -f "$f" ] || continue
+    case "$f" in
+        *.if_login.bash)       shopt -q login_shell || continue ;;
+        *.if_interactive.bash) [[ $- == *i* ]] || continue ;;
+    esac
+    [[ $- == *i* ]] && echo "[bash] loading: $f"
+    . "$f"
+done

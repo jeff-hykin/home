@@ -1,0 +1,1 @@
+unalias -m '*' # remove all default aliases

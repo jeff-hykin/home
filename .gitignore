@@ -3,32 +3,25 @@
 #
 /*
 !Commands/
-!Terminal/
-!.github
+!bash_startup/
+!zsh_startup/
+!.bashenv
 
 # 
 # Custom
 # 
-!/docs/
-!/docs/index.html
-!/index.html
 !/.gitignore
 !/.gitconfig
 !/.profile
 !/.bashrc
 !/.bash_profile
 !/.bash_login
-!/.bash_logout
 !/.zshrc
 !/.zshenv
 !/.zprofile
 !/.zlogout
 !/.zlogin
 !/.irbrc
-!/.Xmodmap
-!/default.nix
-!/flake.nix
-!/flake.lock
 !/README.md
 
 #
