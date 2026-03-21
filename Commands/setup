@@ -383,16 +383,55 @@ async function setupHome() {
 
 async function ensureVSCode() {
     if (once("vscode")) return
-    if (await commandExists("code")) return
-    log("Installing VS Code...")
+    if (!await commandExists("code")) {
+        log("Installing VS Code...")
+        if (isMac) {
+            await ensureBrew()
+            await $`brew install --cask visual-studio-code`.noThrow()
+        } else {
+            if (await commandExists("snap")) {
+                await $`sudo snap install code --classic`.noThrow()
+            } else if (await commandExists("nix")) {
+                await $`nix profile install nixpkgs#vscode`.noThrow()
+            }
+        }
+    }
+    // On macOS, VS Code uses ~/Library/Application Support/Code/User/ instead of
+    // ~/.config/Code/User/. Symlink settings/keybindings/snippets so that
+    // ~/.config/Code/User/ is the single source of truth.
     if (isMac) {
-        await ensureBrew()
-        await $`brew install --cask visual-studio-code`.noThrow()
-    } else {
-        if (await commandExists("snap")) {
-            await $`sudo snap install code --classic`.noThrow()
-        } else if (await commandExists("nix")) {
-            await $`nix profile install nixpkgs#vscode`.noThrow()
+        const xdgUser = `${home}/.config/Code/User`
+        const macUser = `${home}/Library/Application Support/Code/User`
+        await Deno.mkdir(macUser, { recursive: true })
+        for (const name of ["settings.json", "keybindings.json"]) {
+            const src = `${xdgUser}/${name}`
+            const dst = `${macUser}/${name}`
+            try { await Deno.stat(src) } catch { continue } // skip if no source
+            try {
+                const info = await Deno.lstat(dst)
+                if (info.isSymlink) continue // already symlinked
+                // Back up existing non-symlink file
+                await Deno.rename(dst, `${dst}.bak`)
+            } catch { /* doesn't exist, good */ }
+            await Deno.symlink(src, dst)
+        }
+        // Symlink snippets directory
+        const srcSnippets = `${xdgUser}/snippets`
+        const dstSnippets = `${macUser}/snippets`
+        try {
+            await Deno.stat(srcSnippets)
+            const info = await Deno.lstat(dstSnippets)
+            if (!info.isSymlink) {
+                // Move existing snippets dir out of the way
+                await Deno.rename(dstSnippets, `${dstSnippets}.bak`)
+                await Deno.symlink(srcSnippets, dstSnippets)
+            }
+        } catch {
+            // dst doesn't exist or src doesn't exist
+            try {
+                await Deno.stat(srcSnippets)
+                await Deno.symlink(srcSnippets, dstSnippets)
+            } catch { /* no source snippets dir */ }
         }
     }
 }
