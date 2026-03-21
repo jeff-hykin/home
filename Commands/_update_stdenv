@@ -1,0 +1,162 @@
+#!/usr/bin/env -S deno run --allow-all --no-lock
+import $ from "https://esm.sh/dax-sh"
+import { Confirm } from "https://esm.sh/jsr/@cliffy/prompt"
+
+// Migrate ~/Personal/Terminal layout to ~/Personal/{zsh,bash}_startup
+//
+// Old layout (SHELL_STANDARD_ENV_SECRET_SOURCE = ~/Personal/Terminal):
+//   ~/Personal/Terminal/shells/zsh/events/rc/*
+//   ~/Personal/Terminal/shells/zsh/events/on_interactive/*
+//   ~/Personal/Terminal/shells/zsh/events/on_login/*
+//   ~/Personal/Terminal/shells/zsh/events/on_start/*
+//   ~/Personal/Terminal/shells/bash/events/rc/*
+//   ~/Personal/Terminal/shells/bash/events/on_interactive/*
+//   ~/Personal/Terminal/shells/bash/events/on_login/*
+//   ~/Personal/Terminal/shells/sh/events/on_interactive/*
+//   ~/Personal/Terminal/shells/sh/events/on_login/*
+//
+// New layout:
+//   ~/Personal/zsh_startup/*
+//   ~/Personal/bash_startup/*
+//   Files use .if_interactive.{zsh,bash} or .if_login.{zsh,bash} suffixes
+//   for conditional loading.
+
+const home = Deno.env.get("HOME")!
+const oldBase = `${home}/Personal/Terminal/shells`
+const newZsh = `${home}/Personal/zsh_startup`
+const newBash = `${home}/Personal/bash_startup`
+
+function log(msg: string) {
+    console.log(`\x1b[1;36m>>> ${msg}\x1b[0m`)
+}
+
+function warn(msg: string) {
+    console.log(`\x1b[1;33m  ! ${msg}\x1b[0m`)
+}
+
+// Check if the old layout exists
+let hasOldLayout = false
+try {
+    await Deno.stat(oldBase)
+    hasOldLayout = true
+} catch { /* */ }
+
+if (!hasOldLayout) {
+    console.log("No old layout found at ~/Personal/Terminal/shells — nothing to migrate.")
+    Deno.exit(0)
+}
+
+// Mapping: old event dirs → new suffix
+interface Migration {
+    oldDir: string
+    newDir: string
+    suffix: string // suffix to append if the file doesn't already have it
+}
+
+const migrations: Migration[] = [
+    // zsh rc files → zsh_startup (no suffix, these ran always)
+    { oldDir: `${oldBase}/zsh/events/rc`,              newDir: newZsh,  suffix: "" },
+    // zsh on_interactive → .if_interactive.zsh
+    { oldDir: `${oldBase}/zsh/events/on_interactive`,  newDir: newZsh,  suffix: ".if_interactive.zsh" },
+    // zsh on_login → .if_login.zsh
+    { oldDir: `${oldBase}/zsh/events/on_login`,        newDir: newZsh,  suffix: ".if_login.zsh" },
+    // zsh on_start → zsh_startup (on_start = .zshenv, which is "always", no suffix needed)
+    { oldDir: `${oldBase}/zsh/events/on_start`,        newDir: newZsh,  suffix: "" },
+    // bash rc files → bash_startup
+    { oldDir: `${oldBase}/bash/events/rc`,             newDir: newBash, suffix: "" },
+    // bash on_interactive → .if_interactive.bash
+    { oldDir: `${oldBase}/bash/events/on_interactive`, newDir: newBash, suffix: ".if_interactive.bash" },
+    // bash on_login → .if_login.bash
+    { oldDir: `${oldBase}/bash/events/on_login`,       newDir: newBash, suffix: ".if_login.bash" },
+    // sh (POSIX) files go into bash_startup since bash sources those
+    { oldDir: `${oldBase}/sh/events/on_interactive`,   newDir: newBash, suffix: ".if_interactive.bash" },
+    { oldDir: `${oldBase}/sh/events/on_login`,         newDir: newBash, suffix: ".if_login.bash" },
+]
+
+// Scan and report what will be moved
+interface PendingMove {
+    src: string
+    dest: string
+}
+const pending: PendingMove[] = []
+
+for (const m of migrations) {
+    let dirExists = false
+    try { await Deno.stat(m.oldDir); dirExists = true } catch { /* */ }
+    if (!dirExists) continue
+
+    for await (const entry of Deno.readDir(m.oldDir)) {
+        if (!entry.isFile) continue
+        const src = `${m.oldDir}/${entry.name}`
+
+        let destName = entry.name
+        // If a suffix is needed and the file doesn't already have it, rename
+        if (m.suffix && !destName.endsWith(m.suffix)) {
+            // Strip existing extension, add suffix
+            const dot = destName.lastIndexOf(".")
+            const base = dot > 0 ? destName.substring(0, dot) : destName
+            destName = `${base}${m.suffix}`
+        }
+
+        pending.push({ src, dest: `${m.newDir}/${destName}` })
+    }
+}
+
+if (pending.length === 0) {
+    console.log("Old layout directories exist but contain no files to migrate.")
+    Deno.exit(0)
+}
+
+console.log("\nFiles to migrate:\n")
+for (const p of pending) {
+    const shortSrc = p.src.replace(home, "~")
+    const shortDest = p.dest.replace(home, "~")
+    console.log(`  ${shortSrc}`)
+    console.log(`    → ${shortDest}\n`)
+}
+
+const proceed = await Confirm.prompt("Proceed with migration?")
+if (!proceed) {
+    console.log("Aborted.")
+    Deno.exit(0)
+}
+
+// Create target dirs
+await Deno.mkdir(newZsh, { recursive: true })
+await Deno.mkdir(newBash, { recursive: true })
+
+// Move files
+let moved = 0
+let skipped = 0
+for (const p of pending) {
+    // Check if destination already exists
+    try {
+        await Deno.stat(p.dest)
+        warn(`Skipping (already exists): ${p.dest.replace(home, "~")}`)
+        skipped++
+        continue
+    } catch { /* good, doesn't exist */ }
+
+    try {
+        await Deno.rename(p.src, p.dest)
+        log(`Moved: ${p.dest.replace(home, "~")}`)
+        moved++
+    } catch {
+        // rename fails across filesystems, fall back to copy+delete
+        try {
+            await Deno.copyFile(p.src, p.dest)
+            await Deno.remove(p.src)
+            log(`Moved: ${p.dest.replace(home, "~")}`)
+            moved++
+        } catch (e) {
+            warn(`Failed to move ${p.src.replace(home, "~")}: ${e}`)
+        }
+    }
+}
+
+console.log(`\n\x1b[1;32mDone. Moved ${moved} file(s), skipped ${skipped}.\x1b[0m`)
+
+if (moved > 0) {
+    console.log("\nYou can remove the old directory if everything looks good:")
+    console.log(`  rm -rf ~/Personal/Terminal`)
+}
