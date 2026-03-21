@@ -1,0 +1,659 @@
+#!/usr/bin/env -S deno run --allow-all --no-lock
+import $ from "https://esm.sh/dax-sh"
+import { Checkbox, Confirm, Input } from "https://esm.sh/jsr/@cliffy/prompt"
+
+const home = Deno.env.get("HOME")!
+const isMac = Deno.build.os === "darwin"
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
+function addToPath(dir: string) {
+    const current = Deno.env.get("PATH") ?? ""
+    if (!current.split(":").includes(dir)) {
+        Deno.env.set("PATH", `${dir}:${current}`)
+    }
+}
+
+async function commandExists(cmd: string): Promise<boolean> {
+    return (await $`command -v ${cmd}`.noThrow().quiet("both")).code === 0
+}
+
+function log(msg: string) {
+    console.log(`\n\x1b[1;36m>>> ${msg}\x1b[0m`)
+}
+
+function warn(msg: string) {
+    console.log(`\x1b[1;33m  ! ${msg}\x1b[0m`)
+}
+
+// Cache so ensure* functions only run once
+const _done = new Set<string>()
+function once(key: string): boolean {
+    if (_done.has(key)) return true
+    _done.add(key)
+    return false
+}
+
+// ─── Ensure Functions ────────────────────────────────────────────────────────
+
+async function ensureXcodeCli() {
+    if (once("xcode")) return
+    if (!isMac) return
+    // Check if already installed
+    if ((await $`xcode-select -p`.noThrow().quiet("both")).code === 0) return
+    log("Installing Xcode Command Line Tools...")
+    await $`xcode-select --install`.noThrow()
+    // Poll until installed (the UI prompt is async)
+    log("Waiting for Xcode CLI tools installation to complete...")
+    while ((await $`xcode-select -p`.noThrow().quiet("both")).code !== 0) {
+        await new Promise(r => setTimeout(r, 5000))
+    }
+}
+
+async function ensureCurl() {
+    if (once("curl")) return
+    if (await commandExists("curl")) return
+    log("Installing curl...")
+    if (!isMac && await commandExists("apt-get")) {
+        await $`sudo apt-get update -y && sudo apt-get install -y curl`
+    } else if (await commandExists("brew")) {
+        await $`brew install curl`
+    }
+}
+
+async function ensureBrew() {
+    if (once("brew")) return
+    if (await commandExists("brew")) return
+    if (isMac) await ensureXcodeCli()
+    await ensureCurl()
+    log("Installing Homebrew...")
+    await $`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+    if (isMac) {
+        addToPath("/opt/homebrew/bin")
+    } else {
+        addToPath(`${home}/.linuxbrew/bin`)
+        addToPath("/home/linuxbrew/.linuxbrew/bin")
+    }
+}
+
+async function ensureNix() {
+    if (once("nix")) return
+    if (await commandExists("nix")) return
+    await ensureCurl()
+    log("Installing Nix...")
+    await $`curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sudo sh -s -- install`
+    // Source nix environment
+    const daemonSh = "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"
+    try { await Deno.stat(daemonSh); await $`. ${daemonSh}`.noThrow() } catch { /* */ }
+    addToPath("/nix/var/nix/profiles/default/bin")
+    addToPath(`${home}/.nix-profile/bin`)
+    Deno.env.set("NIXPKGS_ALLOW_UNFREE", "1")
+}
+
+/** Install a CLI package. Tries brew/apt first, falls back to nix. */
+async function installPkg(pkg: string, cmd?: string) {
+    cmd ??= pkg
+    if (await commandExists(cmd)) return
+    log(`Installing ${pkg}...`)
+    if (await commandExists("brew")) {
+        await $`brew install ${pkg}`.noThrow().quiet("both")
+        if (await commandExists(cmd)) return
+    }
+    if (!isMac && await commandExists("apt-get")) {
+        await $`sudo apt-get install -y ${pkg}`.noThrow().quiet("both")
+        if (await commandExists(cmd)) return
+    }
+    if (await commandExists("nix")) {
+        await $`nix profile install nixpkgs#${pkg}`.noThrow().quiet("both")
+        if (await commandExists(cmd)) return
+    }
+    warn(`Could not install ${pkg}`)
+}
+
+/** Install a GUI app. macOS: brew cask. Linux: snap or nix. */
+async function installGuiApp(name: string, brewCask: string, linuxSnap?: string, nixPkg?: string) {
+    log(`Installing ${name}...`)
+    if (isMac) {
+        await ensureBrew()
+        await $`brew install --cask ${brewCask}`.noThrow()
+    } else {
+        if (linuxSnap && await commandExists("snap")) {
+            await $`sudo snap install ${linuxSnap}`.noThrow()
+        } else if (nixPkg && await commandExists("nix")) {
+            await $`nix profile install nixpkgs#${nixPkg}`.noThrow()
+        } else if (await commandExists("apt-get")) {
+            await $`sudo apt-get install -y ${brewCask}`.noThrow()
+        } else {
+            warn(`Could not install ${name}`)
+        }
+    }
+}
+
+async function ensureGit() {
+    if (once("git")) return
+    if (await commandExists("git")) return
+    await installPkg("git")
+}
+
+async function ensureGitConfig() {
+    await ensureGit()
+    const hasName = (await $`git config --global user.name`.noThrow().quiet("both")).code === 0
+    if (hasName) return
+    log("Setting up git config...")
+    await ensureCurl()
+    // Try downloading .gitconfig from home repo
+    await $`curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/.gitconfig -o ${home}/.gitconfig`.noThrow().quiet("both")
+    const hasNameNow = (await $`git config --global user.name`.noThrow().quiet("both")).code === 0
+    if (!hasNameNow) {
+        warn("Could not download .gitconfig, please enter details manually")
+        const name = await Input.prompt({ message: "Git user name:" })
+        const email = await Input.prompt({ message: "Git email:" })
+        await $`git config --global user.name ${name}`
+        await $`git config --global user.email ${email}`
+    }
+}
+
+async function ensureDeno() {
+    if (once("deno")) return
+    if (await commandExists("deno")) return
+    await ensureCurl()
+    log("Installing Deno...")
+    await $`curl -fsSL https://deno.land/install.sh | sh`
+    addToPath(`${home}/.deno/bin`)
+}
+
+async function ensureZsh() {
+    if (once("zsh")) return
+    if (await commandExists("zsh")) return
+    await installPkg("zsh")
+}
+
+async function ensureStarship() {
+    if (once("starship")) return
+    if (await commandExists("starship")) return
+    log("Installing Starship...")
+    if (await commandExists("brew")) {
+        await $`brew install starship`.noThrow()
+        if (await commandExists("starship")) return
+    }
+    await ensureCurl()
+    await $`curl -sS https://starship.rs/install.sh | sh -s -- -y`.noThrow()
+    addToPath(`${home}/.local/bin`)
+    // Install zsh-autosuggestions and zsh-syntax-highlighting
+    await installZshPlugins()
+    // Ensure ASCII-only starship config exists
+    await ensureStarshipConfig()
+}
+
+async function installZshPlugins() {
+    const pluginDir = `${home}/.zsh/plugins`
+    await Deno.mkdir(pluginDir, { recursive: true })
+
+    // zsh-autosuggestions
+    const autoDir = `${pluginDir}/zsh-autosuggestions`
+    try { await Deno.stat(autoDir) } catch {
+        log("Installing zsh-autosuggestions...")
+        if (await commandExists("brew")) {
+            await $`brew install zsh-autosuggestions`.noThrow()
+        } else {
+            await $`git clone https://github.com/zsh-users/zsh-autosuggestions ${autoDir}`.noThrow()
+        }
+    }
+
+    // zsh-syntax-highlighting
+    const syntaxDir = `${pluginDir}/zsh-syntax-highlighting`
+    try { await Deno.stat(syntaxDir) } catch {
+        log("Installing zsh-syntax-highlighting...")
+        if (await commandExists("brew")) {
+            await $`brew install zsh-syntax-highlighting`.noThrow()
+        } else {
+            await $`git clone https://github.com/zsh-users/zsh-syntax-highlighting ${syntaxDir}`.noThrow()
+        }
+    }
+
+    // Create a startup file that loads both plugins + starship init
+    const startupFile = `${home}/zsh_startup/01_08_starship_and_plugins.if_interactive.zsh`
+    const content = `# Starship prompt + zsh plugins (auto-generated by setup)
+
+# zsh-autosuggestions
+if [ -f "$HOME/.zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
+    . "$HOME/.zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh"
+elif [ -f /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]; then
+    . /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+elif [ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]; then
+    . /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
+
+# zsh-syntax-highlighting (must be loaded last)
+if [ -f "$HOME/.zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
+    . "$HOME/.zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+elif [ -f /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then
+    . /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+elif [ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then
+    . /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+fi
+
+# Starship prompt
+eval "$(starship init zsh)"
+`
+    await Deno.writeTextFile(startupFile, content)
+}
+
+async function ensureStarshipConfig() {
+    const configDir = `${home}/.config`
+    const configPath = `${configDir}/starship.toml`
+    try {
+        await Deno.stat(configPath)
+        // Already exists, don't overwrite
+        return
+    } catch { /* doesn't exist */ }
+    await Deno.mkdir(configDir, { recursive: true })
+    const config = `# Starship config: ASCII-only prompt to avoid unicode width glitches
+[character]
+success_symbol = "[>](bold green)"
+error_symbol = "[>](bold red)"
+
+[git_branch]
+symbol = ""
+
+[git_status]
+ahead = "+"
+behind = "-"
+diverged = "+-"
+renamed = "r"
+deleted = "x"
+conflicted = "!"
+untracked = "?"
+stashed = "$"
+modified = "~"
+staged = "+"
+
+[package]
+symbol = ""
+
+[python]
+symbol = "py "
+
+[rust]
+symbol = "rs "
+
+[golang]
+symbol = "go "
+
+[java]
+symbol = "java "
+
+[nodejs]
+symbol = "node "
+
+[ruby]
+symbol = "rb "
+
+[docker_context]
+symbol = "docker "
+
+[aws]
+symbol = "aws "
+
+[gcloud]
+symbol = "gcp "
+
+[kubernetes]
+symbol = "k8s "
+
+[terraform]
+symbol = "tf "
+
+[nix_shell]
+symbol = "nix "
+
+[lua]
+symbol = "lua "
+
+[c]
+symbol = "c "
+
+[cmake]
+symbol = "cmake "
+
+[directory]
+truncation_symbol = ".../"
+
+[cmd_duration]
+min_time = 2_000
+
+[battery]
+disabled = true
+`
+    await Deno.writeTextFile(configPath, config)
+}
+
+async function ensureClaude() {
+    if (once("claude")) return
+    if (await commandExists("claude")) return
+    await ensureCurl()
+    log("Installing Claude Code...")
+    await $`curl -fsSL https://claude.ai/install.sh | bash`.noThrow()
+    addToPath(`${home}/.claude/bin`)
+    // Disable Co-Authored-By commit attribution
+    const settingsPath = `${home}/.claude/settings.json`
+    let settings: Record<string, unknown> = {}
+    try {
+        settings = JSON.parse(await Deno.readTextFile(settingsPath))
+    } catch { /* file doesn't exist yet */ }
+    settings.includeCoAuthoredBy = false
+    await Deno.mkdir(`${home}/.claude`, { recursive: true })
+    await Deno.writeTextFile(settingsPath, JSON.stringify(settings, null, 2) + "\n")
+}
+
+async function setupHome() {
+    await ensureGit()
+    await ensureGitConfig()
+    log("Setting up home directory...")
+    const gitDir = `${home}/.git`
+    try {
+        await Deno.stat(gitDir)
+        warn("Home directory already has .git — skipping clone")
+        return
+    } catch { /* doesn't exist, proceed */ }
+    await $`git clone https://github.com/jeff-hykin/home ${home}/__temp_home_clone`.noThrow()
+    await $`mv ${home}/__temp_home_clone/.git ${home}/.git`.noThrow()
+    await $`rm -rf ${home}/__temp_home_clone`
+    await $`cd ${home} && git stash`.noThrow()
+}
+
+async function ensureVSCode() {
+    if (once("vscode")) return
+    if (await commandExists("code")) return
+    log("Installing VS Code...")
+    if (isMac) {
+        await ensureBrew()
+        await $`brew install --cask visual-studio-code`.noThrow()
+    } else {
+        if (await commandExists("snap")) {
+            await $`sudo snap install code --classic`.noThrow()
+        } else if (await commandExists("nix")) {
+            await $`nix profile install nixpkgs#vscode`.noThrow()
+        }
+    }
+}
+
+async function installVSCodeExtensions(extensions: string[]) {
+    if (!await commandExists("code")) {
+        warn("VS Code not found, skipping extensions")
+        return
+    }
+    log("Installing VS Code extensions...")
+    for (const ext of extensions) {
+        await $`code --install-extension ${ext}`.noThrow().quiet("both")
+    }
+}
+
+// ─── SSH Setup ───────────────────────────────────────────────────────────────
+
+async function checkAndSetupSSH() {
+    const ed25519 = `${home}/.ssh/id_ed25519`
+    const rsa = `${home}/.ssh/id_rsa`
+    let hasKey = false
+    try { await Deno.stat(ed25519); hasKey = true } catch { /* */ }
+    try { await Deno.stat(rsa); hasKey = true } catch { /* */ }
+
+    if (hasKey) return
+
+    const setup = await Confirm.prompt("No SSH key found. Set one up (for git clone, etc.)?")
+    if (!setup) return
+
+    log("Generating SSH key...")
+    await $`mkdir -p ${home}/.ssh && chmod 700 ${home}/.ssh`
+    const email = await Input.prompt({ message: "Email for SSH key:", default: "" })
+    if (email) {
+        await $`ssh-keygen -t ed25519 -C ${email} -f ${ed25519} -N ""`
+    } else {
+        await $`ssh-keygen -t ed25519 -f ${ed25519} -N ""`
+    }
+    console.log("\n\x1b[1;32mYour public key:\x1b[0m\n")
+    const pubkey = await Deno.readTextFile(`${ed25519}.pub`)
+    console.log(pubkey)
+    console.log("\x1b[33mAdd this key to GitHub (https://github.com/settings/keys) if needed.\x1b[0m")
+    await Input.prompt({ message: "Press Enter to continue..." })
+}
+
+// ─── Main ────────────────────────────────────────────────────────────────────
+
+// Phase 1: SSH
+await checkAndSetupSSH()
+
+// Phase 2: Main checkbox
+const mainOptions = [
+    ...(isMac ? [{ name: "Install Xcode Command Line Tools", value: "xcode", checked: true }] : []),
+    { name: "Setup git", value: "git", checked: true },
+    { name: "Setup curl", value: "curl", checked: true },
+    { name: "Setup deno", value: "deno", checked: true },
+    ...(isMac ? [{ name: "Setup brew", value: "brew", checked: true }] : []),
+    { name: "Setup home dir", value: "home", checked: true },
+    { name: "Setup nix", value: "nix", checked: true },
+    { name: "Setup zsh", value: "zsh", checked: true },
+    { name: "Setup starship", value: "starship", checked: true },
+    { name: "Setup claude", value: "claude", checked: true },
+    { name: "Install ungit", value: "ungit", checked: true },
+    { name: "Install dua", value: "dua", checked: true },
+    { name: "Install htop", value: "htop", checked: true },
+    { name: "Install VS Code", value: "vscode", checked: true },
+    { name: "Install VS Code basic extensions", value: "vscode-ext", checked: true },
+    { name: "Pick graphical apps to install", value: "gui-apps", checked: true },
+    { name: "Pick extra CLI commands to install", value: "cli-extra", checked: true },
+]
+
+const selected = new Set(await Checkbox.prompt({
+    message: "What would you like to set up?",
+    options: mainOptions,
+}))
+
+// Phase 3: Sub-checkboxes
+let guiApps: string[] = []
+let cliExtras: string[] = []
+
+if (selected.has("gui-apps")) {
+    const guiOptions = [
+        { name: "Firefox", value: "firefox", checked: true },
+        { name: "Telegram", value: "telegram", checked: true },
+        { name: "Alacritty", value: "alacritty", checked: true },
+        { name: "Chromium", value: "chromium", checked: true },
+        ...(isMac ? [
+            { name: "Alt-Tab", value: "alt-tab", checked: true },
+            { name: "Maccy (clipboard manager)", value: "maccy", checked: true },
+            { name: "AlDente (battery manager)", value: "aldente", checked: true },
+            { name: "Standard Notes", value: "standard-notes", checked: true },
+            { name: "Nextcloud", value: "nextcloud", checked: true },
+            { name: "Rectangle (window manager)", value: "rectangle", checked: true },
+            { name: "Docker", value: "docker", checked: true },
+            { name: "Karabiner-Elements", value: "karabiner-elements", checked: true },
+        ] : []),
+        { name: "OBS", value: "obs", checked: true },
+    ]
+    guiApps = await Checkbox.prompt({
+        message: "Which graphical apps?",
+        options: guiOptions,
+    })
+}
+
+if (selected.has("cli-extra")) {
+    const cliOptions = [
+        { name: "ripgrep (rg)", value: "ripgrep", checked: true },
+        { name: "fd", value: "fd", checked: true },
+        { name: "eza (modern ls)", value: "eza", checked: true },
+        { name: "jq", value: "jq", checked: true },
+        { name: "tree", value: "tree", checked: true },
+        { name: "bottom (btm)", value: "bottom", checked: true },
+        { name: "zellij", value: "zellij", checked: true },
+        { name: "sd (sed alternative)", value: "sd", checked: true },
+        { name: "cloc", value: "cloc", checked: true },
+        { name: "nmap", value: "nmap", checked: true },
+        { name: "git-lfs", value: "git-lfs", checked: true },
+        { name: "pre-commit", value: "pre-commit", checked: true },
+        { name: "ffmpeg", value: "ffmpeg", checked: true },
+        { name: "gh (GitHub CLI)", value: "gh", checked: true },
+        { name: "procs", value: "procs", checked: true },
+        { name: "git-subrepo", value: "git-subrepo", checked: true },
+        { name: "Node.js", value: "node", checked: true },
+        { name: "uv (Python)", value: "uv", checked: true },
+        { name: "Rust (rustup)", value: "rust", checked: true },
+        { name: "gcc", value: "gcc", checked: true },
+    ]
+    cliExtras = await Checkbox.prompt({
+        message: "Which extra CLI tools?",
+        options: cliOptions,
+    })
+}
+
+// ─── Phase 4: Execute (dependency-aware order) ───────────────────────────────
+
+// 1. curl (needed by most installers)
+if (selected.has("curl")) await ensureCurl()
+
+// 2. Xcode CLI (macOS, needed by brew)
+if (selected.has("xcode")) await ensureXcodeCli()
+
+// 3. brew (many things depend on it)
+if (selected.has("brew")) await ensureBrew()
+
+// 4. git + config
+if (selected.has("git")) {
+    await ensureGit()
+    await ensureGitConfig()
+}
+
+// 5. nix (fallback package manager)
+if (selected.has("nix")) await ensureNix()
+
+// 6. deno
+if (selected.has("deno")) await ensureDeno()
+
+// 7. home dir (needs git)
+if (selected.has("home")) await setupHome()
+
+// 8. zsh
+if (selected.has("zsh")) await ensureZsh()
+
+// 9. starship
+if (selected.has("starship")) await ensureStarship()
+
+// 10. claude
+if (selected.has("claude")) await ensureClaude()
+
+// 11. ungit, dua, htop
+if (selected.has("ungit")) {
+    // ungit is a node-based git GUI
+    if (!await commandExists("ungit")) {
+        log("Installing ungit...")
+        await $`npm install -g ungit`.noThrow().quiet("both")
+    }
+}
+if (selected.has("dua")) await installPkg("dua-cli", "dua")
+if (selected.has("htop")) await installPkg("htop")
+
+// 12. VS Code
+if (selected.has("vscode")) await ensureVSCode()
+
+// 13. VS Code extensions
+if (selected.has("vscode-ext")) {
+    const extensions: string[] = [
+        "jeff-hykin.xd-theme",
+        "jeff-hykin.mario",
+        "jeff-hykin.macro-commander",
+        "jeff-hykin.better-syntax",
+        "eamodio.gitlens",
+        "ms-vscode-remote.remote-ssh",
+    ]
+    if (extensions.length > 0) {
+        await installVSCodeExtensions(extensions)
+    }
+}
+
+// 14. Graphical apps
+const guiAppMap: Record<string, { brewCask: string; linuxSnap?: string; nixPkg?: string }> = {
+    "firefox":        { brewCask: "firefox",              linuxSnap: "firefox",    nixPkg: "firefox" },
+    "telegram":       { brewCask: "telegram",             linuxSnap: "telegram-desktop", nixPkg: "telegram-desktop" },
+    "alacritty":      { brewCask: "alacritty",            nixPkg: "alacritty" },
+    "chromium":       { brewCask: "chromium",             linuxSnap: "chromium",   nixPkg: "chromium" },
+    "alt-tab":        { brewCask: "alt-tab" },
+    "maccy":          { brewCask: "maccy" },
+    "aldente":        { brewCask: "aldente" },
+    "standard-notes": { brewCask: "standard-notes",       linuxSnap: "standard-notes" },
+    "nextcloud":      { brewCask: "nextcloud" },
+    "rectangle":      { brewCask: "rectangle" },
+    "docker":         { brewCask: "docker",               linuxSnap: "docker",     nixPkg: "docker" },
+    "karabiner-elements": { brewCask: "karabiner-elements" },
+    "obs":            { brewCask: "obs",                  linuxSnap: "obs-studio", nixPkg: "obs-studio" },
+}
+for (const app of guiApps) {
+    const info = guiAppMap[app]
+    if (info) {
+        await installGuiApp(app, info.brewCask, info.linuxSnap, info.nixPkg)
+    }
+}
+
+// 15. Extra CLI tools
+const cliMap: Record<string, { pkg: string; cmd: string }> = {
+    "ripgrep":    { pkg: "ripgrep",    cmd: "rg" },
+    "fd":         { pkg: "fd",         cmd: "fd" },
+    "eza":        { pkg: "eza",        cmd: "eza" },
+    "jq":         { pkg: "jq",         cmd: "jq" },
+    "tree":       { pkg: "tree",       cmd: "tree" },
+    "bottom":     { pkg: "bottom",     cmd: "btm" },
+    "zellij":     { pkg: "zellij",     cmd: "zellij" },
+    "sd":         { pkg: "sd",         cmd: "sd" },
+    "cloc":       { pkg: "cloc",       cmd: "cloc" },
+    "nmap":       { pkg: "nmap",       cmd: "nmap" },
+    "git-lfs":    { pkg: "git-lfs",    cmd: "git-lfs" },
+    "pre-commit": { pkg: "pre-commit", cmd: "pre-commit" },
+    "gcc":        { pkg: "gcc",        cmd: "gcc" },
+    "git-subrepo": { pkg: "git-subrepo", cmd: "git-subrepo" },
+    "ffmpeg":     { pkg: "ffmpeg",     cmd: "ffmpeg" },
+    "gh":         { pkg: "gh",         cmd: "gh" },
+    "procs":      { pkg: "procs",      cmd: "procs" },
+}
+
+// Special installers for tools that have their own install scripts
+const specialInstallers: Record<string, () => Promise<void>> = {
+    "node": async () => {
+        if (await commandExists("node")) return
+        await ensureCurl()
+        log("Installing Node.js...")
+        // Use the official nodejs installer (fnm)
+        await $`curl -fsSL https://fnm.vercel.app/install | bash`.noThrow()
+        addToPath(`${home}/.local/share/fnm`)
+        // Source fnm env so node is available
+        await $`eval "$(fnm env)" && fnm install --lts`.noThrow()
+        addToPath(`${home}/.local/share/fnm/aliases/default/bin`)
+    },
+    "uv": async () => {
+        if (await commandExists("uv")) return
+        await ensureCurl()
+        log("Installing uv (Python)...")
+        await $`curl -LsSf https://astral.sh/uv/install.sh | sh`.noThrow()
+        addToPath(`${home}/.local/bin`)
+    },
+    "rust": async () => {
+        if (await commandExists("rustc")) return
+        await ensureCurl()
+        log("Installing Rust via rustup...")
+        await $`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y`.noThrow()
+        addToPath(`${home}/.cargo/bin`)
+    },
+}
+
+for (const tool of cliExtras) {
+    if (specialInstallers[tool]) {
+        await specialInstallers[tool]()
+    } else {
+        const info = cliMap[tool]
+        if (info) {
+            await installPkg(info.pkg, info.cmd)
+        }
+    }
+}
+
+// ─── Done ────────────────────────────────────────────────────────────────────
+
+console.log("\n\x1b[1;32m✓ Setup complete!\x1b[0m\n")
