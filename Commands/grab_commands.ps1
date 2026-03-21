@@ -117,7 +117,7 @@ const commands = await fetchCommandList()
 const selected = await Checkbox.prompt({
     message: "Select commands to install to ~/.local/bin",
     options: commands.map(name => ({ name, value: name })),
-    // all unselected by default
+    search: true,
 })
 
 if (selected.length === 0) {
