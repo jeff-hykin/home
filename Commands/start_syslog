@@ -55,9 +55,9 @@ dump_snapshot() {
     iostat -x 1 2 2>/dev/null || echo "(iostat not available)"
 
     echo "--- NETWORK SOCKETS ---"
-    ss -s
+    /usr/bin/ss -s
     echo ""
-    ss -tulpn
+    /usr/bin/ss -tulpn
 
     echo "--- DMESG (last 50 lines) ---"
     dmesg --time-format iso 2>/dev/null | tail -50 || dmesg | tail -50
