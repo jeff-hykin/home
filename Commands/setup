@@ -186,18 +186,19 @@ async function ensureZsh() {
 
 async function ensureStarship() {
     if (once("starship")) return
-    if (await commandExists("starship")) return
-    log("Installing Starship...")
-    if (await commandExists("brew")) {
-        await $`brew install starship`.noThrow()
-        if (await commandExists("starship")) return
+    if (!await commandExists("starship")) {
+        log("Installing Starship...")
+        if (await commandExists("brew")) {
+            await $`brew install starship`.noThrow()
+        }
+        if (!await commandExists("starship")) {
+            await ensureCurl()
+            await $`curl -sS https://starship.rs/install.sh | sh -s -- -y`.noThrow()
+            addToPath(`${home}/.local/bin`)
+        }
     }
-    await ensureCurl()
-    await $`curl -sS https://starship.rs/install.sh | sh -s -- -y`.noThrow()
-    addToPath(`${home}/.local/bin`)
-    // Install zsh-autosuggestions and zsh-syntax-highlighting
+    // Always set up plugins and config, even if starship was already installed
     await installZshPlugins()
-    // Ensure ASCII-only starship config exists
     await ensureStarshipConfig()
 }
 
