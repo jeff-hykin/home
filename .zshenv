@@ -14,11 +14,11 @@
 # Private/machine-specific config goes in ~/Personal/{zsh,bash}_startup/
 
 for f in $(printf '%s\n' \
-    "$HOME/Personal/bash_startup"/* \
-    "$HOME/Personal/zsh_startup"/* \
-    "$HOME/bash_startup"/* \
-    "$HOME/zsh_startup"/* \
-    2>/dev/null | sort); do
+    "$HOME/Personal/bash_startup"/*(N) \
+    "$HOME/Personal/zsh_startup"/*(N) \
+    "$HOME/bash_startup"/*(N) \
+    "$HOME/zsh_startup"/*(N) \
+    | sort); do
     [ -f "$f" ] || continue
     case "$f" in
         *.only_bash.*)        continue ;;
