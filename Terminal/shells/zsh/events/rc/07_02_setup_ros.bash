@@ -1,1 +1,0 @@
-../../../bash/events/rc/07_2_setup_ros.bash

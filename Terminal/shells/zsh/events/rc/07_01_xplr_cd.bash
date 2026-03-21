@@ -1,1 +1,0 @@
-../../../bash/events/rc/07_01_xplr_cd.bash
