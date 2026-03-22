@@ -8,6 +8,7 @@ const $ = build$({
 const args = Deno.args
 
 // Start all background checks in parallel
+console.log(`starting background jobs`)
 const backgroundJobs = [
     {
         name: "uv lock",
