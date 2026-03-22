@@ -9,7 +9,7 @@ if [ ! -f "$WHEEL" ]; then
     exit 1
 fi
 
-for repo in ~/dimos2 ~/dimos; do
+for repo in ~/dimos2 ~/dimos ~/dimos3; do
     venv="$repo/.venv"
     if [ -d "$venv" ]; then
         echo "Installing into $repo ..."
