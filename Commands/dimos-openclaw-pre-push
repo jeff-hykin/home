@@ -1,0 +1,78 @@
+#!/usr/bin/env -S deno run --allow-all
+import $ from "https://esm.sh/dax-sh@0.42.0"
+
+const args = Deno.args
+
+// Start all background checks in parallel
+const backgroundJobs = [
+    {
+        name: "uv lock",
+        promise: $`uv lock`.stdout("piped").stderr("piped").noThrow(),
+    },
+    {
+        name: "pytest all_blueprints",
+        promise: $`uv run pytest dimos/robot/test_all_blueprints_generation.py ${args}`.stdout("piped").stderr("piped").noThrow(),
+    },
+    {
+        name: "pre-commit",
+        promise: $`time pre-commit run --all-files`.stdout("piped").stderr("piped").noThrow(),
+    },
+    {
+        name: "mypy 3.10",
+        promise: $`time uv run mypy --python-version 3.10 dimos`.stdout("piped").stderr("piped").noThrow(),
+    },
+    {
+        name: "mypy 3.12",
+        promise: $`time uv run mypy --python-version 3.12 dimos`.stdout("piped").stderr("piped").noThrow(),
+    },
+]
+
+const allBgPromise = Promise.all(backgroundJobs.map(j => j.promise))
+
+// Ask the user about reviewing changes while background jobs run
+const reviewed = await $.confirm("Have you seen all changes compared to dev and reviewed them as paul?")
+
+if (!reviewed) {
+    await $`git fetch origin dev --quiet`
+    const base = (await $`git merge-base origin/dev HEAD`.text()).trim()
+    await $`git diff ${base}..HEAD ${args}`
+    console.log("\nPlease review the changes using the paul review skill, then re-run.")
+    Deno.exit(1)
+}
+
+// Wait for all background jobs
+const results = await allBgPromise
+
+let anyFailed = false
+for (let i = 0; i < results.length; i++) {
+    const result = results[i]
+    const job = backgroundJobs[i]
+    if (result.code !== 0) {
+        anyFailed = true
+        console.error(`\n=== FAILED: ${job.name} (exit code ${result.code}) ===`)
+        const stdout = result.stdout
+        const stderr = result.stderr
+        if (stdout) console.log(stdout)
+        if (stderr) console.error(stderr)
+    }
+}
+
+if (anyFailed) {
+    Deno.exit(1)
+}
+
+console.log("\nAll background checks passed. Running pytest...")
+
+// Run final pytest
+const pytest = await $`pytest ${args} -m ${"not (tool or mujoco)"} dimos`.stdout("piped").stderr("piped").noThrow()
+
+if (pytest.code !== 0) {
+    const stdout = pytest.stdout
+    const stderr = pytest.stderr
+    if (stdout) console.log(stdout)
+    if (stderr) console.error(stderr)
+    Deno.exit(1)
+}
+
+console.log("All checks passed!")
+Deno.exit(0)
