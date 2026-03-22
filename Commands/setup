@@ -347,6 +347,48 @@ disabled = true
     await Deno.writeTextFile(configPath, config)
 }
 
+async function ensureXdFont() {
+    if (once("xd-font")) return
+    // Check if already installed
+    const fontDir = isMac ? `${home}/Library/Fonts` : `${home}/.local/share/fonts`
+    let alreadyInstalled = false
+    try {
+        for await (const entry of Deno.readDir(fontDir)) {
+            if (entry.name.startsWith("iosevka-custom-") && entry.name.endsWith(".ttf")) {
+                alreadyInstalled = true
+                break
+            }
+        }
+    } catch { /* dir doesn't exist */ }
+    if (alreadyInstalled) return
+    await ensureGit()
+    log("Installing XD font...")
+    const tmpDir = await Deno.makeTempDir()
+    const cloneResult = await $`git clone --depth 1 https://github.com/jeff-hykin/xd-font.git ${tmpDir}/xd-font`.noThrow().quiet("both")
+    if (cloneResult.code !== 0) {
+        warn("Could not clone xd-font repo")
+        return
+    }
+    const ttfSrc = `${tmpDir}/xd-font/dist/iosevka-custom/ttf`
+    try { await Deno.stat(ttfSrc) } catch {
+        warn("No pre-built TTF files found in xd-font repo")
+        await $`rm -rf ${tmpDir}`.noThrow()
+        return
+    }
+    await Deno.mkdir(fontDir, { recursive: true })
+    for await (const entry of Deno.readDir(ttfSrc)) {
+        if (entry.name.endsWith(".ttf")) {
+            await Deno.copyFile(`${ttfSrc}/${entry.name}`, `${fontDir}/${entry.name}`)
+        }
+    }
+    // On Linux, refresh font cache
+    if (!isMac && await commandExists("fc-cache")) {
+        await $`fc-cache -f ${fontDir}`.noThrow().quiet("both")
+    }
+    await $`rm -rf ${tmpDir}`.noThrow()
+    log("XD font installed")
+}
+
 async function ensureClaude() {
     if (once("claude")) return
     if (await commandExists("claude")) return
@@ -497,6 +539,7 @@ const mainOptions = [
     { name: "Install ungit", value: "ungit", checked: true },
     { name: "Install dua", value: "dua", checked: true },
     { name: "Install htop", value: "htop", checked: true },
+    { name: "Install XD font", value: "xd-font", checked: true },
     { name: "Install VS Code", value: "vscode", checked: true },
     { name: "Install VS Code basic extensions", value: "vscode-ext", checked: true },
     { name: "Pick graphical apps to install", value: "gui-apps", checked: true },
@@ -604,7 +647,10 @@ if (selected.has("starship")) await ensureStarship()
 // 10. claude
 if (selected.has("claude")) await ensureClaude()
 
-// 11. nvs, ungit, dua, htop
+// 11. XD font
+if (selected.has("xd-font")) await ensureXdFont()
+
+// 12. nvs, ungit, dua, htop
 if (selected.has("nvs")) {
     if (!await commandExists("nvs")) {
         await ensureNix()
