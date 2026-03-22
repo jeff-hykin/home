@@ -1,5 +1,9 @@
 #!/usr/bin/env -S deno run --allow-all
-import $ from "https://esm.sh/dax-sh@0.42.0"
+import { build$, CommandBuilder } from "https://esm.sh/dax-sh@0.42.0"
+
+const $ = build$({
+    commandBuilder: new CommandBuilder().printCommand(),
+})
 
 const args = Deno.args
 
@@ -46,8 +50,7 @@ if (!reviewed) {
 const results = await allBgPromise
 
 let anyFailed = false
-for (let i = 0; i < results.length; i++) {
-    const result = results[i]
+for (const [i, result] of results.entries()) {
     const job = backgroundJobs[i]
     if (result.code !== 0) {
         anyFailed = true
@@ -66,7 +69,7 @@ if (anyFailed) {
 console.log("\nAll background checks passed. Running pytest...")
 
 // Run final pytest
-const pytest = await $`pytest ${args} -m ${"not (tool or mujoco)"} dimos`.stdout("piped").stderr("piped").noThrow()
+const pytest = await $`pytest ${args} -m ${"not (tool or mujoco)"} dimos`.noThrow()
 
 if (pytest.code !== 0) {
     const stdout = pytest.stdout
