@@ -38,6 +38,8 @@ if (!reviewed) {
     await $`git diff ${base}..HEAD ${args}`
     console.log("\nPlease review the changes using the paul review skill, then re-run.")
     Deno.exit(1)
+} else {
+    console.log(`okay, running checks... may take a moment`)
 }
 
 // Wait for all background jobs
