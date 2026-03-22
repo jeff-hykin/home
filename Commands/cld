@@ -3,9 +3,9 @@ TOOLS="Task,Edit,Read,Update,Write,WebFetch,WebSearch,Glob,Grep,Write(./**/*),Ba
 
 if [ "$1" = "--resume" ]; then
     shift
-    claude --allowedTools "$TOOLS" -c "$@"
+    claude --dangerously-skip-permissions --allowedTools "$TOOLS" -c "$@"
 elif [ -z "$*" ]; then
-    claude --allowedTools "$TOOLS"
+    claude --dangerously-skip-permissions --allowedTools "$TOOLS"
 else
-    claude --allowedTools "$TOOLS" -p "$@"
+    claude --dangerously-skip-permissions --allowedTools "$TOOLS" -p "$@"
 fi
