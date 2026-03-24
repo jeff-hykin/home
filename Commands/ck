@@ -1,0 +1,50 @@
+#!/usr/bin/env -S deno run --allow-all --no-lock
+import $ from "https://esm.sh/dax-sh"
+import { Select } from "https://esm.sh/jsr/@cliffy/prompt"
+
+const home = Deno.env.get("HOME")
+
+// Find all .git dirs within 2 levels of home
+const repos = []
+for await (const entry of Deno.readDir(home)) {
+    if (!entry.isDirectory || entry.name.startsWith(".")) continue
+    const lvl1 = `${home}/${entry.name}`
+    // Check if lvl1 is a repo
+    try {
+        await Deno.stat(`${lvl1}/.git`)
+        repos.push(lvl1)
+    } catch {
+        // Check children (depth 2)
+        try {
+            for await (const sub of Deno.readDir(lvl1)) {
+                if (!sub.isDirectory || sub.name.startsWith(".")) continue
+                const lvl2 = `${lvl1}/${sub.name}`
+                try {
+                    await Deno.stat(`${lvl2}/.git`)
+                    repos.push(lvl2)
+                } catch { /* not a repo */ }
+            }
+        } catch { /* can't read dir */ }
+    }
+}
+
+// Get branch name for each repo
+const options = []
+for (const dir of repos.sort()) {
+    try {
+        const branch = await $`git -C ${dir} branch --show-current`.text()
+        const short = dir.replace(home, "~")
+        options.push({
+            name: `${branch.trim().padEnd(30)} ${short}`,
+            value: dir,
+        })
+    } catch { /* skip broken repos */ }
+}
+
+const selected = await Select.prompt({
+    message: "Open repo in VS Code:",
+    search: true,
+    options,
+})
+
+await $`code ${selected}`

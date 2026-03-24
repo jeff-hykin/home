@@ -110,6 +110,7 @@ def _load_blueprints(python_file: str) -> list[tuple[str, Blueprint]]:
     if not blueprints:
         raise RuntimeError("No Blueprint instances found in module globals.")
 
+    blueprints.reverse()
     print(f"Found {len(blueprints)} blueprint(s): {', '.join(n for n, _ in blueprints)}")
     return blueprints
 
@@ -575,9 +576,25 @@ def main() -> None:
         default=0,
         help="HTTP server port (0 = random free port)",
     )
+    parser.add_argument(
+        "--markdown",
+        action="store_true",
+        help="Print Mermaid markdown to stdout and exit",
+    )
     args = parser.parse_args()
 
-    html = _build_html(args.python_file, show_disconnected=not args.no_disconnected)
+    show_disconnected = not args.no_disconnected
+
+    if args.markdown:
+        blueprints = _load_blueprints(args.python_file)
+        sections: list[str] = []
+        for name, bp in blueprints:
+            mermaid_code, _, _ = _render_mermaid(bp, show_disconnected=show_disconnected)
+            sections.append(f"## {name}\n\n```mermaid\n{mermaid_code}\n```")
+        print("\n\n".join(sections))
+        return
+
+    html = _build_html(args.python_file, show_disconnected=show_disconnected)
     html_bytes = html.encode("utf-8")
 
     class Handler(BaseHTTPRequestHandler):
