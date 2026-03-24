@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
 # Install the custom dimos-viewer wheel (with --connect fix) into dimos venvs
 
-WHEEL="$HOME/auto/dimos-viewer/target/wheels/dimos_viewer-0.30.0a4-cp312-cp312-manylinux_2_39_x86_64.whl"
+WHEELS_DIR="$HOME/repos/dimos-viewer/target/wheels"
+if ! [ -d "$WHEELS_DIR" ]
+then
+    WHEELS_DIR="$HOME/auto/dimos-viewer/target/wheels"
+fi
 
-if [ ! -f "$WHEEL" ]; then
-    echo "ERROR: Wheel not found at $WHEEL"
-    echo "Build it first: cd ~/auto/dimos-viewer && pixi run build"
+# Find the most recently modified dimos_viewer wheel
+WHEEL="$(ls -t "$WHEELS_DIR"/dimos_viewer-*.whl 2>/dev/null | head -1)"
+
+if [ -z "$WHEEL" ]; then
+    echo "ERROR: No dimos_viewer wheel found in $WHEELS_DIR"
+    echo "Build it first: cd ~/repos/dimos-viewer/dimos && maturin build --release"
     exit 1
 fi
+
+echo "Using wheel: $(basename "$WHEEL")"
 
 for repo in ~/dimos2 ~/dimos ~/dimos3; do
     venv="$repo/.venv"

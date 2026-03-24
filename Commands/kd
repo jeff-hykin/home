@@ -31,3 +31,14 @@ else
     echo "Retrying..."
     kill -9 $remaining 2>/dev/null
 fi
+
+# Kill docker containers starting with "dimos_"
+if command -v docker >/dev/null 2>&1; then
+    dimos_containers=$(docker ps -q --filter "name=^dimos_" 2>/dev/null)
+    if [ -n "$dimos_containers" ]; then
+        echo "Stopping dimos_ docker containers..."
+        echo "$dimos_containers" | xargs docker kill 2>/dev/null
+        echo "$dimos_containers" | xargs docker rm -f 2>/dev/null
+        echo "Docker containers stopped."
+    fi
+fi
