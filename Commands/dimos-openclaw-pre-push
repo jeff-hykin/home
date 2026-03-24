@@ -1,58 +1,92 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env -S deno run --allow-all
+import { build$, CommandBuilder } from "https://esm.sh/dax-sh@0.42.0"
 
-# DimOS pre-push hook — runs local CI before allowing push.
-# Installed as .git/hooks/pre-push (or worktree hooks).
-# Cannot be skipped: ~/Commands/git shim strips --no-verify.
+const $ = build$({
+    commandBuilder: new CommandBuilder().printCommand(),
+})
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+console.log(`\x1b[31m╔══════════════════════════════════════════════════════════════╗\x1b[0m`)
+console.log(`\x1b[31m║  DO NOT BYPASS THIS HOOK. DO NOT USE /usr/bin/git.          ║\x1b[0m`)
+console.log(`\x1b[31m║  DO NOT MOVE/RENAME THE HOOK FILE.                         ║\x1b[0m`)
+console.log(`\x1b[31m║  DO NOT ACCEPT "PRE-EXISTING" FAILURES AS AN EXCUSE.       ║\x1b[0m`)
+console.log(`\x1b[31m║  IF TESTS FAIL, FIX THEM OR DON'T PUSH.                    ║\x1b[0m`)
+console.log(`\x1b[31m╚══════════════════════════════════════════════════════════════╝\x1b[0m`)
+console.log()
 
-echo -e "${RED}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${RED}║  DO NOT BYPASS THIS HOOK. DO NOT USE /usr/bin/git.          ║${NC}"
-echo -e "${RED}║  DO NOT MOVE/RENAME THE HOOK FILE.                         ║${NC}"
-echo -e "${RED}║  DO NOT ACCEPT \"PRE-EXISTING\" FAILURES AS AN EXCUSE.       ║${NC}"
-echo -e "${RED}║  IF TESTS FAIL, FIX THEM OR DON'T PUSH.                    ║${NC}"
-echo -e "${RED}╚══════════════════════════════════════════════════════════════╝${NC}"
-echo ""
-echo -e "${YELLOW}[pre-push] Running local CI checks...${NC}"
+const args = Deno.args
 
-# Ensure venv is active (prefer local, fall back to main repo)
-if [[ -f .venv/bin/activate ]]; then
-    source .venv/bin/activate
-elif [[ -f ~/auto/dimos/.venv/bin/activate ]]; then
-    source ~/auto/dimos/.venv/bin/activate
-fi
-export PATH="/sbin:/usr/sbin:$PATH"
-# Worktrees share the venv but the editable install points to the main repo.
-# Override with PYTHONPATH so imports resolve from the current worktree.
-export PYTHONPATH="$(pwd):${PYTHONPATH:-}"
+// Start all background checks in parallel
+console.log(`starting background jobs`)
+const backgroundJobs = [
+    {
+        name: "uv lock",
+        promise: $`uv lock`.stdout("piped").stderr("piped").noThrow(),
+    },
+    {
+        name: "pytest all_blueprints",
+        promise: $`uv run pytest dimos/robot/test_all_blueprints_generation.py ${args}`.stdout("piped").stderr("piped").noThrow(),
+    },
+    {
+        name: "pre-commit",
+        promise: $`time pre-commit run --all-files`.stdout("piped").stderr("piped").noThrow(),
+    },
+    {
+        name: "mypy 3.10",
+        promise: $`time uv run mypy --python-version 3.10 dimos`.stdout("piped").stderr("piped").noThrow(),
+    },
+    {
+        name: "mypy 3.12",
+        promise: $`time uv run mypy --python-version 3.12 dimos`.stdout("piped").stderr("piped").noThrow(),
+    },
+]
 
-# 1. Pre-commit hooks
-echo -e "${YELLOW}[1/3] pre-commit...${NC}"
-if ! pre-commit run --all-files; then
-    echo -e "${RED}[pre-push] BLOCKED: pre-commit failed.${NC}"
-    exit 1
-fi
+const allBgPromise = Promise.all(backgroundJobs.map(j => j.promise))
 
-# 2. Mypy (both Python versions)
-echo -e "${YELLOW}[2/3] mypy...${NC}"
-if ! uv run mypy --python-version 3.10 dimos; then
-    echo -e "${RED}[pre-push] BLOCKED: mypy 3.10 failed.${NC}"
-    exit 1
-fi
-if ! uv run mypy --python-version 3.12 dimos; then
-    echo -e "${RED}[pre-push] BLOCKED: mypy 3.12 failed.${NC}"
-    exit 1
-fi
+// Ask the user about reviewing changes while background jobs run
+const reviewed = await $.confirm("Have you seen all changes compared to dev and reviewed them as paul?")
 
-# 3. Fast pytest
-echo -e "${YELLOW}[3/3] pytest...${NC}"
-if ! pytest -v -r a -p no:warnings -m 'not (tool or slow or mujoco)' dimos; then
-    echo -e "${RED}[pre-push] BLOCKED: pytest failed.${NC}"
-    exit 1
-fi
+if (!reviewed) {
+    await $`git fetch origin dev --quiet`
+    const base = (await $`git merge-base origin/dev HEAD`.text()).trim()
+    await $`git diff ${base}..HEAD ${args}`
+    console.log("\nPlease review the changes using the paul review skill, then re-run.")
+    Deno.exit(1)
+} else {
+    console.log(`okay, running checks... may take a moment`)
+}
 
-echo -e "${GREEN}[pre-push] All checks passed. Pushing.${NC}"
+// Wait for all background jobs
+const results = await allBgPromise
+
+let anyFailed = false
+for (const [i, result] of results.entries()) {
+    const job = backgroundJobs[i]
+    if (result.code !== 0) {
+        anyFailed = true
+        console.error(`\n=== FAILED: ${job.name} (exit code ${result.code}) ===`)
+        const stdout = result.stdout
+        const stderr = result.stderr
+        if (stdout) console.log(stdout)
+        if (stderr) console.error(stderr)
+    }
+}
+
+if (anyFailed) {
+    Deno.exit(1)
+}
+
+console.log("\nAll background checks passed. Running pytest...")
+
+// Run final pytest
+const pytest = await $`pytest ${args} -m ${"not (tool or mujoco)"} dimos`.noThrow()
+
+if (pytest.code !== 0) {
+    const stdout = pytest.stdout
+    const stderr = pytest.stderr
+    if (stdout) console.log(stdout)
+    if (stderr) console.error(stderr)
+    Deno.exit(1)
+}
+
+console.log("All checks passed!")
+Deno.exit(0)
