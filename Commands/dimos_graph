@@ -47,7 +47,7 @@ THEMES: dict[str, dict[str, list[str]]] = {
 DEFAULT_THEME = "tailwind"
 
 # Connections to ignore (too noisy)
-DEFAULT_IGNORED_CONNECTIONS = {("odom", "PoseStamped")}
+DEFAULT_IGNORED_CONNECTIONS: set[tuple[str, str]] = set()
 DEFAULT_IGNORED_MODULES = {"WebsocketVisModule"}
 _COMPACT_ONLY_IGNORED_MODULES = {"WebsocketVisModule"}
 
