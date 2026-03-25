@@ -614,7 +614,7 @@ if (selected.has("cli-extra")) {
 
 // ─── Phase 4: Execute (dependency-aware order) ───────────────────────────────
 
-const failures: string[] = []
+const failures = []
 async function tryStep(name, fn) {
     try {
         await fn()
@@ -732,7 +732,7 @@ if (selected.has("vscode-ext")) await tryStep("vscode-ext", async () => {
 })
 
 // 15. Graphical apps
-const guiAppMap: Record<string, { brewCask: string; linuxSnap?: string; nixPkg?: string }> = {
+const guiAppMap = {
     "firefox":        { brewCask: "firefox",              linuxSnap: "firefox",    nixPkg: "firefox" },
     "telegram":       { brewCask: "telegram",             linuxSnap: "telegram-desktop", nixPkg: "telegram-desktop" },
     "alacritty":      { brewCask: "alacritty",            nixPkg: "alacritty" },
@@ -759,7 +759,7 @@ for (const app of guiApps) {
 }
 
 // 16. Extra CLI tools
-const cliMap: Record<string, { pkg: string | { brew: string; apt?: string; nix?: string }; cmd: string }> = {
+const cliMap = {
     "ripgrep":    { pkg: "ripgrep",    cmd: "rg" },
     "fd":         { pkg: { brew: "fd", apt: "fd-find", nix: "fd" }, cmd: "fd" },
     "eza":        { pkg: "eza",        cmd: "eza" },
@@ -780,7 +780,7 @@ const cliMap: Record<string, { pkg: string | { brew: string; apt?: string; nix?:
 }
 
 // Special installers for tools that have their own install scripts
-const specialInstallers: Record<string, () => Promise<void>> = {
+const specialInstallers = {
     "node": async () => {
         if (await commandExists("node")) return
         await ensureCurl()
