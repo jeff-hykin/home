@@ -27,7 +27,7 @@ fi
 
 echo "Using wheel: $(basename "$WHEEL")"
 
-for repo in ~/repos/dimos ~/repos/dimos2 ~/dimos ~/dimos2 ~/dimos3 ~/dimos4; do
+for repo in ~/repos/dimos ~/repos/dimos2 ~/dimos ~/dimos2 ~/dimos3 ~/dimos4 ~/auto/dimos1485; do
     venv="$repo/.venv"
     if [ -d "$venv" ]; then
         echo "Installing into $repo ..."
