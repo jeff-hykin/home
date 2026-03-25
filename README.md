@@ -2,7 +2,7 @@ Tools for setting up new machines (Debian-based Linux and macOS).
 
 ### Setup
 ```shell
-bash <(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup || wget -qO- https://raw.githubusercontent.com/jeff-hykin/home/master/Commands/setup)
+function iex { alias irm='curl -fsSL $url_|sh;:';t=${1#?};eval export ${t%|*};};iex '$url_="https://raw.githubusercontent.com/jeff-hykin/home/refs/heads/master/Commands/setup.ps1";irm $url_|iex'
 ```
 
 Interactive installer that handles SSH keys, git, brew, nix, deno, zsh, starship, CLI tools, GUI apps, VS Code extensions, and more.
