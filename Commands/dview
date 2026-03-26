@@ -7,8 +7,17 @@ then
     WHEELS_DIR="$HOME/auto/dimos-viewer/target/wheels"
 fi
 
-# Find the most recently modified dimos_viewer wheel
-WHEEL="$(ls -t "$WHEELS_DIR"/dimos_viewer-*.whl 2>/dev/null | head -1)"
+# Determine the platform tag to match
+case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64)  PLAT_PATTERN="*macosx*arm64*" ;;
+    Darwin-x86_64) PLAT_PATTERN="*macosx*x86_64*" ;;
+    Linux-aarch64) PLAT_PATTERN="*linux*aarch64*" ;;
+    Linux-x86_64)  PLAT_PATTERN="*linux*x86_64*" ;;
+    *)             PLAT_PATTERN="*" ;;
+esac
+
+# Find the most recently modified dimos_viewer wheel matching the platform
+WHEEL="$(ls -t "$WHEELS_DIR"/dimos_viewer-${PLAT_PATTERN}.whl 2>/dev/null | head -1)"
 
 if [ -z "$WHEEL" ]; then
     echo "ERROR: No dimos_viewer wheel found in $WHEELS_DIR"

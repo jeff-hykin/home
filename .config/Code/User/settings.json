@@ -1223,4 +1223,5 @@
             "github.copilot.chat.agent.enabled": false,
             "chat.agent.enabled": false,
             "workbench.panel.chat.defaultVisibility": "hidden",
+            "githubPullRequests.pullBranch": "never",
 }
