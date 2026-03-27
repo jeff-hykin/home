@@ -13,7 +13,6 @@ console.log(`\x1b[31m║  IF TESTS FAIL, FIX THEM OR DON'T PUSH.                
 console.log(`\x1b[31m╚══════════════════════════════════════════════════════════════╝\x1b[0m`)
 console.log()
 
-const args = Deno.args
 
 // Start all background checks in parallel
 console.log(`starting background jobs`)
@@ -24,7 +23,7 @@ const backgroundJobs = [
     },
     {
         name: "pytest all_blueprints",
-        promise: $`uv run pytest dimos/robot/test_all_blueprints_generation.py ${args}`.stdout("piped").stderr("piped").noThrow(),
+        promise: $`uv run pytest dimos/robot/test_all_blueprints_generation.py`.stdout("piped").stderr("piped").noThrow(),
     },
     {
         name: "pre-commit",
@@ -43,13 +42,12 @@ const backgroundJobs = [
 const allBgPromise = Promise.all(backgroundJobs.map(j => j.promise))
 
 // Ask the user about reviewing changes while background jobs run
-const reviewed = await $.confirm("Have you seen all changes compared to dev and reviewed them as paul?")
-
+let reviewed = !!Deno.env.get("HAVE_REVIEWED")
 if (!reviewed) {
     await $`git fetch origin dev --quiet`
     const base = (await $`git merge-base origin/dev HEAD`.text()).trim()
-    await $`git diff ${base}..HEAD ${args}`
-    console.log("\nPlease review the changes using the paul review skill, then re-run.")
+    await $`git diff ${base}..HEAD`
+    console.log("\nPlease review the changes using the paul review skill, then re-run the git push with HAVE_REVIEWED=1")
     Deno.exit(1)
 } else {
     console.log(`okay, running checks... may take a moment`)
@@ -78,7 +76,7 @@ if (anyFailed) {
 console.log("\nAll background checks passed. Running pytest...")
 
 // Run final pytest
-const pytest = await $`pytest ${args} -m ${"not (tool or mujoco)"} dimos`.noThrow()
+const pytest = await $`uv run pytest -m ${"not (tool or mujoco)"} dimos`.stdout("piped").stderr("piped").noThrow()
 
 if (pytest.code !== 0) {
     const stdout = pytest.stdout
