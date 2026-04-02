@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Kill all running docker containers
+containers=$(docker ps -q)
+if [ -z "$containers" ]; then
+    echo "No running containers"
+else
+    docker kill $containers
+fi

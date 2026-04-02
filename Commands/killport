@@ -1,0 +1,18 @@
+#!/bin/sh
+# Kill processes on the given port(s)
+# Usage: killport 3030 9090 9877
+
+if [ $# -eq 0 ]; then
+    echo "Usage: killport <port> [port ...]"
+    exit 1
+fi
+
+for port in "$@"; do
+    pids=$(lsof -ti:"$port" 2>/dev/null)
+    if [ -n "$pids" ]; then
+        echo "$pids" | xargs kill 2>/dev/null
+        echo "Killed processes on port $port: $pids"
+    else
+        echo "No processes on port $port"
+    fi
+done

@@ -3,7 +3,6 @@
         "git.useIntegratedAskPass": false,
         "editor.minimap.enabled": false,
         "terminal.integrated.scrollback": 100000,
-        "workbench.sideBar.location": "right",
         "editor.fontSize": 12.5,
         "editor.selectionHighlight": false,
         "editor.mouseWheelScrollSensitivity": 0.5,
@@ -1224,4 +1223,5 @@
             "chat.agent.enabled": false,
             "workbench.panel.chat.defaultVisibility": "hidden",
             "githubPullRequests.pullBranch": "never",
+            "workbench.sideBar.location": "right",
 }
