@@ -14,8 +14,7 @@ while (true) {
             Deno.exit(result.code)
         }
     } catch (e) {
-        if (e instanceof Deno.errors.NotFound) continue
-        throw e
+        if (!(e instanceof Deno.errors.NotFound)) throw e
     }
 
     const parent = dirname(dir)

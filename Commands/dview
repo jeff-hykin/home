@@ -37,4 +37,17 @@ for repo in ~/repos/dimos ~/repos/dimos2 ~/dimos ~/dimos2 ~/dimos3 ~/dimos4 ~/au
     fi
 done
 
+# Update ~/.cargo/bin/dimos-viewer if it exists (prevents stale binary shadowing venv)
+CARGO_BIN="$HOME/.cargo/bin/dimos-viewer"
+if [ -f "$CARGO_BIN" ]; then
+    # Find the release binary from the same build tree as the wheel
+    RELEASE_BIN="$(dirname "$WHEELS_DIR")/release/dimos-viewer"
+    if [ -x "$RELEASE_BIN" ]; then
+        cp "$RELEASE_BIN" "$CARGO_BIN"
+        echo "Updated $CARGO_BIN"
+    else
+        echo "WARN: $CARGO_BIN exists but no release binary found at $RELEASE_BIN — may shadow venv"
+    fi
+fi
+
 echo "Done. Installed dimos-viewer $(basename "$WHEEL" | sed 's/dimos_viewer-//;s/-cp.*//')"
