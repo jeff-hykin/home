@@ -6,10 +6,13 @@ echo "Looking for dimos and Unity processes..."
 # Find dimos application processes (dimos run, dimos-viewer, dimos .venv python workers, dio CLI)
 dimos_pids=$(ps aux | grep -E 'dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3' | grep -v grep | grep -v "claude" | awk '{print $2}')
 
+# Find native smart_nav module processes (local_planner, path_follower, terrain_analysis, far_planner)
+native_pids=$(ps aux | grep -E 'result/bin/(local_planner|path_follower|terrain_analysis|far_planner)' | grep -v grep | grep -v "claude" | awk '{print $2}')
+
 # Find Unity Model processes
 unity_pids=$(ps aux | grep -E 'Model\.x86_64|Unity|unity_envs' | grep -v grep | grep -v "claude" | awk '{print $2}')
 
-all_pids="$dimos_pids $unity_pids"
+all_pids="$dimos_pids $native_pids $unity_pids"
 all_pids=$(echo "$all_pids" | xargs)
 
 if [ -z "$all_pids" ]; then
@@ -22,7 +25,7 @@ kill -9 $all_pids 2>/dev/null
 
 # Verify
 sleep 0.5
-remaining=$(ps aux | grep -E 'dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3|Model\.x86_64|unity_envs' | grep -v grep | grep -v "claude" | awk '{print $2}' | xargs)
+remaining=$(ps aux | grep -E 'dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3|result/bin/(local_planner|path_follower|terrain_analysis|far_planner)|Model\.x86_64|unity_envs' | grep -v grep | grep -v "claude" | awk '{print $2}' | xargs)
 
 if [ -z "$remaining" ]; then
     echo "All dimos and Unity processes killed."

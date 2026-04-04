@@ -1,0 +1,37 @@
+#!/bin/sh
+if [ $# -eq 0 ]; then
+  echo "Usage: transcribe <audio_file>" >&2
+  exit 1
+fi
+
+VENV="$HOME/Commands/.transcribe-venv/lib/python3.12/site-packages"
+export LD_LIBRARY_PATH="$VENV/nvidia/cublas/lib:$VENV/nvidia/cudnn/lib:$VENV/nvidia/cuda_nvrtc/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+exec "$HOME/Commands/.transcribe-venv/bin/python3" - "$@" << 'PYTHON'
+import sys
+import json
+from faster_whisper import WhisperModel
+
+audio_file = sys.argv[1]
+model = WhisperModel("large-v3", device="auto", compute_type="auto")
+segments, info = model.transcribe(audio_file, word_timestamps=True)
+
+result = {
+    "language": info.language,
+    "language_probability": info.language_probability,
+    "duration": info.duration,
+    "words": []
+}
+
+for segment in segments:
+    if segment.words:
+        for word in segment.words:
+            result["words"].append({
+                "word": word.word,
+                "start": round(word.start, 3),
+                "end": round(word.end, 3),
+                "probability": round(word.probability, 3)
+            })
+
+print(json.dumps(result, indent=2))
+PYTHON
