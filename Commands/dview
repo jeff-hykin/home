@@ -31,7 +31,7 @@ for repo in ~/repos/dimos ~/repos/dimos2 ~/dimos ~/dimos2 ~/dimos3 ~/dimos4 ~/au
     venv="$repo/.venv"
     if [ -d "$venv" ]; then
         echo "Installing into $repo ..."
-        uv pip install --python "$venv/bin/python" "$WHEEL" --force-reinstall 2>&1 | tail -2
+        uv pip install --python "$venv/bin/python" "$WHEEL" --force-reinstall --no-cache 2>&1 | tail -2
     else
         echo "SKIP: No venv at $venv"
     fi

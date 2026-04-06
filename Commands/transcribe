@@ -1,13 +1,15 @@
 #!/bin/sh
-if [ $# -eq 0 ]; then
-  echo "Usage: transcribe <audio_file>" >&2
-  exit 1
-fi
+if ! [ "$(uname)" = "Darwin" ] 
+then
+    if [ $# -eq 0 ]; then
+    echo "Usage: transcribe <audio_file>" >&2
+    exit 1
+    fi
 
-VENV="$HOME/Commands/.transcribe-venv/lib/python3.12/site-packages"
-export LD_LIBRARY_PATH="$VENV/nvidia/cublas/lib:$VENV/nvidia/cudnn/lib:$VENV/nvidia/cuda_nvrtc/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    VENV="$HOME/Commands/.transcribe-venv/lib/python3.12/site-packages"
+    export LD_LIBRARY_PATH="$VENV/nvidia/cublas/lib:$VENV/nvidia/cudnn/lib:$VENV/nvidia/cuda_nvrtc/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-exec "$HOME/Commands/.transcribe-venv/bin/python3" - "$@" << 'PYTHON'
+    exec "$HOME/Commands/.transcribe-venv/bin/python3" - "$@" << 'PYTHON'
 import sys
 import json
 from faster_whisper import WhisperModel
@@ -35,3 +37,30 @@ for segment in segments:
 
 print(json.dumps(result, indent=2))
 PYTHON
+
+# MacOS
+else
+# Transcribe audio to JSONL with word-level timestamps (streamed incrementally)
+# Usage: transcribe <audio_file>
+
+if [ $# -eq 0 ]; then
+    echo "Usage: transcribe <audio_file>" >&2
+    exit 1
+fi
+
+uv run --quiet --with faster-whisper python3 -c "
+import sys, json
+from faster_whisper import WhisperModel
+
+model = WhisperModel('turbo', device='cpu', compute_type='int8')
+segments, info = model.transcribe(sys.argv[1], word_timestamps=True)
+
+print(json.dumps({'type': 'info', 'language': info.language, 'language_probability': info.language_probability}), flush=True)
+
+for seg in segments:
+    words = []
+    if seg.words:
+        words = [{'word': w.word, 'start': w.start, 'end': w.end, 'probability': w.probability} for w in seg.words]
+    print(json.dumps({'type': 'segment', 'start': seg.start, 'end': seg.end, 'text': seg.text.strip(), 'words': words}), flush=True)
+" "$1"
+fi

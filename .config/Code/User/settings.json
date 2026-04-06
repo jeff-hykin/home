@@ -1,4 +1,5 @@
 {
+        "python.terminal.activateEnvironment": false,
         "C_Cpp.enhancedColorization": "Disabled",
         "git.useIntegratedAskPass": false,
         "editor.minimap.enabled": false,
@@ -100,32 +101,32 @@
                 // "focusBorder": "#00aeffe7",
                 // "sideBar.border": "#00000030",
                 // "sideBar.border": "#2670a1",
-                
+
                 // "scrollbarSlider.background": "#e100ffc0",
                 // "scrollbar.shadow": "#e100ffc0"
                 // "quickInput.foreground": "#2670a1",
                 // "quickInput.background": "#ff0000"
-                
+
             },
-            // colors 
+            // colors
             //      slate blue       = 0a5375
             //      slate            = 242938
-            //      off white        = eeefff 
+            //      off white        = eeefff
             //      off white2       = C8C8C8
             //      off white3       = ffffff4e
             //      whitespace color = 2a3f4f
             //      idk-gray         = 2e3e49
             //      idk-sidebar      = 617396
             //      idk-panel-bakgnd = 353749
-        
+
             // atom red #E06C75
             // atom blue #61AFEF
             // atom brown/orange #D19A66
             // atom yellow #E5C07B
             // atom light-blue #56B6C2
             // atom purple #C678DD
-            
-            
+
+
             // "syntax.type": "#26A69A",
             // "syntax.namespace": "#00897B",
             // "syntax.storage_modifier": "#00897B",
@@ -141,10 +142,10 @@
             // "syntax.keyword_control": "#7986CB",
         },
         // changes to default theme
-        // "editor.tokenColorCustomizations" : 
+        // "editor.tokenColorCustomizations" :
         //     {
         //         "textMateRules": [
-                    
+
         //                 {
         //                     "name": "pink",
         //                     "scope": [
@@ -196,10 +197,10 @@
         //                 },
         //         ]
         //     },
-        "editor.tokenColorCustomizations" : 
+        "editor.tokenColorCustomizations" :
             {
                 // "[XD Theme]": {
-                    // colors  
+                    // colors
                     //     gray       = 698098
                     //     off white  = c7cbcd
                     //     light blue = 89ddff
@@ -217,7 +218,7 @@
                                 "scope": [
                                     ],
                                 "settings": {
-                                    "foreground": "#64bac5", 
+                                    "foreground": "#64bac5",
                                     "fontStyle": ""
                                 }
                             },
@@ -239,9 +240,9 @@
                                     "fontStyle": "bold"
                                 }
                             },
-                        // 
+                        //
                         // gray
-                        // 
+                        //
                             {
                                 "name": "gray",
                                 "scope": [
@@ -266,9 +267,9 @@
                                     "fontStyle": "underline"
                                 }
                             },
-                        // 
+                        //
                         // Pure white
-                        // 
+                        //
                             {
                                 "name": "pure white",
                                 "scope":[
@@ -278,13 +279,13 @@
                                     "fontStyle": ""
                                 }
                             },
-                        // 
+                        //
                         // off white
-                        // 
+                        //
                             {
                                 "name": "off white",
                                 "scope":[
-                                    
+
                                     ],
                                 "settings": {
                                     "foreground": "#c7cbcd",
@@ -294,20 +295,20 @@
                             {
                                 "name": "off white with underline",
                                 "scope":[
-                                    
+
                                     ],
                                 "settings": {
                                     "foreground": "#c7cbcd",
                                     "fontStyle": "underline"
                                 }
                             },
-                        // 
+                        //
                         // Slate blue
-                        // 
+                        //
                             {
                                 "name": "slate bold",
                                 "scope": [
-                                    
+
                                 ],
                                 "settings": {
                                     "foreground": "#3f848d",
@@ -324,9 +325,9 @@
                                     "fontStyle": ""
                                 }
                             },
-                        // 
+                        //
                         // light blue
-                        // 
+                        //
                             {
                                 "name":"light blue",
                                 "scope":[
@@ -406,10 +407,10 @@
                                     "fontStyle": "italic"
                                 }
                             },
-                        
-                        // 
+
+                        //
                         // purple
-                        // 
+                        //
                             {
                                 "name": "purple",
                                 "scope" : [
@@ -446,10 +447,10 @@
                                     "fontStyle": "bold"
                                 }
                             },
-                            
-                        // 
+
+                        //
                         // blue
-                        // 
+                        //
                             // alt blue = #569cd6
                             {
                                 "name": "blue",
@@ -459,9 +460,9 @@
                                     // "source.cython variable",
                                     // "source.cython variable.legacy",
                                     // "source.cython variable.legacy.builtin.cython",
-                                    
+
                                     // "text.ignore.slugignore string.directory.content.ignore", // basic ignore name
-                                    // "text.ignore.slugignore constant.character.directory.ignore", // folder indicator 
+                                    // "text.ignore.slugignore constant.character.directory.ignore", // folder indicator
                                     ],
                                 "settings": {
                                     "foreground": "#82AAFF",
@@ -509,15 +510,15 @@
                                     "fontStyle": "bold"
                                 }
                             },
-                            
-                            
-                        // 
+
+
+                        //
                         // dim green
-                        // 
+                        //
                             {
                                 "name": "dim green",
                                 "scope":[
-                                    
+
                                     ],
                                 "settings": {
                                     "foreground": "#80CBC4",
@@ -578,14 +579,14 @@
                             {
                                 "name": "green italic",
                                 "scope": [
-                                    
+
                                 ],
                                 "settings": {
                                     "foreground": "#04d895",
                                     "fontStyle": "italic"
                                 }
                             },
-                        // 
+                        //
                         // lime green
                         //
                             {
@@ -607,14 +608,14 @@
                                     "fontStyle": "underline"
                                 }
                             },
-                        
+
                         //
                         // Orange
-                        // 
+                        //
                             {
                                 "name": "orange",
                                 "scope": [
-                                    
+
                                     ],
                                 "settings": {
                                     "foreground": "#F78C6C",
@@ -634,7 +635,7 @@
                             {
                                 "name": "orange bold",
                                 "scope": [
-                                        
+
                                     ],
                                 "settings": {
                                     "foreground": "#F78C6C",
@@ -644,21 +645,21 @@
                             {
                                 "name": "orange italics",
                                 "scope": [
-                                    
+
                                     ],
                                 "settings": {
                                     "foreground": "#F78C6C",
                                     "fontStyle": "italic"
                                 }
                             },
-                            
-                        // 
-                        // Golden Yellow 
-                        // 
+
+                        //
+                        // Golden Yellow
+                        //
                             {
                                 "name": "yellow cursive",
                                 "scope": [
-                                    
+
                                     ],
                                 "settings": {
                                     "foreground": "#fec355",
@@ -689,7 +690,7 @@
                             {
                                 "name": "yellow bold",
                                 "scope": [
-                                    
+
                                     ],
                                 "settings": {
                                     "foreground": "#fec355",
@@ -720,7 +721,7 @@
                             {
                                 "name": "Bananna yellow bold",
                                 "scope": [
-                                    
+
                                     ],
                                 "settings": {
                                     "foreground": "#ddd790",
@@ -736,14 +737,14 @@
                                     "fontStyle": "italic"
                                 }
                             },
-                            
-                        // 
-                        // Red 
+
+                        //
+                        // Red
                         //
                             {
                                 "name": "red",
                                 "scope":[
-                                    
+
                                     ],
                                 "settings": {
                                     "foreground": "#ff5572",
@@ -780,7 +781,7 @@
                             {
                                 "name": "soft red underline",
                                 "scope":[
-                                    
+
                                     ],
                                 "settings": {
                                     "foreground": "#E06C75",
@@ -814,9 +815,9 @@
                                     "foreground": "#dd858c",
                                 }
                             },
-                        // 
+                        //
                         // underline
-                        // 
+                        //
                             {
                                 "name": "underline",
                                 "scope":[
@@ -888,7 +889,7 @@
         "[javascript]": {
             "editor.autoIndent": "advanced",
             "editor.trimAutoWhitespace": true,
-            "editor.defaultFormatter": "esbenp.prettier-vscode",
+            "editor.defaultFormatter": "vscode.typescript-language-features",
         },
         "[ruby]": {
             "editor.autoIndent": "advanced",
@@ -905,7 +906,7 @@
     //
     // App settings
     //
-        // 
+        //
             "blockhighlight.background": [
                 "0",
                 "0",
@@ -916,19 +917,19 @@
             "githd.blameView.enabled": false,
             "githd.logView.expressMode": true,
             "githd.traceLevel": "silent",
-        // Code runner 
+        // Code runner
             "code-runner.runInTerminal": true,
             "code-runner.clearPreviousOutput": true,
             "code-runner.ignoreSelection": true,
             "code-runner.executorMap": {
                 "cpp": "builtin cd $dir; (ls makefile &>/dev/null) && make;(ls makefile &>/dev/null) || g++ -std=c++14 \"$fileName\" -o $fileNameWithoutExt && $dir$fileNameWithoutExt"
             },
-        
+
         // C++ formatter (clang-format)
             "clang-format.language.cpp.enable": true,
             "clang-format.language.javascript.enable": false,
             "clang-format.style": "WebKit",
-            
+
         // git
             "git.autofetch": true,
             "git.confirmSync": false,
@@ -943,7 +944,7 @@
             "prettier.trailingComma": "es5",
             "prettier.useTabs": false,
             "prettier.semi": false,
-        
+
         // git lens
             "gitlens.codeLens.scopes": [],
             "gitlens.hovers.annotations.over": "annotation",
@@ -965,7 +966,7 @@
             "gitlens.views.search.enabled": false,
             "gitlens.views.compare.location": "scm",
             "gitlens.settings.mode": "advanced",
-        
+
         // rainbow brackets
             "indentRainbow.colors": [
                 "rgba(25,59,63,0.4)",
@@ -979,14 +980,14 @@
                 "rgba(25,63,44,0.4)",
             ],
             "indentRainbow.errorColor": "rgba(128,32,32,0.0)",
-        
+
         // clang
             "clang.completion.maxBuffer": 838860,
             "clang.completion.enable": false,
             "clang.completion.completeMacros": false,
             "clang.diagnostic.delay": 5000,
-        
-        // python 
+
+        // python
             // "python.pythonPath": "/usr/local/bin/python3",
             "python.languageServer": "None",
             "python.linting.pylintEnabled": false,
@@ -1001,14 +1002,14 @@
             "python.workspaceSymbols.enabled": true,
             "python.analysis.autoSearchPaths": false,
             "python.analysis.disabled": ["all"],
-        
+
         // glsl markings
             "glsllint.glslangValidatorPath": "/usr/local/Cellar/glslang/7.10.2984/bin/glslangValidator",
             "javascript.updateImportsOnFileMove.enabled": "always",
-        
+
         // code coverage
             "vscode-coverage-highlighter.defaultState": "enable",
-        
+
         // standard.js
             "standard.autoFixOnSave": true,
             "showMusicMetrics": false,
@@ -1144,7 +1145,7 @@
             "bookmarks.showCommandsInContextMenu": false,
             "bookmarks.saveBookmarksInProject": true,
             "bookmarks.sideBar.expanded": true,
-        // 
+        //
             "footsteps.maxNumberOfChangesToHighlight": 1,
             "footsteps.doHighlightCurrentlyFocusedChunk": false,
         // other
@@ -1210,7 +1211,7 @@
             },
             "security.workspace.trust.untrustedFiles": "open",
             "emmet.excludeLanguages": [
-            
+
             ],
             "emmet.includeLanguages": {
                 // "javascript": "javascriptreact",
@@ -1235,4 +1236,6 @@
             "workbench.panel.chat.defaultVisibility": "hidden",
             "githubPullRequests.pullBranch": "never",
             "workbench.sideBar.location": "right",
+            "git.blame.editorDecoration.enabled": true,
+            "claudeCode.preferredLocation": "panel",
 }

@@ -94,4 +94,4 @@ const selected = await Select.prompt({
   })),
 })
 
-await $`claude --allowedTools ${TOOLS} --resume ${selected}`
+await $`claude --dangerously-skip-permissions --channels plugin:telegram@claude-plugins-official --allowedTools ${TOOLS} --resume ${selected}`

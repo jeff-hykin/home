@@ -58,6 +58,10 @@
 !/.claude/
 /.claude/*
 !/.claude/statusline.sh
+!/.claude/skills/
+/.claude/skills/*
+!/.claude/skills/clean_home/
+!/.claude/skills/clean_home/**
 
 #
 # Saftey precautions
