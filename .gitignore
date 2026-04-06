@@ -54,6 +54,11 @@
 !/.config/Code/User/settings.json
 !/.config/Code/User/snippets
 
+# claude code
+!/.claude/
+/.claude/*
+!/.claude/statusline.sh
+
 #
 # Saftey precautions
 #

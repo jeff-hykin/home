@@ -3,44 +3,45 @@
 
 echo "Looking for dimos and Unity processes..."
 
-# Find dimos application processes (dimos run, dimos-viewer, dimos .venv python workers, dio CLI)
-dimos_pids=$(ps aux | grep -E 'dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3' | grep -v grep | grep -v "claude" | awk '{print $2}')
+# Process patterns
+dimos_pattern='dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3'
+native_pattern='result/bin/(local_planner|path_follower|terrain_analysis|far_planner|pct_planner)'
+unity_pattern='Model\.x86_64|Unity|unity_envs'
+all_pattern="$dimos_pattern|$native_pattern|$unity_pattern"
 
-# Find native smart_nav module processes (local_planner, path_follower, terrain_analysis, far_planner)
-native_pids=$(ps aux | grep -E 'result/bin/(local_planner|path_follower|terrain_analysis|far_planner)' | grep -v grep | grep -v "claude" | awk '{print $2}')
+find_pids() {
+    ps aux | grep -E "$1" | grep -v grep | grep -v "claude" | awk '{print $2}'
+}
 
-# Find Unity Model processes
-unity_pids=$(ps aux | grep -E 'Model\.x86_64|Unity|unity_envs' | grep -v grep | grep -v "claude" | awk '{print $2}')
-
-all_pids="$dimos_pids $native_pids $unity_pids"
-all_pids=$(echo "$all_pids" | xargs)
+all_pids=$(find_pids "$all_pattern" | xargs)
 
 if [ -z "$all_pids" ]; then
     echo "No dimos or Unity processes found."
-    exit 0
-fi
-
-echo "Killing PIDs: $all_pids"
-kill -9 $all_pids 2>/dev/null
-
-# Verify
-sleep 0.5
-remaining=$(ps aux | grep -E 'dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3|result/bin/(local_planner|path_follower|terrain_analysis|far_planner)|Model\.x86_64|unity_envs' | grep -v grep | grep -v "claude" | awk '{print $2}' | xargs)
-
-if [ -z "$remaining" ]; then
-    echo "All dimos and Unity processes killed."
 else
-    echo "Some processes still running: $remaining"
-    echo "Retrying..."
-    kill -9 $remaining 2>/dev/null
+    echo "Killing PIDs: $all_pids"
+    kill -9 $all_pids 2>/dev/null
+
+    # Verify
+    sleep 0.5
+    remaining=$(find_pids "$all_pattern" | xargs)
+
+    if [ -z "$remaining" ]; then
+        echo "All dimos and Unity processes killed."
+    else
+        echo "Some processes still running: $remaining"
+        echo "Retrying..."
+        kill -9 $remaining 2>/dev/null
+    fi
 fi
 
-# Kill anything using port 7779
-port_pids=$(lsof -ti :7779 2>/dev/null)
-if [ -n "$port_pids" ]; then
-    echo "Killing processes on port 7779: $port_pids"
-    echo "$port_pids" | xargs kill -9 2>/dev/null
-fi
+# Kill anything using these ports
+for port in 7779 9090 3030 9876 9877; do
+    port_pids=$(lsof -ti :$port 2>/dev/null)
+    if [ -n "$port_pids" ]; then
+        echo "Killing processes on port $port: $port_pids"
+        echo "$port_pids" | xargs kill -9 2>/dev/null
+    fi
+done
 
 # Kill docker containers starting with "dimos_"
 if command -v docker >/dev/null 2>&1; then
@@ -50,5 +51,7 @@ if command -v docker >/dev/null 2>&1; then
         echo "$dimos_containers" | xargs docker kill 2>/dev/null
         echo "$dimos_containers" | xargs docker rm -f 2>/dev/null
         echo "Docker containers stopped."
+    else
+        echo "No dimos Docker containers running."
     fi
 fi
