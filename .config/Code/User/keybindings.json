@@ -250,6 +250,8 @@
             { "key": "cmd+c", "command": "workbench.action.terminal.sendSequence", "args": { "text": "\u0003" }, "when": "terminalFocus && !terminalTextSelected && !isMac" },
             { "key": "cmd+d", "command": "workbench.action.terminal.sendSequence", "args": { "text": "\u0004" }, "when": "terminalFocus && !terminalTextSelected && !isMac" },
             { "key": "cmd+e", "command": "workbench.action.terminal.sendSequence", "args": { "text": "\u0005" }, "when": "terminalFocus && !terminalTextSelected && !isMac" },
+            { "key": "ctrl+e", "command": "workbench.action.terminal.sendSequence", "args": { "text": "\u0005" }, "when": "terminalFocus && !terminalTextSelected" },
+            { "key": "ctrl+e", "command": "-workbench.action.quickOpenNavigateNextInFilePicker", "when": "terminalFocus" },
             { "key": "cmd+f", "command": "workbench.action.terminal.sendSequence", "args": { "text": "\u0006" }, "when": "terminalFocus && !terminalTextSelected && !isMac" },
             { "key": "cmd+g", "command": "workbench.action.terminal.sendSequence", "args": { "text": "\u0007" }, "when": "terminalFocus && !terminalTextSelected && !isMac" },
             { "key": "cmd+h", "command": "workbench.action.terminal.sendSequence", "args": { "text": "\u0008" }, "when": "terminalFocus && !terminalTextSelected && !isMac" },
