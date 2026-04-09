@@ -9,7 +9,7 @@
         "editor.mouseWheelScrollSensitivity": 0.5,
         "editor.fontFamily": "XD Medium, Iosevka Custom, Input Mono, SFMono-UltraLight, SourceCodePro-Light, Menlo, Monaco, 'Courier New', monospace",
         "editor.fontWeight": "200",
-        "editor.renderWhitespace": "none",
+        "editor.renderWhitespace": "all",
         "editor.renderLineHighlight": "all",
         "editor.suggestSelection": "recentlyUsedByPrefix", // maybe change this
         "explorer.sortOrder": "filesFirst",
