@@ -1,15 +1,38 @@
 #!/usr/bin/env bash
-# Install dimos-viewer-jeff from PyPI into dimos venvs
+# Install dimos-viewer into dimos venvs
+# Uses local wheel if available, falls back to PyPI package
 
-PACKAGE="dimos-viewer-jeff==0.30.0a6"
+WHEELS_DIR="$HOME/repos/dimos-viewer/target/wheels"
+if ! [ -d "$WHEELS_DIR" ]; then
+    WHEELS_DIR="$HOME/auto/dimos-viewer/target/wheels"
+fi
 
-echo "Installing $PACKAGE from PyPI"
+# Determine the platform tag to match
+case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64)  PLAT_PATTERN="*macosx*arm64*" ;;
+    Darwin-x86_64) PLAT_PATTERN="*macosx*x86_64*" ;;
+    Linux-aarch64) PLAT_PATTERN="*linux*aarch64*" ;;
+    Linux-x86_64)  PLAT_PATTERN="*linux*x86_64*" ;;
+    *)             PLAT_PATTERN="*" ;;
+esac
+
+# Find the most recently modified dimos_viewer wheel matching the platform
+WHEEL="$(ls -t "$WHEELS_DIR"/dimos_viewer-${PLAT_PATTERN}.whl 2>/dev/null | head -1)"
+
+if [ -n "$WHEEL" ]; then
+    echo "Using local wheel: $(basename "$WHEEL")"
+    INSTALL_TARGET="$WHEEL"
+else
+    # Fallback to PyPI package
+    INSTALL_TARGET="dimos-viewer-jeff==0.30.0a6"
+    echo "No local wheel found, using PyPI: $INSTALL_TARGET"
+fi
 
 for repo in ~/repos/dimos ~/repos/dimos2 ~/dimos ~/dimos2 ~/dimos3 ~/dimos4 ~/auto/dimos1485; do
     venv="$repo/.venv"
     if [ -d "$venv" ]; then
         echo "Installing into $repo ..."
-        uv pip install --python "$venv/bin/python" "$PACKAGE" --force-reinstall --no-cache 2>&1 | tail -2
+        uv pip install --python "$venv/bin/python" "$INSTALL_TARGET" --force-reinstall --no-cache 2>&1 | tail -2
     else
         echo "SKIP: No venv at $venv"
     fi
@@ -18,7 +41,14 @@ done
 # Update ~/.cargo/bin/dimos-viewer if it exists (prevents stale binary shadowing venv)
 CARGO_BIN="$HOME/.cargo/bin/dimos-viewer"
 if [ -f "$CARGO_BIN" ]; then
-    echo "WARN: $CARGO_BIN exists and may shadow the venv-installed version. Consider removing it."
+    # Find the release binary from the same build tree as the wheel
+    RELEASE_BIN="$(dirname "$WHEELS_DIR")/release/dimos-viewer"
+    if [ -x "$RELEASE_BIN" ]; then
+        cp "$RELEASE_BIN" "$CARGO_BIN"
+        echo "Updated $CARGO_BIN"
+    else
+        echo "WARN: $CARGO_BIN exists and may shadow the venv-installed version. Consider removing it."
+    fi
 fi
 
-echo "Done. Installed $PACKAGE"
+echo "Done."
