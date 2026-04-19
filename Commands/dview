@@ -1,37 +1,15 @@
 #!/usr/bin/env bash
-# Install the custom dimos-viewer wheel (with --connect fix) into dimos venvs
+# Install dimos-viewer-jeff from PyPI into dimos venvs
 
-WHEELS_DIR="$HOME/repos/dimos-viewer/target/wheels"
-if ! [ -d "$WHEELS_DIR" ]
-then
-    WHEELS_DIR="$HOME/auto/dimos-viewer/target/wheels"
-fi
+PACKAGE="dimos-viewer-jeff==0.30.0a6"
 
-# Determine the platform tag to match
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64)  PLAT_PATTERN="*macosx*arm64*" ;;
-    Darwin-x86_64) PLAT_PATTERN="*macosx*x86_64*" ;;
-    Linux-aarch64) PLAT_PATTERN="*linux*aarch64*" ;;
-    Linux-x86_64)  PLAT_PATTERN="*linux*x86_64*" ;;
-    *)             PLAT_PATTERN="*" ;;
-esac
-
-# Find the most recently modified dimos_viewer wheel matching the platform
-WHEEL="$(ls -t "$WHEELS_DIR"/dimos_viewer-${PLAT_PATTERN}.whl 2>/dev/null | head -1)"
-
-if [ -z "$WHEEL" ]; then
-    echo "ERROR: No dimos_viewer wheel found in $WHEELS_DIR"
-    echo "Build it first: cd ~/repos/dimos-viewer/dimos && maturin build --release"
-    exit 1
-fi
-
-echo "Using wheel: $(basename "$WHEEL")"
+echo "Installing $PACKAGE from PyPI"
 
 for repo in ~/repos/dimos ~/repos/dimos2 ~/dimos ~/dimos2 ~/dimos3 ~/dimos4 ~/auto/dimos1485; do
     venv="$repo/.venv"
     if [ -d "$venv" ]; then
         echo "Installing into $repo ..."
-        uv pip install --python "$venv/bin/python" "$WHEEL" --force-reinstall --no-cache 2>&1 | tail -2
+        uv pip install --python "$venv/bin/python" "$PACKAGE" --force-reinstall --no-cache 2>&1 | tail -2
     else
         echo "SKIP: No venv at $venv"
     fi
@@ -40,14 +18,7 @@ done
 # Update ~/.cargo/bin/dimos-viewer if it exists (prevents stale binary shadowing venv)
 CARGO_BIN="$HOME/.cargo/bin/dimos-viewer"
 if [ -f "$CARGO_BIN" ]; then
-    # Find the release binary from the same build tree as the wheel
-    RELEASE_BIN="$(dirname "$WHEELS_DIR")/release/dimos-viewer"
-    if [ -x "$RELEASE_BIN" ]; then
-        cp "$RELEASE_BIN" "$CARGO_BIN"
-        echo "Updated $CARGO_BIN"
-    else
-        echo "WARN: $CARGO_BIN exists but no release binary found at $RELEASE_BIN — may shadow venv"
-    fi
+    echo "WARN: $CARGO_BIN exists and may shadow the venv-installed version. Consider removing it."
 fi
 
-echo "Done. Installed dimos-viewer $(basename "$WHEEL" | sed 's/dimos_viewer-//;s/-cp.*//')"
+echo "Done. Installed $PACKAGE"

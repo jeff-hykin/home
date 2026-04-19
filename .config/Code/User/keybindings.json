@@ -29,6 +29,9 @@
         { "key": "alt+left", "command": "cursorWordLeft", "when": "textInputFocus" },
         { "key": "alt+shift+right", "command": "cursorWordRightSelect", "when": "textInputFocus" },
         { "key": "alt+shift+left", "command": "cursorWordLeftSelect", "when": "textInputFocus" },
+        // Alt+Left/Right word navigation in terminal (sends ESC+b / ESC+f to readline)
+        { "key": "alt+left",  "command": "workbench.action.terminal.sendSequence", "when": "terminalFocus", "args": { "text": "\u001bb" } },
+        { "key": "alt+right", "command": "workbench.action.terminal.sendSequence", "when": "terminalFocus", "args": { "text": "\u001bf" } },
         
         //
         // line move/duplicate
@@ -554,5 +557,13 @@
         {
             "key": "cmd+2",
             "command": "-workbench.action.openEditorAtIndex2"
+        },
+        {
+            "key": "shift+enter",
+            "command": "workbench.action.terminal.sendSequence",
+            "args": {
+                "text": "\u001b\r"
+            },
+            "when": "terminalFocus"
         },
 ]

@@ -1176,7 +1176,8 @@
             "explorer.confirmDelete": false,
             "projectManager.git.baseFolders": [
                 "/Users/jeffhykin/repos",
-                "/home/jeffhykin/repos"
+                "/home/jeffhykin/repos",
+                "/home/dimos/repos"
             ],
             "jupyter.alwaysTrustNotebooks": true,
             "[jsonc]": {

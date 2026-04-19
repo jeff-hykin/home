@@ -58,6 +58,9 @@ symbol = "tf "
 [nix_shell]
 symbol = "nix "
 
+[deno]
+symbol = "deno "
+
 [lua]
 symbol = "lua "
 
