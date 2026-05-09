@@ -63,6 +63,12 @@
 !/.claude/skills/clean_home/
 !/.claude/skills/clean_home/**
 
+# github actions
+!/.github/
+/.github/*
+!/.github/workflows/
+!/.github/workflows/**
+
 #
 # Saftey precautions
 #
