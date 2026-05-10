@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Restore hard links from ~/Personal/linked/ -> their canonical locations.
+# Idempotent: skips if the inodes already match.
+#
+# Add a new mapping by appending to LINKS below: "<personal-relpath>=<canonical-path>"
+
+set -u
+
+PERSONAL="${HOME}/Personal/linked"
+
+LINKS=(
+    "ssh/config=${HOME}/.ssh/config"
+)
+
+if [[ ! -d "$PERSONAL" ]]; then
+    echo "error: $PERSONAL not found — clone Personal first" >&2
+    exit 1
+fi
+
+inode() { stat -f '%i' "$1" 2>/dev/null || stat -c '%i' "$1" 2>/dev/null; }
+
+status=0
+for entry in "${LINKS[@]}"; do
+    src="${PERSONAL}/${entry%%=*}"
+    dst="${entry#*=}"
+
+    if [[ ! -e "$src" ]]; then
+        echo "skip: source missing: $src" >&2
+        status=1
+        continue
+    fi
+
+    if [[ -d "$src" ]]; then
+        echo "skip: $src is a directory (hard links can't link directories)" >&2
+        status=1
+        continue
+    fi
+
+    if [[ -e "$dst" ]] && [[ "$(inode "$src")" == "$(inode "$dst")" ]]; then
+        echo "ok:   $dst already linked to $src"
+        continue
+    fi
+
+    mkdir -p "$(dirname "$dst")"
+    rm -f "$dst"
+    ln "$src" "$dst" || { echo "fail: ln $src $dst" >&2; status=1; continue; }
+    echo "link: $dst -> $src (inode $(inode "$dst"))"
+done
+
+exit $status

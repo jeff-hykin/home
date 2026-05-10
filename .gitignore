@@ -33,7 +33,7 @@
 /.ssh/*
 !/.ssh/authorized_keys
 !/.ssh/known_hosts
-!/.ssh/config
+# .ssh/config moved to ~/Personal/linked/ssh/config and hard-linked back via Commands/relink_personal
 !/.ssh/*.pub
 /.ssh/id_rsa.pub
 /.ssh/id_ed25519.pub
