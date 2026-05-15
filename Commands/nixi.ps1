@@ -6,9 +6,12 @@ import $ from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts"
 const $$ = (...args)=>$(...args).noThrow()
 
 Deno.env.set("NIX_PATH", "nixpkgs=channel:nixos-25.05")
-// this fails fastest so try it first
-const pathToNix = await $$`nix eval --impure --expr ${`<nixpkgs>`}`.text()
-var {code} = await $$`nix profile install ${`${pathToNix.trim()}#${Deno.args[0]}`}`
+// modern flake-style — shortest path on Determinate / recent Nix with default registry
+var { code } = await $$`nix profile add ${`nixpkgs#${Deno.args[0]}`} ${Deno.args.slice(1,)}`
+if (code) {
+    const pathToNix = await $$`nix eval --impure --expr ${`<nixpkgs>`}`.text()
+    var { code } = await $$`nix profile install ${`${pathToNix.trim()}#${Deno.args[0]}`}`
+}
 if (code) {
     var { code } = await $$`nix-env -iA ${`nixpkgs.${Deno.args[0]}`} ${Deno.args.slice(1,)}`
 }
