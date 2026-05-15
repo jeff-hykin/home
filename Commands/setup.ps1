@@ -109,21 +109,57 @@ async function installPkg(opts, cmd) {
     const apt = typeof opts === "string" ? opts : (opts.apt ?? brew)
     const nix = typeof opts === "string" ? opts : (opts.nix ?? brew)
     cmd ??= brew
-    if (await commandExists(cmd)) return
+    if (await commandExists(cmd)) {
+        console.log(`  ✓ ${cmd} already present, skipping ${brew}`)
+        return
+    }
     log(`Installing ${brew}...`)
-    if (await commandExists("brew")) {
-        await $`brew install ${brew}`.noThrow().quiet("both")
-        if (await commandExists(cmd)) return
+    console.log(`  (looking for command '${cmd}' after install)`)
+    const tried = []
+    const hasBrew = await commandExists("brew")
+    const hasApt = !isMac && await commandExists("apt-get")
+    const hasNix = await commandExists("nix")
+    console.log(`  available package managers: ${[hasBrew && "brew", hasApt && "apt-get", hasNix && "nix"].filter(Boolean).join(", ") || "(none)"}`)
+    if (hasBrew) {
+        console.log(`  → running: brew install ${brew}`)
+        const r = await $`brew install ${brew}`.noThrow()
+        tried.push(`brew install ${brew} (exit ${r.code})`)
+        if (await commandExists(cmd)) {
+            console.log(`  ✓ installed ${brew} via brew`)
+            return
+        }
+        console.log(`  ✗ brew finished but '${cmd}' still not in PATH (PATH=${Deno.env.get("PATH")?.split(":").slice(0, 5).join(":")}...)`)
     }
-    if (!isMac && await commandExists("apt-get")) {
-        await $`sudo apt-get install -y ${apt}`.noThrow().quiet("both")
-        if (await commandExists(cmd)) return
+    if (hasApt) {
+        console.log(`  → running: sudo apt-get install -y ${apt}`)
+        const r = await $`sudo apt-get install -y ${apt}`.noThrow()
+        tried.push(`sudo apt-get install -y ${apt} (exit ${r.code})`)
+        if (await commandExists(cmd)) {
+            console.log(`  ✓ installed ${brew} via apt-get`)
+            return
+        }
+        console.log(`  ✗ apt-get finished but '${cmd}' still not in PATH`)
     }
-    if (await commandExists("nix")) {
-        await $`nix profile install nixpkgs#${nix}`.noThrow().quiet("both")
-        if (await commandExists(cmd)) return
+    if (hasNix) {
+        console.log(`  → running: nix profile install nixpkgs#${nix}`)
+        const r = await $`nix profile install nixpkgs#${nix}`.noThrow()
+        tried.push(`nix profile install nixpkgs#${nix} (exit ${r.code})`)
+        if (await commandExists(cmd)) {
+            console.log(`  ✓ installed ${brew} via nix`)
+            return
+        }
+        console.log(`  ✗ nix finished but '${cmd}' still not in PATH`)
     }
-    warn(`Could not install ${brew}`)
+    if (tried.length === 0) {
+        warn(`Could not install ${brew}: no supported package manager found.`)
+        warn(`  needed one of: brew${isMac ? "" : ", apt-get"}, nix`)
+        warn(`  install one of those first, or install ${brew} manually`)
+    } else {
+        warn(`Could not install ${brew}: every package manager attempt failed to produce a working '${cmd}' command.`)
+        warn(`  attempts:`)
+        for (const t of tried) warn(`    - ${t}`)
+        warn(`  possible causes: package name wrong for this distro, sudo failed, network issue, or '${cmd}' was installed to a directory not on PATH`)
+    }
 }
 
 /** Install a GUI app. macOS: brew cask. Linux: snap or nix. */
