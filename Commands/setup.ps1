@@ -500,8 +500,8 @@ async function checkAndSetupSSH() {
 
     if (hasKey) return
 
-    const setup = await Confirm.prompt("No SSH key found. Set one up (for git clone, etc.)?")
-    if (!setup) return
+    # const setup = await Confirm.prompt("No SSH key found. Set one up (for git clone, etc.)?")
+    # if (!setup) return
 
     log("Generating SSH key...")
     await $`mkdir -p ${home}/.ssh && chmod 700 ${home}/.ssh`

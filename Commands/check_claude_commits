@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+git log origin/dev..HEAD --format="%H %s%n%(trailers:key=Co-authored-by)" | grep -B1 -i "claude"

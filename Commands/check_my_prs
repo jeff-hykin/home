@@ -1,0 +1,372 @@
+#!/usr/bin/env -S deno run --allow-run --allow-env --allow-read --allow-write
+// check_my_prs — check CI status and comments on all open PRs by me.
+// Maintains a cold cache at ~/.cache/check_my_prs.json to highlight
+// what changed since the last run.
+
+import $ from "jsr:@david/dax@0.42";
+import { resolve } from "jsr:@std/path@1/resolve";
+import { exists } from "jsr:@std/fs@1/exists";
+
+// ── config ────────────────────────────────────────────────────────────────
+const CACHE_PATH = resolve(Deno.env.get("HOME")!, ".cache", "check_my_prs.json");
+const GH_USER = (await $`gh api user --jq .login`.stdout("piped")).stdout.trim();
+
+const DIMOS_DIRS = [
+    "~/repos/dimos", "~/repos/dimos2", "~/repos/dimos3",
+    "~/repos/dimos4", "~/repos/dimos5", "~/repos/dimos6",
+    "~/repos/dimos-helm", "~/repos/dimos-lcm", "~/repos/dimos-viewer",
+    "~/repos/dimos_modules_arise_slam", "~/repos/dimos_modules_far_planner",
+    "~/repos/dimos_modules_local_planner", "~/repos/dimos_modules_path_follower",
+    "~/repos/dimos_modules_tare_planner", "~/repos/dimos_modules_terrain_analysis",
+].map(d => d.replace("~", Deno.env.get("HOME")!));
+
+// ── types ─────────────────────────────────────────────────────────────────
+interface CacheEntry {
+    commentIds: string[];       // known comment IDs (issue comments + review comments)
+    ciStates: Record<string, string>; // check name → "status:conclusion"
+}
+type Cache = Record<string, CacheEntry>; // keyed by "owner/repo#number"
+
+interface PRSummary {
+    key: string;
+    number: number;
+    repo: string;
+    title: string;
+    url: string;
+    branch: string;
+    ciChecks: { name: string; state: string; conclusion: string; url: string; isNew: boolean }[];
+    comments: { id: string; author: string; body: string; createdAt: string; isNew: boolean }[];
+    localDirs: string[];
+}
+
+// ── cache I/O ─────────────────────────────────────────────────────────────
+async function loadCache(): Promise<Cache> {
+    try {
+        return JSON.parse(await Deno.readTextFile(CACHE_PATH));
+    } catch {
+        return {};
+    }
+}
+
+async function saveCache(cache: Cache): Promise<void> {
+    const dir = resolve(CACHE_PATH, "..");
+    await Deno.mkdir(dir, { recursive: true });
+    await Deno.writeTextFile(CACHE_PATH, JSON.stringify(cache, null, 2));
+}
+
+// ── fetch all open PRs ───────────────────────────────────────────────────
+async function findOpenPRs(): Promise<{ number: number; repo: string; title: string; url: string }[]> {
+    const raw = await $`gh search prs --author ${GH_USER} --state open --limit 200 --json number,repository,title,url`
+        .stdout("piped").noThrow();
+    if (raw.code !== 0) return [];
+    const batch = JSON.parse(raw.stdout);
+    return batch.map((pr: any) => ({
+        number: pr.number,
+        repo: pr.repository.nameWithOwner,
+        title: pr.title,
+        url: pr.url,
+    }));
+}
+
+// ── fetch PR details (CI + comments) ─────────────────────────────────────
+async function fetchPRDetails(repo: string, number: number) {
+    const raw = await $`gh pr view ${number} -R ${repo} --json statusCheckRollup,comments,reviews,headRefName`
+        .stdout("piped").noThrow();
+    if (raw.code !== 0) return null;
+    return JSON.parse(raw.stdout);
+}
+
+// ── fetch failed CI run logs (abbreviated) ───────────────────────────────
+async function fetchFailedJobLog(repo: string, detailsUrl: string): Promise<string> {
+    // detailsUrl looks like https://github.com/org/repo/actions/runs/12345/job/67890
+    const match = detailsUrl.match(/runs\/(\d+)\/job\/(\d+)/);
+    if (!match) return "(could not parse job URL)";
+    const [, runId, jobId] = match;
+    const raw = await $`gh run view ${runId} -R ${repo} --log-failed --json jobs`
+        .stdout("piped").stderr("null").noThrow();
+    if (raw.code !== 0) {
+        // fallback: just get the run view
+        const fallback = await $`gh run view ${runId} -R ${repo} --log-failed`
+            .stdout("piped").stderr("null").noThrow();
+        if (fallback.code !== 0) return "(could not fetch logs)";
+        const lines = fallback.stdout.split("\n");
+        // Return last 40 lines of failed log
+        return lines.slice(-40).join("\n");
+    }
+    return raw.stdout.split("\n").slice(-40).join("\n");
+}
+
+// ── check which dimos dirs have a branch checked out ─────────────────────
+// Skip generic branch names that would match everywhere
+const GENERIC_BRANCHES = new Set(["main", "master", "dev", "develop", "staging", "production"]);
+
+async function findLocalDirs(branch: string): Promise<string[]> {
+    if (!branch || GENERIC_BRANCHES.has(branch)) return [];
+    const found: string[] = [];
+    for (const dir of DIMOS_DIRS) {
+        if (!(await exists(resolve(dir, ".git")))) continue;
+        // Check if this branch is currently checked out
+        const head = await $`git -C ${dir} rev-parse --abbrev-ref HEAD`
+            .stdout("piped").stderr("null").noThrow();
+        if (head.stdout.trim() === branch) {
+            found.push(dir.replace(Deno.env.get("HOME")!, "~"));
+            continue;
+        }
+        // Check if branch exists locally
+        const r = await $`git -C ${dir} branch --list ${branch}`
+            .stdout("piped").stderr("null").noThrow();
+        if (r.stdout.trim().length > 0) {
+            found.push(dir.replace(Deno.env.get("HOME")!, "~"));
+            continue;
+        }
+        // Also check worktrees
+        const wt = await $`git -C ${dir} worktree list --porcelain`
+            .stdout("piped").stderr("null").noThrow();
+        if (wt.stdout.includes(`branch refs/heads/${branch}`)) {
+            for (const block of wt.stdout.split("\n\n")) {
+                if (block.includes(`branch refs/heads/${branch}`)) {
+                    const pathLine = block.split("\n").find(l => l.startsWith("worktree "));
+                    if (pathLine) {
+                        found.push(pathLine.replace("worktree ", "").replace(Deno.env.get("HOME")!, "~"));
+                    }
+                }
+            }
+        }
+    }
+    return found;
+}
+
+// ── formatting helpers ───────────────────────────────────────────────────
+const DIM = "\x1b[2m";
+const RESET = "\x1b[0m";
+const BOLD = "\x1b[1m";
+const RED = "\x1b[31m";
+const GREEN = "\x1b[32m";
+const YELLOW = "\x1b[33m";
+const CYAN = "\x1b[36m";
+const MAGENTA = "\x1b[35m";
+
+function ciColor(conclusion: string): string {
+    switch (conclusion) {
+        case "SUCCESS": return GREEN;
+        case "FAILURE": return RED;
+        case "SKIPPED": return DIM;
+        case "NEUTRAL": return DIM;
+        default: return YELLOW;
+    }
+}
+
+function truncate(s: string, max: number): string {
+    if (s.length <= max) return s;
+    return s.slice(0, max - 1) + "…";
+}
+
+function commentStub(c: { author: string; createdAt: string; body: string }): string {
+    const date = c.createdAt.slice(0, 10);
+    const firstLine = c.body.split("\n").find(l => l.trim().length > 0) ?? "";
+    return `${DIM}  ${c.author} (${date}): ${truncate(firstLine.replace(/<[^>]*>/g, ""), 80)}${RESET}`;
+}
+
+// ── main ──────────────────────────────────────────────────────────────────
+console.log(`${BOLD}Fetching open PRs for ${GH_USER}...${RESET}\n`);
+
+const oldCache = await loadCache();
+const newCache: Cache = {};
+const openPRs = await findOpenPRs();
+
+if (openPRs.length === 0) {
+    console.log("No open PRs found.");
+    Deno.exit(0);
+}
+
+console.log(`Found ${openPRs.length} open PR(s).\n`);
+
+const summaries: PRSummary[] = [];
+
+// Fetch details for all PRs concurrently (batches of 8)
+const BATCH = 8;
+for (let i = 0; i < openPRs.length; i += BATCH) {
+    const batch = openPRs.slice(i, i + BATCH);
+    const results = await Promise.all(
+        batch.map(async (pr) => {
+            const details = await fetchPRDetails(pr.repo, pr.number);
+            const localDirs = await findLocalDirs(details?.headRefName ?? "");
+            return { pr, details, localDirs };
+        })
+    );
+
+    for (const { pr, details, localDirs } of results) {
+        const key = `${pr.repo}#${pr.number}`;
+        const cached = oldCache[key] ?? { commentIds: [], ciStates: {} };
+
+        if (!details) {
+            console.log(`${RED}Could not fetch details for ${key}${RESET}`);
+            continue;
+        }
+
+        // Process CI checks
+        const ciChecks = (details.statusCheckRollup ?? []).map((c: any) => {
+            const stateKey = `${c.status}:${c.conclusion ?? ""}`;
+            const oldState = cached.ciStates[c.name];
+            return {
+                name: c.name,
+                state: c.status,
+                conclusion: c.conclusion ?? "",
+                url: c.detailsUrl ?? "",
+                isNew: oldState !== stateKey,
+            };
+        });
+
+        // Process comments (issue comments + reviews with body)
+        const allComments: { id: string; author: string; body: string; createdAt: string; isNew: boolean }[] = [];
+
+        for (const c of details.comments ?? []) {
+            allComments.push({
+                id: c.id,
+                author: c.author?.login ?? "unknown",
+                body: c.body ?? "",
+                createdAt: c.createdAt ?? "",
+                isNew: !cached.commentIds.includes(c.id),
+            });
+        }
+        for (const r of details.reviews ?? []) {
+            if (r.body && r.body.trim().length > 0) {
+                allComments.push({
+                    id: r.id,
+                    author: r.author?.login ?? "unknown",
+                    body: r.body,
+                    createdAt: r.submittedAt ?? "",
+                    isNew: !cached.commentIds.includes(r.id),
+                });
+            }
+        }
+
+        // Update cache
+        newCache[key] = {
+            commentIds: allComments.map(c => c.id),
+            ciStates: Object.fromEntries(ciChecks.map((c: any) => [c.name, `${c.state}:${c.conclusion}`])),
+        };
+
+        summaries.push({
+            key, number: pr.number, repo: pr.repo, title: pr.title,
+            url: pr.url, branch: details.headRefName ?? "",
+            ciChecks, comments: allComments, localDirs,
+        });
+    }
+}
+
+// ── print detailed output per PR ──────────────────────────────────────────
+for (const pr of summaries) {
+    const newCI = pr.ciChecks.filter(c => c.isNew);
+    const newComments = pr.comments.filter(c => c.isNew);
+    const hasNew = newCI.length > 0 || newComments.length > 0;
+
+    console.log(`${"─".repeat(72)}`);
+    console.log(`${BOLD}${CYAN}#${pr.number}${RESET} ${BOLD}${pr.title}${RESET}${hasNew ? `  ${MAGENTA}★ NEW${RESET}` : ""}`);
+    console.log(`${DIM}${pr.url}${RESET}`);
+    console.log();
+
+    // CI checks
+    if (pr.ciChecks.length > 0) {
+        console.log(`${BOLD}CI Status:${RESET}`);
+        for (const c of pr.ciChecks) {
+            const marker = c.isNew ? `${MAGENTA}NEW ${RESET}` : "    ";
+            const color = ciColor(c.conclusion);
+            const label = c.conclusion || c.state || "UNKNOWN";
+            console.log(`  ${marker}${color}${label.padEnd(10)}${RESET} ${c.name}`);
+
+            // Print failure details for new failures
+            if (c.isNew && c.conclusion === "FAILURE" && c.url) {
+                console.log(`${RED}    ↳ ${c.url}${RESET}`);
+                const logs = await fetchFailedJobLog(pr.repo, c.url);
+                if (logs && logs !== "(could not fetch logs)" && logs !== "(could not parse job URL)") {
+                    for (const line of logs.split("\n").slice(-20)) {
+                        console.log(`${RED}      ${line}${RESET}`);
+                    }
+                }
+            }
+        }
+        console.log();
+    }
+
+    // Comments
+    if (pr.comments.length > 0) {
+        console.log(`${BOLD}Comments (${pr.comments.length}):${RESET}`);
+        for (const c of pr.comments) {
+            if (c.isNew) {
+                console.log(`  ${MAGENTA}NEW${RESET} ${BOLD}${c.author}${RESET} (${c.createdAt.slice(0, 10)}):`);
+                // Print full comment (strip very long HTML but keep readable)
+                const body = c.body.replace(/<[^>]*>/g, "").trim();
+                const lines = body.split("\n");
+                for (const line of lines) {
+                    console.log(`    ${line}`);
+                }
+                console.log();
+            } else {
+                console.log(commentStub(c));
+            }
+        }
+    } else {
+        console.log(`${DIM}  No comments${RESET}`);
+    }
+    console.log();
+}
+
+// ── summary table ─────────────────────────────────────────────────────────
+console.log(`${"═".repeat(72)}`);
+console.log(`${BOLD}PR Summary Table${RESET}\n`);
+
+const headers = ["PR#", "Branch", "CI", "Local Dir", "URL"];
+const rows = summaries.map(pr => {
+    const ciSummary = (() => {
+        const failures = pr.ciChecks.filter(c => c.conclusion === "FAILURE").length;
+        const pending = pr.ciChecks.filter(c => c.state !== "COMPLETED").length;
+        const success = pr.ciChecks.filter(c => c.conclusion === "SUCCESS").length;
+        if (failures > 0) return `${RED}${failures} failed${RESET}`;
+        if (pending > 0) return `${YELLOW}${pending} pending${RESET}`;
+        if (success > 0) return `${GREEN}✓ pass${RESET}`;
+        if (pr.ciChecks.length > 0) return `${DIM}skipped${RESET}`;
+        return `${DIM}none${RESET}`;
+    })();
+
+    return {
+        pr: `${pr.repo.split("/")[1]}#${pr.number}`,
+        branch: pr.branch,
+        ci: ciSummary,
+        localDir: pr.localDirs.length > 0
+            ? pr.localDirs.map(d => d.replace("~/repos/", "")).join(", ")
+            : `${DIM}—${RESET}`,
+        url: pr.url,
+    };
+});
+
+// Calculate column widths (ignoring ANSI codes for width calculation)
+const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+const colWidths = {
+    pr: Math.max(headers[0].length, ...rows.map(r => stripAnsi(r.pr).length)),
+    branch: Math.max(headers[1].length, ...rows.map(r => Math.min(stripAnsi(r.branch).length, 35))),
+    ci: Math.max(headers[2].length, ...rows.map(r => stripAnsi(r.ci).length)),
+    localDir: Math.max(headers[3].length, ...rows.map(r => stripAnsi(r.localDir).length)),
+};
+
+const pad = (s: string, w: number) => s + " ".repeat(Math.max(0, w - stripAnsi(s).length));
+
+console.log(
+    `${BOLD}${pad(headers[0], colWidths.pr)}  ${pad(headers[1], colWidths.branch)}  ${pad(headers[2], colWidths.ci)}  ${pad(headers[3], colWidths.localDir)}  ${headers[4]}${RESET}`
+);
+console.log(
+    `${"-".repeat(colWidths.pr)}  ${"-".repeat(colWidths.branch)}  ${"-".repeat(colWidths.ci)}  ${"-".repeat(colWidths.localDir)}  ${"-".repeat(4)}`
+);
+
+for (const r of rows) {
+    const branch = truncate(r.branch, 35);
+    console.log(
+        `${pad(r.pr, colWidths.pr)}  ${pad(branch, colWidths.branch)}  ${pad(r.ci, colWidths.ci)}  ${pad(r.localDir, colWidths.localDir)}  ${r.url}`
+    );
+}
+
+console.log();
+
+// Save updated cache
+await saveCache(newCache);
+console.log(`${DIM}Cache saved to ${CACHE_PATH}${RESET}`);

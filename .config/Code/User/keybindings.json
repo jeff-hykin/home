@@ -418,7 +418,11 @@
     //
         // new untitled file
         { "key": "ctrl+n", "command": "workbench.action.files.newUntitledFile", "when": "!isMac" },
-        { "key": "cmd+n", "command": "workbench.action.files.newUntitledFile", "when": "isMac" }
+        { "key": "cmd+n", "command": "workbench.action.files.newUntitledFile", "when": "isMac" },
+
+        // disable cmd+q quit
+        { "key": "cmd+q", "command": "-workbench.action.quit" },
+        { "key": "cmd+q", "command": "noop", "when": "isMac" }
     // 
     // 
     // removed

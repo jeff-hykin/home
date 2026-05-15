@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+#
+# Add the current user to nix's extra-trusted-users and restart the daemon.
+#
+# After this, you can pass --builders / --substituters / etc. to `nix build`
+# without nix-daemon rejecting them.  Intended for personal dev machines where
+# the logged-in user is already effectively trusted with sudo.
+#
+# Supports multi-user nix installs on:
+#   - macOS (launchd)
+#   - Linux with systemd (systemctl)
+#
+# Will refuse to touch /etc/nix/nix.conf if it's a /nix/store symlink
+# (NixOS / nix-darwin) — in that case you have to edit your system config.
+
+set -euo pipefail
+
+USER_NAME="$(id -un)"
+NIX_CONF="/etc/nix/nix.conf"
+
+err() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; }
+info() { printf '\033[34m==>\033[0m %s\n' "$*"; }
+ok() { printf '\033[32m    %s\033[0m\n' "$*"; }
+
+if [ ! -e "$NIX_CONF" ]; then
+    err "$NIX_CONF does not exist — this script requires a multi-user nix install"
+    exit 1
+fi
+
+# NixOS and nix-darwin manage nix.conf declaratively via a /nix/store symlink.
+# Editing the symlink target won't work (read-only store), and changes wouldn't
+# survive a system rebuild anyway.  Point the user at the right place instead.
+if [ -L "$NIX_CONF" ] && readlink "$NIX_CONF" | grep -q '^/nix/store'; then
+    err "$NIX_CONF is a nix-store symlink (NixOS or nix-darwin managed)."
+    cat <<EOF >&2
+       Edit your system configuration instead:
+         nix.settings.trusted-users = [ "root" "$USER_NAME" ];
+       Then rebuild with one of:
+         sudo nixos-rebuild switch        # NixOS
+         darwin-rebuild switch             # nix-darwin
+EOF
+    exit 1
+fi
+
+# Return 0 if the user is already trusted (directly or via a wildcard).
+is_already_trusted() {
+    local trusted
+    trusted="$(nix show-config 2>/dev/null \
+        | awk -F '=' '/^trusted-users/ { print $2 }' \
+        | tr -s ' ')"
+    case " $trusted " in
+        *" $USER_NAME "*) return 0 ;;
+        *" \* "*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Append USER_NAME to extra-trusted-users in /etc/nix/nix.conf.
+# Idempotent: if the line already exists and already contains the user, no-op.
+add_user_to_extra_trusted() {
+    if grep -qE '^[[:space:]]*extra-trusted-users[[:space:]]*=' "$NIX_CONF"; then
+        # Existing extra-trusted-users line — check if user is already on it.
+        if grep -E '^[[:space:]]*extra-trusted-users[[:space:]]*=' "$NIX_CONF" \
+            | grep -qE "(^|[[:space:]])${USER_NAME}([[:space:]]|$)"; then
+            ok "$NIX_CONF already lists $USER_NAME on extra-trusted-users"
+            return 0
+        fi
+        # Append the user to the existing line (awk handles it atomically).
+        local tmp
+        tmp="$(mktemp)"
+        awk -v user="$USER_NAME" '
+            /^[[:space:]]*extra-trusted-users[[:space:]]*=/ {
+                print $0 " " user
+                next
+            }
+            { print }
+        ' "$NIX_CONF" > "$tmp"
+        sudo install -m 0644 "$tmp" "$NIX_CONF"
+        rm -f "$tmp"
+        ok "appended $USER_NAME to existing extra-trusted-users line"
+    else
+        echo "extra-trusted-users = $USER_NAME" | sudo tee -a "$NIX_CONF" > /dev/null
+        ok "added new extra-trusted-users line for $USER_NAME"
+    fi
+}
+
+restart_daemon() {
+    case "$(uname -s)" in
+        Darwin)
+            sudo launchctl kickstart -k system/org.nixos.nix-daemon
+            ok "nix-daemon restarted via launchctl"
+            ;;
+        Linux)
+            if command -v systemctl >/dev/null 2>&1 \
+                && systemctl list-unit-files 2>/dev/null | grep -q '^nix-daemon'; then
+                sudo systemctl restart nix-daemon.service
+                ok "nix-daemon restarted via systemctl"
+            else
+                err "don't know how to restart nix-daemon on this Linux (no systemd or unit not found)"
+                err "restart it manually and re-run this script's final verify step:"
+                err "  nix show-config | grep trusted-users"
+                return 1
+            fi
+            ;;
+        *)
+            err "unsupported OS: $(uname -s)"
+            return 1
+            ;;
+    esac
+}
+
+main() {
+    info "checking current trust state for $USER_NAME"
+    if is_already_trusted; then
+        ok "$USER_NAME is already trusted by the running daemon — nothing to do"
+        exit 0
+    fi
+
+    info "editing $NIX_CONF (requires sudo)"
+    add_user_to_extra_trusted
+
+    info "restarting nix-daemon (requires sudo)"
+    restart_daemon
+
+    info "verifying"
+    # Give the daemon a second to come back up.
+    for _ in 1 2 3 4 5; do
+        if is_already_trusted; then
+            ok "verified: $USER_NAME is now trusted"
+            exit 0
+        fi
+        sleep 1
+    done
+    err "added $USER_NAME to $NIX_CONF but 'nix show-config' still doesn't show it as trusted"
+    err "check the daemon status and 'nix show-config | grep trusted-users' manually"
+    exit 1
+}
+
+main "$@"

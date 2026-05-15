@@ -19,8 +19,9 @@ from typing import TYPE_CHECKING
 import json
 import webbrowser
 
+from dimos.core.coordination.blueprints import Blueprint
+
 if TYPE_CHECKING:
-    from dimos.core.blueprints import Blueprint
     from dimos.core.module import Module
 
 # ---------------------------------------------------------------------------
@@ -97,8 +98,6 @@ def _load_blueprints(python_file: str) -> list[tuple[str, Blueprint]]:
         raise RuntimeError(f"Could not load {filepath}")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-
-    from dimos.core.blueprints import Blueprint
 
     blueprints: list[tuple[str, Blueprint]] = []
     for name, obj in vars(mod).items():

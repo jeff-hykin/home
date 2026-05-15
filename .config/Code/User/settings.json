@@ -898,7 +898,7 @@
             "editor.tabSize" : 4,
         },
         "[html]": {
-            "editor.defaultFormatter": "esbenp.prettier-vscode"
+            "editor.defaultFormatter": "vscode.html-language-features"
         },
         "[vue]": {
             "editor.defaultFormatter": "esbenp.prettier-vscode"
@@ -1236,7 +1236,8 @@
             "chat.agent.enabled": false,
             "workbench.panel.chat.defaultVisibility": "hidden",
             "githubPullRequests.pullBranch": "never",
-            "workbench.sideBar.location": "right",
             "git.blame.editorDecoration.enabled": true,
             "claudeCode.preferredLocation": "panel",
+            "terminal.integrated.enableMultiLinePasteWarning": "never",
+            "chat.viewSessions.orientation": "stacked",
 }

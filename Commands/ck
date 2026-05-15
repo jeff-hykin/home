@@ -6,26 +6,27 @@ const home = Deno.env.get("HOME")
 
 // Find all .git dirs within 2 levels of home
 const repos = []
+const isRepo = async (dir) => {
+    try {
+        await Deno.stat(`${dir}/.git`)
+        return true
+    } catch {
+        return false
+    }
+}
 for await (const entry of Deno.readDir(home)) {
     if (!entry.isDirectory || entry.name.startsWith(".")) continue
     const lvl1 = `${home}/${entry.name}`
-    // Check if lvl1 is a repo
+    if (await isRepo(lvl1)) repos.push(lvl1)
+    // Always recurse into children — a parent repo can still contain
+    // sibling repos or git worktrees (e.g. ~/repos/.git + ~/repos/dimos).
     try {
-        await Deno.stat(`${lvl1}/.git`)
-        repos.push(lvl1)
-    } catch {
-        // Check children (depth 2)
-        try {
-            for await (const sub of Deno.readDir(lvl1)) {
-                if (!sub.isDirectory || sub.name.startsWith(".")) continue
-                const lvl2 = `${lvl1}/${sub.name}`
-                try {
-                    await Deno.stat(`${lvl2}/.git`)
-                    repos.push(lvl2)
-                } catch { /* not a repo */ }
-            }
-        } catch { /* can't read dir */ }
-    }
+        for await (const sub of Deno.readDir(lvl1)) {
+            if (!sub.isDirectory || sub.name.startsWith(".")) continue
+            const lvl2 = `${lvl1}/${sub.name}`
+            if (await isRepo(lvl2)) repos.push(lvl2)
+        }
+    } catch { /* can't read dir */ }
 }
 
 // Get branch name for each repo

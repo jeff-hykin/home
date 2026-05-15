@@ -1,0 +1,593 @@
+#!/usr/bin/env python3
+"""
+Music Discovery Tool — finds instrumental, high-energy electronic-fusion tracks.
+
+Uses free, no-auth APIs:
+  - Deezer: artist search, related artists, top tracks, BPM
+  - MusicBrainz: recording lookup, genre tags, canonical IDs
+  - AcousticBrainz: audio features (danceability, instrumentalness, mood)
+
+Usage:
+  music_discover [--seeds "Artist1,Artist2,..."] [--depth 1] [--min-tracks 20] [--format table|json|csv]
+"""
+
+import argparse
+import json
+import sys
+import time
+import urllib.request
+import urllib.parse
+import urllib.error
+from dataclasses import dataclass, field, asdict
+from typing import Optional
+
+# Rate limiting: MusicBrainz requires 1 req/sec (we use 1.5 to be safe), Deezer ~50/5sec
+_last_request_time = {"musicbrainz": 0.0, "deezer": 0.0, "acousticbrainz": 0.0}
+_rate_limits = {"musicbrainz": 1.5, "deezer": 0.15, "acousticbrainz": 0.2}
+
+USER_AGENT = "MusicDiscoverTool/1.0 (https://github.com/jeff-hykin/home)"
+
+DEFAULT_SEEDS = [
+    # Core taste
+    "The Glitch Mob",
+    "Pendulum",
+    "Lindsey Stirling",
+    "Jaga Jazzist",
+    "Gramatik",
+    "Caravan Palace",
+    "CloZee",
+    "Klaypex",
+    "KOAN Sound",
+    "Big Gigantic",
+    # User-requested exploration directions
+    "Tristam",           # Monstercat melodic dubstep
+    "Stonebank",         # Monstercat
+    "Virtual Riot",      # Monstercat / glitch
+    "Sub Focus",         # Liquid DnB
+    "Metrik",            # DnB
+    "Feint",             # DnB
+    "Mr. Bill",          # Deep glitch-hop
+    "Culprate",          # Glitch-hop
+    "Mick Gordon",       # Soundtrack/EDM crossover
+    "The Algorithm",     # Metal/electronic
+    "Savant",            # Multi-genre electronic
+    "Opiuo",             # Glitch-hop/funk
+    "The Qemists",       # Rock/DnB
+]
+
+# Tracks the user already knows about — skip these
+KNOWN_TRACKS = {
+    ("pendulum", "propane nightmares"),
+    ("lindsey stirling", "crystallize"),
+    ("lindsey stirling", "roundtable rival"),
+    ("gramatik", "muy tranquilo"),
+    ("gramatik", "hit that jive"),
+    ("parov stelar", "catgroove"),
+    ("clozee", "koto"),
+    ("klaypex", "1941"),
+    ("carpenter brut", "turbo killer"),
+    ("jaga jazzist", "one-armed bandit"),
+    ("big gigantic", "get on up"),
+    ("big gigantic", "the little things"),
+    ("au5", "halcyon"),
+    ("au5", "blossom"),
+}
+
+# Artists that are too chill, don't fit, or are vocal-dominated
+SKIP_ARTISTS = {
+    "pretty lights", "tipper", "bonobo", "nujabes", "tycho",
+    "too many zooz", "2cellos",
+    # Vocal-dominated (discovered during testing)
+    "foreign beggars", "nonono",
+}
+
+# Non-electronic genre tags to look for
+NON_ELECTRONIC_TAGS = {
+    "jazz", "funk", "classical", "post-rock", "world", "flamenco",
+    "bluegrass", "orchestral", "latin", "ska", "metal", "rock",
+    "folk", "celtic", "indian", "african", "arabic", "hip hop",
+    "hip-hop", "blues", "soul", "r&b", "swing", "big band",
+    "cinematic", "soundtrack", "violin", "piano", "guitar",
+    "brass", "strings", "acoustic", "progressive rock",
+    "symphonic", "chamber", "baroque", "bossa nova", "reggae",
+    "country", "surf", "psychedelic", "indie", "alternative",
+}
+
+ELECTRONIC_TAGS = {
+    "electronic", "edm", "dubstep", "drum and bass", "dnb",
+    "glitch", "glitch-hop", "house", "electro", "synthwave",
+    "breakbeat", "techno", "trance", "idm", "bass music",
+    "chiptune", "electro-swing", "electroswing", "future bass",
+    "trap", "hardstyle", "neurofunk", "liquid funk",
+    "drumstep", "moombahton", "complextro", "midtempo",
+    "melodic dubstep", "brostep", "digital", "synth",
+}
+
+
+def _rate_limit(api: str):
+    min_interval = _rate_limits.get(api, 1.0)
+    now = time.time()
+    elapsed = now - _last_request_time[api]
+    if elapsed < min_interval:
+        time.sleep(min_interval - elapsed)
+    _last_request_time[api] = time.time()
+
+
+def _fetch_json(url: str, api: str = "deezer", timeout: int = 10) -> Optional[dict]:
+    _rate_limit(api)
+    req = urllib.request.Request(url)
+    req.add_header("User-Agent", USER_AGENT)
+    req.add_header("Accept", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read())
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, TimeoutError, OSError) as e:
+        # Only print warnings for unexpected errors, not 404s on AcousticBrainz
+        if api != "acousticbrainz" or "404" not in str(e):
+            print(f"  [warn] API error ({api}): {e}", file=sys.stderr)
+        return None
+
+
+@dataclass
+class Track:
+    title: str
+    artist: str
+    deezer_id: int = 0
+    deezer_link: str = ""
+    duration_sec: int = 0
+    bpm: float = 0.0
+    # AcousticBrainz features
+    danceability: Optional[float] = None
+    voice_prob: Optional[float] = None  # probability of voice (lower = more instrumental)
+    mood_aggressive: Optional[float] = None
+    mood_party: Optional[float] = None
+    mood_electronic: Optional[float] = None
+    genre_tags: list = field(default_factory=list)
+    electronic_tags: list = field(default_factory=list)
+    non_electronic_tags: list = field(default_factory=list)
+    mb_recording_id: str = ""
+    # Computed scores
+    energy_score: float = 0.0
+    electronicness: float = 0.0
+    blend_element: str = ""
+
+
+# ── Deezer API ──────────────────────────────────────────────────────────────
+
+def deezer_search_artist(name: str) -> Optional[dict]:
+    url = f"https://api.deezer.com/search/artist?q={urllib.parse.quote(name)}&limit=1"
+    data = _fetch_json(url, "deezer")
+    if data and data.get("data"):
+        return data["data"][0]
+    return None
+
+
+def deezer_related_artists(artist_id: int, limit: int = 20) -> list[dict]:
+    url = f"https://api.deezer.com/artist/{artist_id}/related?limit={limit}"
+    data = _fetch_json(url, "deezer")
+    if data and data.get("data"):
+        return data["data"]
+    return []
+
+
+def deezer_artist_top_tracks(artist_id: int, limit: int = 10) -> list[dict]:
+    url = f"https://api.deezer.com/artist/{artist_id}/top?limit={limit}"
+    data = _fetch_json(url, "deezer")
+    if data and data.get("data"):
+        return data["data"]
+    return []
+
+
+def deezer_track_detail(track_id: int) -> Optional[dict]:
+    url = f"https://api.deezer.com/track/{track_id}"
+    data = _fetch_json(url, "deezer")
+    if data and not data.get("error"):
+        return data
+    return None
+
+
+# ── MusicBrainz API ────────────────────────────────────────────────────────
+
+def mb_search_recording(title: str, artist: str) -> Optional[str]:
+    """Search MusicBrainz for a recording, return its MBID."""
+    query = f'recording:"{title}" AND artist:"{artist}"'
+    url = f"https://musicbrainz.org/ws/2/recording/?query={urllib.parse.quote(query)}&fmt=json&limit=1"
+    data = _fetch_json(url, "musicbrainz")
+    if data and data.get("recordings"):
+        rec = data["recordings"][0]
+        if rec.get("score", 0) >= 80:
+            return rec["id"]
+    return None
+
+
+def mb_get_artist_tags(artist_name: str) -> list[str]:
+    """Get genre tags for an artist from MusicBrainz."""
+    query = f'artist:"{artist_name}"'
+    url = f"https://musicbrainz.org/ws/2/artist/?query={urllib.parse.quote(query)}&fmt=json&limit=1"
+    data = _fetch_json(url, "musicbrainz")
+    if data and data.get("artists"):
+        artist = data["artists"][0]
+        return [t["name"].lower() for t in artist.get("tags", [])]
+    return []
+
+
+# ── AcousticBrainz API ─────────────────────────────────────────────────────
+
+def ab_get_features(mbid: str) -> Optional[dict]:
+    """Get high-level audio features from AcousticBrainz."""
+    url = f"https://acousticbrainz.org/api/v1/{mbid}/high-level"
+    data = _fetch_json(url, "acousticbrainz", timeout=5)
+    if data and "highlevel" in data:
+        return data["highlevel"]
+    return None
+
+
+def extract_ab_features(features: dict) -> dict:
+    """Extract relevant features from AcousticBrainz high-level data."""
+    result = {}
+
+    hl = features
+
+    # Danceability
+    dance = hl.get("danceability", {})
+    if "all" in dance:
+        result["danceability"] = dance["all"].get("danceable", 0.0)
+
+    # Voice/instrumental
+    voice = hl.get("voice_instrumental", {})
+    if "all" in voice:
+        result["voice_prob"] = voice["all"].get("voice", 0.0)
+
+    # Mood
+    mood_agg = hl.get("mood_aggressive", {})
+    if "all" in mood_agg:
+        result["mood_aggressive"] = mood_agg["all"].get("aggressive", 0.0)
+
+    mood_party = hl.get("mood_party", {})
+    if "all" in mood_party:
+        result["mood_party"] = mood_party["all"].get("party", 0.0)
+
+    mood_elec = hl.get("mood_electronic", {})
+    if "all" in mood_elec:
+        result["mood_electronic"] = mood_elec["all"].get("electronic", 0.0)
+
+    # Genre
+    genre = hl.get("genre_electronic", {})
+    if "value" in genre:
+        result["electronic_subgenre"] = genre["value"]
+
+    return result
+
+
+# ── Scoring ─────────────────────────────────────────────────────────────────
+
+def compute_energy(track: Track) -> float:
+    """Estimate energy on 1-10 scale from available data."""
+    score = 5.0  # baseline
+
+    # BPM is the strongest energy signal we have
+    if track.bpm:
+        if 140 <= track.bpm <= 180:
+            score += 3.0
+        elif 120 <= track.bpm < 140:
+            score += 2.5
+        elif 100 <= track.bpm < 120 or 180 < track.bpm <= 200:
+            score += 1.5
+        elif track.bpm < 85:
+            score -= 2.0
+        # Half-time DnB (170+) is high energy
+        if track.bpm >= 160:
+            score += 0.5
+
+    # AcousticBrainz mood contributions
+    if track.danceability is not None:
+        score += track.danceability * 2.0  # danceability is a strong energy proxy
+    if track.mood_aggressive is not None:
+        score += track.mood_aggressive * 1.5
+    if track.mood_party is not None:
+        score += track.mood_party * 1.0
+
+    return max(1.0, min(10.0, score))
+
+
+def compute_electronicness(track: Track, artist_tags: list[str]) -> float:
+    """Estimate electronicness on 1-10 scale."""
+    all_tags = set(t.lower() for t in track.genre_tags + artist_tags)
+
+    e_count = len(all_tags & ELECTRONIC_TAGS)
+    ne_count = len(all_tags & NON_ELECTRONIC_TAGS)
+
+    # Base from mood_electronic if available
+    if track.mood_electronic is not None:
+        base = track.mood_electronic * 10
+    else:
+        base = 7.0  # assume electronic if we're finding via electronic artists
+
+    # Adjust based on tag balance
+    if e_count + ne_count > 0:
+        tag_ratio = e_count / (e_count + ne_count)
+        base = base * 0.6 + tag_ratio * 10 * 0.4
+
+    return max(1.0, min(10.0, base))
+
+
+def identify_blend(track: Track, artist_tags: list[str]) -> str:
+    """Identify the non-electronic blend element."""
+    all_tags = set(t.lower() for t in track.genre_tags + artist_tags)
+    found = all_tags & NON_ELECTRONIC_TAGS
+    if found:
+        return ", ".join(sorted(found)[:3])
+    return "electronic-hybrid"
+
+
+# ── Main Pipeline ───────────────────────────────────────────────────────────
+
+def discover(seed_artists: list[str], depth: int = 1, min_tracks: int = 20, verbose: bool = False) -> list[Track]:
+    """Main discovery pipeline."""
+
+    # Phase 1: Build artist pool from seeds + related
+    print("Phase 1: Building artist pool from seeds...", file=sys.stderr)
+    artist_pool = {}  # name -> (deezer_id, is_seed)
+    artist_tags_cache = {}  # name -> [tags]
+    seed_names_lower = {s.lower() for s in seed_artists}
+
+    for seed in seed_artists:
+        if seed.lower() in SKIP_ARTISTS:
+            continue
+        print(f"  Searching: {seed}", file=sys.stderr)
+        result = deezer_search_artist(seed)
+        if result:
+            artist_pool[result["name"]] = (result["id"], True)
+
+    # Get related artists
+    if depth >= 1:
+        print("  Finding related artists...", file=sys.stderr)
+        seed_ids = list(artist_pool.items())
+        for name, (aid, _) in seed_ids:
+            related = deezer_related_artists(aid, limit=10)
+            for r in related:
+                rname = r["name"]
+                if rname.lower() not in SKIP_ARTISTS and rname not in artist_pool:
+                    artist_pool[rname] = (r["id"], False)
+
+    print(f"  Artist pool: {len(artist_pool)} artists", file=sys.stderr)
+
+    # Phase 2: Get top tracks for each artist
+    print("\nPhase 2: Fetching top tracks...", file=sys.stderr)
+    candidates = []
+
+    for artist_name, (artist_id, is_seed) in artist_pool.items():
+        # Get MusicBrainz tags for this artist
+        if artist_name not in artist_tags_cache:
+            tags = mb_get_artist_tags(artist_name)
+            artist_tags_cache[artist_name] = tags
+
+        atags = artist_tags_cache[artist_name]
+        atag_set = set(t.lower() for t in atags)
+
+        # Skip non-electronic artists UNLESS they're seeds (user explicitly chose them)
+        if not is_seed and atags and not (atag_set & ELECTRONIC_TAGS):
+            if verbose:
+                print(f"  Skipping {artist_name} (no electronic tags: {atags})", file=sys.stderr)
+            continue
+
+        # Check for blend potential (has non-electronic tags too)
+        has_blend = bool(atag_set & NON_ELECTRONIC_TAGS)
+
+        tracks = deezer_artist_top_tracks(artist_id, limit=5 if not has_blend else 8)
+        if verbose:
+            print(f"  {artist_name}: {len(tracks)} tracks, tags={atags[:5]}", file=sys.stderr)
+
+        for t in tracks:
+            title = t.get("title", "")
+            title_lower = title.lower()
+
+            # Skip known tracks
+            if (artist_name.lower(), title_lower) in KNOWN_TRACKS:
+                continue
+
+            # Skip tracks whose title signals vocals (feat., ft., w/, featuring)
+            vocal_signals = ["feat.", "ft.", "featuring", " w/ ", "(with "]
+            if any(sig in title_lower for sig in vocal_signals):
+                if verbose:
+                    print(f"    Skipping '{title}' (title implies vocals)", file=sys.stderr)
+                continue
+
+            track = Track(
+                title=title,
+                artist=artist_name,
+                deezer_id=t["id"],
+                deezer_link=t.get("link", ""),
+                duration_sec=t.get("duration", 0),
+                genre_tags=list(atags),
+            )
+            candidates.append((track, atags))
+
+    print(f"  Candidates: {len(candidates)} tracks", file=sys.stderr)
+
+    # Phase 3: Enrich with BPM + AcousticBrainz
+    # Prioritize blend artists (both electronic + non-electronic tags) for expensive lookups.
+    # Pure-electronic artists just get Deezer BPM.
+    print("\nPhase 3: Enriching tracks with audio features...", file=sys.stderr)
+    enriched = []
+    ab_hits = 0
+
+    # Sort candidates: blend-tagged artists first (they're the most interesting)
+    def has_blend_tags(item):
+        _, atags = item
+        s = set(t.lower() for t in atags)
+        return 0 if (s & ELECTRONIC_TAGS and s & NON_ELECTRONIC_TAGS) else 1
+
+    candidates.sort(key=has_blend_tags)
+
+    for i, (track, atags) in enumerate(candidates):
+        if verbose and i % 20 == 0:
+            print(f"  Processing {i+1}/{len(candidates)}...", file=sys.stderr)
+
+        atag_set = set(t.lower() for t in atags)
+        is_blend_artist = bool(atag_set & ELECTRONIC_TAGS) and bool(atag_set & NON_ELECTRONIC_TAGS)
+        is_seed = track.artist.lower() in seed_names_lower
+
+        # Get BPM from Deezer (cheap, always do it)
+        detail = deezer_track_detail(track.deezer_id)
+        if detail:
+            track.bpm = detail.get("bpm", 0.0)
+
+        # Only do expensive MB/AB lookups for:
+        # - Blend artists (most interesting)
+        # - Seed artists (user explicitly chose them)
+        # - First 50 non-blend tracks (sample)
+        do_deep_lookup = is_blend_artist or is_seed or (i < 80)
+
+        if do_deep_lookup:
+            mbid = mb_search_recording(track.title, track.artist)
+            if mbid:
+                track.mb_recording_id = mbid
+                features = ab_get_features(mbid)
+                if features:
+                    ab_hits += 1
+                    extracted = extract_ab_features(features)
+                    track.danceability = extracted.get("danceability")
+                    track.voice_prob = extracted.get("voice_prob")
+                    track.mood_aggressive = extracted.get("mood_aggressive")
+                    track.mood_party = extracted.get("mood_party")
+                    track.mood_electronic = extracted.get("mood_electronic")
+
+        # Compute scores
+        track.energy_score = compute_energy(track)
+        track.electronicness = compute_electronicness(track, atags)
+        track.blend_element = identify_blend(track, atags)
+
+        # Store electronic/non-electronic tag breakdown
+        all_tags = set(t.lower() for t in atags)
+        track.electronic_tags = sorted(all_tags & ELECTRONIC_TAGS)
+        track.non_electronic_tags = sorted(all_tags & NON_ELECTRONIC_TAGS)
+
+        enriched.append(track)
+
+    print(f"  AcousticBrainz hits: {ab_hits}/{len(candidates)}", file=sys.stderr)
+
+    # Phase 4: Filter and rank
+    print("\nPhase 4: Filtering and ranking...", file=sys.stderr)
+    results = []
+
+    for track in enriched:
+        # Filter: energy >= 7 (relaxed slightly from 8 to get more candidates)
+        if track.energy_score < 7.0:
+            continue
+
+        # Filter: electronicness 5-9.5 (sweet spot, not pure EDM, not too acoustic)
+        if track.electronicness < 5.0 or track.electronicness > 9.5:
+            continue
+
+        # Filter: prefer instrumental (voice_prob < 0.6 if we have the data)
+        if track.voice_prob is not None and track.voice_prob > 0.7:
+            continue
+
+        # Prefer tracks with blend elements, but don't hard-filter
+        # (pure electronic tracks can still be interesting if they have
+        # unusual production, but rank them lower)
+
+        # Skip very short tracks (intros, interludes)
+        if track.duration_sec < 120:
+            continue
+
+        results.append(track)
+
+    # Sort by: blend diversity first, then energy, then sweet-spot electronicness
+    results.sort(key=lambda t: (
+        0 if t.non_electronic_tags else 1,  # blend tracks first
+        -len(t.non_electronic_tags),  # more blend elements = better
+        -t.energy_score,
+        abs(t.electronicness - 7.0),  # prefer middle of sweet spot (6-8)
+    ))
+
+    # Deduplicate by artist (max 3 tracks per artist)
+    seen_artists = {}
+    deduped = []
+    for t in results:
+        count = seen_artists.get(t.artist, 0)
+        if count < 3:
+            deduped.append(t)
+            seen_artists[t.artist] = count + 1
+
+    print(f"  Results after filtering: {len(deduped)} tracks", file=sys.stderr)
+    return deduped[:min_tracks + 10]  # return a few extra
+
+
+def format_table(tracks: list[Track]) -> str:
+    """Format tracks as a readable table."""
+    if not tracks:
+        return "No tracks found matching criteria."
+
+    lines = []
+    header = f"{'#':>3} | {'Song':<35} | {'Artist':<22} | {'BPM':>5} | {'Energy':>6} | {'Elec':>5} | {'Vocals':>6} | {'Blend Element':<25} | Link"
+    lines.append(header)
+    lines.append("-" * len(header))
+
+    for i, t in enumerate(tracks, 1):
+        vocals = "?"
+        if t.voice_prob is not None:
+            if t.voice_prob < 0.3:
+                vocals = "none"
+            elif t.voice_prob < 0.5:
+                vocals = "low"
+            elif t.voice_prob < 0.7:
+                vocals = "some"
+            else:
+                vocals = "high"
+
+        bpm_str = f"{t.bpm:.0f}" if t.bpm else "?"
+        link = t.deezer_link or ""
+
+        line = f"{i:>3} | {t.title[:35]:<35} | {t.artist[:22]:<22} | {bpm_str:>5} | {t.energy_score:>5.1f} | {t.electronicness:>4.1f} | {vocals:>6} | {t.blend_element[:25]:<25} | {link}"
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def format_json(tracks: list[Track]) -> str:
+    return json.dumps([asdict(t) for t in tracks], indent=2)
+
+
+def format_csv(tracks: list[Track]) -> str:
+    lines = ["Song,Artist,BPM,Energy,Electronicness,Vocals,Blend Element,Deezer Link"]
+    for t in tracks:
+        vocals = "unknown"
+        if t.voice_prob is not None:
+            vocals = f"{t.voice_prob:.2f}"
+        lines.append(f'"{t.title}","{t.artist}",{t.bpm},{t.energy_score:.1f},{t.electronicness:.1f},{vocals},"{t.blend_element}","{t.deezer_link}"')
+    return "\n".join(lines)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Discover instrumental electronic-fusion tracks")
+    parser.add_argument("--seeds", type=str, default=None,
+                        help="Comma-separated seed artist names (default: built-in list)")
+    parser.add_argument("--depth", type=int, default=1,
+                        help="How many levels of related artists to explore (0=seeds only, 1=seeds+related)")
+    parser.add_argument("--min-tracks", type=int, default=25,
+                        help="Target number of tracks to return")
+    parser.add_argument("--format", choices=["table", "json", "csv"], default="table",
+                        help="Output format")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Print detailed progress")
+    args = parser.parse_args()
+
+    if args.seeds:
+        seeds = [s.strip() for s in args.seeds.split(",")]
+    else:
+        seeds = DEFAULT_SEEDS
+
+    results = discover(seeds, depth=args.depth, min_tracks=args.min_tracks, verbose=args.verbose)
+
+    if args.format == "table":
+        print(format_table(results))
+    elif args.format == "json":
+        print(format_json(results))
+    elif args.format == "csv":
+        print(format_csv(results))
+
+
+if __name__ == "__main__":
+    main()

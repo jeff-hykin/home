@@ -1,0 +1,189 @@
+#!/usr/bin/env -S deno run --allow-run --allow-env --allow-read
+// branches — list all git branches grouped by primary author.
+//
+// Primary author heuristic: the top-count author among all commits in
+// `<trunk>..<branch>` (merges included). If that range is empty — the
+// branch is fully merged, or points at the same SHA as trunk — fall back
+// to the author of the latest non-merge commit on the branch.
+//
+// Trunk detection: origin/HEAD (or main/master) is the base, but if
+// origin/dev (or dev) exists and is strictly ahead of it, prefer that.
+// This handles repos where PRs land on dev first and main is only
+// periodically fast-forwarded — without dev-preference, every topic
+// branch inherits dev-ahead-of-main commits as "unique work".
+
+import $ from "jsr:@david/dax@0.42";
+
+// ── git helpers ────────────────────────────────────────────────────────────
+async function hasRef(ref: string): Promise<boolean> {
+    const r = await $`git rev-parse --verify --quiet ${ref}`
+        .noThrow()
+        .stdout("null")
+        .stderr("null");
+    return r.code === 0;
+}
+
+async function detectTrunk(): Promise<string> {
+    const head = (
+        await $`git symbolic-ref --quiet refs/remotes/origin/HEAD`
+            .noThrow()
+            .stdout("piped")
+            .stderr("null")
+    ).stdout.trim().replace(/^refs\/remotes\//, "");
+
+    // Base trunk: origin/HEAD, or main/master variants.
+    let base = "";
+    for (const c of [head, "origin/main", "origin/master", "main", "master"]) {
+        if (c && (await hasRef(c))) {
+            base = c;
+            break;
+        }
+    }
+    if (!base) {
+        // No main/master at all — fall straight to dev.
+        for (const c of ["origin/dev", "dev"]) {
+            if (await hasRef(c)) return c;
+        }
+        throw new Error("branches: could not detect a trunk branch");
+    }
+
+    // Prefer dev when it's strictly ahead of the base trunk.
+    for (const d of ["origin/dev", "dev"]) {
+        if (!(await hasRef(d))) continue;
+        const ahead = (
+            await $`git rev-list --count ${base}..${d}`
+                .noThrow()
+                .stdout("piped")
+                .stderr("null")
+        ).stdout.trim();
+        if (Number(ahead) > 0) return d;
+        break;
+    }
+    return base;
+}
+
+async function primaryAuthor(ref: string, trunk: string): Promise<string> {
+    // Main heuristic: mode of authors in trunk..ref (merges included).
+    const r = await $`git log --format=%an ${trunk}..${ref}`
+        .noThrow()
+        .stdout("piped")
+        .stderr("null");
+    const authors = r.stdout.split("\n").filter((l) => l.length > 0);
+    if (authors.length > 0) {
+        const counts = new Map<string, number>();
+        for (const a of authors) counts.set(a, (counts.get(a) ?? 0) + 1);
+        const top = [...counts.entries()].sort(
+            (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+        )[0];
+        return top[0];
+    }
+    // Fallback: latest non-merge commit author on the branch itself.
+    const f = await $`git log -1 --no-merges --format=%an ${ref}`
+        .noThrow()
+        .stdout("piped")
+        .stderr("null");
+    return f.stdout.trim() || "(unknown)";
+}
+
+async function pMap<T, R>(
+    items: T[],
+    fn: (t: T) => Promise<R>,
+    concurrency: number,
+): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let cursor = 0;
+    const workers = Array.from(
+        { length: Math.min(concurrency, items.length) },
+        async () => {
+            while (true) {
+                const i = cursor++;
+                if (i >= items.length) return;
+                results[i] = await fn(items[i]);
+            }
+        },
+    );
+    await Promise.all(workers);
+    return results;
+}
+
+// ── main ───────────────────────────────────────────────────────────────────
+const inside = await $`git rev-parse --is-inside-work-tree`
+    .noThrow()
+    .stdout("null")
+    .stderr("null");
+if (inside.code !== 0) {
+    console.error("branches: not inside a git repository");
+    Deno.exit(1);
+}
+
+const trunk = await detectTrunk();
+
+const refsRaw = (
+    await $`git for-each-ref --format=${"%(refname:short)|%(committerdate:iso-strict)"} refs/heads refs/remotes`
+        .stdout("piped")
+).stdout;
+
+type Ref = { ref: string; display: string; date: string; isRemote: boolean };
+
+const rawRefs: Ref[] = [];
+for (const line of refsRaw.split("\n")) {
+    if (!line) continue;
+    const [ref, dateRaw] = line.split("|");
+    if (!ref || ref.endsWith("/HEAD") || ref === "HEAD") continue;
+    const isRemote = ref.startsWith("origin/");
+    const display = isRemote ? ref.slice("origin/".length) : ref;
+    // iso-strict: 2026-04-15T16:19:42-07:00  →  2026-04-15 16:19
+    const date = (dateRaw ?? "").replace("T", " ").slice(0, 16);
+    rawRefs.push({ ref, display, date, isRemote });
+}
+
+// De-dup local vs origin. When both exist under the same display name,
+// prefer the origin (remote) one.
+const byDisplay = new Map<string, Ref>();
+for (const r of rawRefs) {
+    const existing = byDisplay.get(r.display);
+    if (!existing || (r.isRemote && !existing.isRemote)) {
+        byDisplay.set(r.display, r);
+    }
+}
+const refs = [...byDisplay.values()];
+
+type Row = { display: string; date: string; author: string };
+
+const rows: Row[] = await pMap(
+    refs,
+    async (r) => ({
+        display: r.display,
+        date: r.date,
+        author: await primaryAuthor(r.ref, trunk),
+    }),
+    24,
+);
+
+// ── sort: authors alphabetically (case-insensitive, so `lesh` sits next to
+// `Leshy`), then branches alphabetically within each author.
+const ci = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" });
+
+rows.sort((a, b) => {
+    const byAuthor = ci(a.author, b.author);
+    if (byAuthor !== 0) return byAuthor;
+    return ci(a.display, b.display);
+});
+
+// ── aligned table output ──────────────────────────────────────────────────
+const header = { author: "AUTHOR", date: "DATE", branch: "BRANCH" };
+const authorW = Math.max(header.author.length, ...rows.map((r) => r.author.length));
+const dateW = Math.max(header.date.length, ...rows.map((r) => r.date.length));
+const branchW = Math.max(header.branch.length, ...rows.map((r) => r.display.length));
+
+console.log(`trunk: ${trunk}`);
+console.log("");
+console.log(
+    `${header.author.padEnd(authorW)}  ${header.date.padEnd(dateW)}  ${header.branch.padEnd(branchW)}`,
+);
+console.log(`${"-".repeat(authorW)}  ${"-".repeat(dateW)}  ${"-".repeat(branchW)}`);
+for (const r of rows) {
+    console.log(
+        `${r.author.padEnd(authorW)}  ${r.date.padEnd(dateW)}  ${r.display.padEnd(branchW)}`,
+    );
+}

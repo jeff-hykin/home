@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""Find all Python docstrings (module/class/function) with file paths and line numbers.
+
+Usage:
+    find_docstrings FILE [FILE ...]              # explicit files
+    find_docstrings --branch [BASE]              # auto: git diff BASE...HEAD --name-only (default BASE=dev)
+    find_docstrings --staged                     # auto: git diff --cached --name-only
+    git diff ... --name-only | find_docstrings   # read paths from stdin
+
+Options:
+    --json          Emit one JSON object per docstring (jq-friendly)
+    --full          Print the full docstring body (default: first non-empty line, truncated)
+    --width N       Truncation width for the preview (default 100)
+    --no-empty      Skip docstrings whose stripped body is empty
+    --kinds K[,K]   Filter to kinds: module,class,function,asyncfunction (default: all)
+
+Output (default):
+    PATH:LINE:COL  KIND  QUALNAME  --  preview
+"""
+from __future__ import annotations
+
+import argparse
+import ast
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Iterable, Iterator
+
+
+KIND_OF_NODE = {
+    ast.Module: "module",
+    ast.ClassDef: "class",
+    ast.FunctionDef: "function",
+    ast.AsyncFunctionDef: "asyncfunction",
+}
+
+
+def collect_paths(args: argparse.Namespace) -> list[Path]:
+    if args.branch is not None:
+        base = args.branch or "dev"
+        out = subprocess.check_output(
+            ["git", "diff", f"{base}...HEAD", "--name-only"], text=True
+        )
+        return [Path(line) for line in out.splitlines() if line.strip()]
+    if args.staged:
+        out = subprocess.check_output(
+            ["git", "diff", "--cached", "--name-only"], text=True
+        )
+        return [Path(line) for line in out.splitlines() if line.strip()]
+    if args.files:
+        return [Path(file) for file in args.files]
+    if not sys.stdin.isatty():
+        return [Path(line) for line in sys.stdin.read().splitlines() if line.strip()]
+    return []
+
+
+def qualname_for(stack: list[ast.AST], node: ast.AST) -> str:
+    parts: list[str] = []
+    for ancestor in stack:
+        name = getattr(ancestor, "name", None)
+        if name:
+            parts.append(name)
+    name = getattr(node, "name", None)
+    if name:
+        parts.append(name)
+    return ".".join(parts) if parts else "<module>"
+
+
+def docstring_location(node: ast.AST) -> tuple[int, int] | None:
+    """Return (line, col) of the docstring literal, or None if no docstring."""
+    body = getattr(node, "body", None)
+    if not body:
+        return None
+    first = body[0]
+    if not isinstance(first, ast.Expr):
+        return None
+    value = first.value
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return (value.lineno, value.col_offset)
+    return None
+
+
+def walk_with_stack(node: ast.AST) -> Iterator[tuple[list[ast.AST], ast.AST]]:
+    """Yield (ancestor_stack, node) for every node, depth-first."""
+    stack: list[ast.AST] = []
+
+    def recurse(current: ast.AST) -> Iterator[tuple[list[ast.AST], ast.AST]]:
+        yield (list(stack), current)
+        stack.append(current)
+        try:
+            for child in ast.iter_child_nodes(current):
+                yield from recurse(child)
+        finally:
+            stack.pop()
+
+    yield from recurse(node)
+
+
+def iter_docstrings(
+    path: Path, kinds: set[str], skip_empty: bool
+) -> Iterator[dict]:
+    try:
+        source = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        print(f"# skip {path}: {error}", file=sys.stderr)
+        return
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError as error:
+        print(f"# skip {path}: SyntaxError {error.msg} at line {error.lineno}", file=sys.stderr)
+        return
+
+    for stack, node in walk_with_stack(tree):
+        kind = KIND_OF_NODE.get(type(node))
+        if kind is None or kind not in kinds:
+            continue
+        docstring = ast.get_docstring(node, clean=False)
+        if docstring is None:
+            continue
+        if skip_empty and not docstring.strip():
+            continue
+        location = docstring_location(node)
+        if location is None:
+            continue
+        line, col = location
+        yield {
+            "path": str(path),
+            "line": line,
+            "col": col + 1,
+            "kind": kind,
+            "qualname": qualname_for(stack, node),
+            "docstring": docstring,
+        }
+
+
+def first_line_preview(docstring: str, width: int) -> str:
+    for raw in docstring.splitlines():
+        stripped = raw.strip()
+        if stripped:
+            return stripped if len(stripped) <= width else stripped[: width - 1] + "…"
+    return ""
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Find Python docstrings with file paths and line numbers.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument("files", nargs="*", help="Files to scan (or use --branch / stdin).")
+    parser.add_argument(
+        "--branch",
+        nargs="?",
+        const="dev",
+        default=None,
+        metavar="BASE",
+        help="Scan files changed on this branch vs BASE (default: dev).",
+    )
+    parser.add_argument("--staged", action="store_true", help="Scan files staged for commit.")
+    parser.add_argument("--json", action="store_true", help="Emit one JSON object per docstring.")
+    parser.add_argument("--full", action="store_true", help="Print the full docstring body.")
+    parser.add_argument("--width", type=int, default=100, help="Preview width (default 100).")
+    parser.add_argument("--no-empty", action="store_true", help="Skip empty docstrings.")
+    parser.add_argument(
+        "--kinds",
+        default="module,class,function,asyncfunction",
+        help="Comma-separated kinds to include (default: all).",
+    )
+    args = parser.parse_args()
+
+    kinds = {kind.strip() for kind in args.kinds.split(",") if kind.strip()}
+    unknown_kinds = kinds - set(KIND_OF_NODE.values())
+    if unknown_kinds:
+        parser.error(f"unknown kinds: {sorted(unknown_kinds)}")
+
+    paths = collect_paths(args)
+    python_paths = [path for path in paths if path.suffix == ".py" and path.exists()]
+    missing = [path for path in paths if path.suffix == ".py" and not path.exists()]
+    for path in missing:
+        print(f"# missing {path}", file=sys.stderr)
+
+    if not python_paths:
+        print("# no python files to scan", file=sys.stderr)
+        return 1
+
+    found_any = False
+    for path in python_paths:
+        for record in iter_docstrings(path, kinds, args.no_empty):
+            found_any = True
+            if args.json:
+                print(json.dumps(record, ensure_ascii=False))
+                continue
+            header = f"{record['path']}:{record['line']}:{record['col']}  {record['kind']}  {record['qualname']}"
+            if args.full:
+                print(header)
+                for raw in record["docstring"].splitlines() or [""]:
+                    print(f"    {raw}")
+                print()
+            else:
+                print(f"{header}  --  {first_line_preview(record['docstring'], args.width)}")
+
+    return 0 if found_any else 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

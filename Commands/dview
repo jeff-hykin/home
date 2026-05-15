@@ -1,34 +1,45 @@
 #!/usr/bin/env bash
 # Install dimos-viewer into dimos venvs
-# Uses local wheel if available, falls back to PyPI package
+# Use --pypi to install from PyPI, otherwise installs from a local wheel
 
-WHEELS_DIR="$HOME/repos/dimos-viewer/target/wheels"
-if ! [ -d "$WHEELS_DIR" ]; then
-    WHEELS_DIR="$HOME/auto/dimos-viewer/target/wheels"
+USE_PYPI=false
+if [ "$1" = "--pypi" ]; then
+    USE_PYPI=true
+    shift
 fi
 
-# Determine the platform tag to match
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64)  PLAT_PATTERN="*macosx*arm64*" ;;
-    Darwin-x86_64) PLAT_PATTERN="*macosx*x86_64*" ;;
-    Linux-aarch64) PLAT_PATTERN="*linux*aarch64*" ;;
-    Linux-x86_64)  PLAT_PATTERN="*linux*x86_64*" ;;
-    *)             PLAT_PATTERN="*" ;;
-esac
-
-# Find the most recently modified dimos_viewer wheel matching the platform
-WHEEL="$(ls -t "$WHEELS_DIR"/dimos_viewer-${PLAT_PATTERN}.whl 2>/dev/null | head -1)"
-
-if [ -n "$WHEEL" ]; then
-    echo "Using local wheel: $(basename "$WHEEL")"
-    INSTALL_TARGET="$WHEEL"
-else
-    # Fallback to PyPI package
+if $USE_PYPI; then
     INSTALL_TARGET="dimos-viewer-jeff==0.30.0a6"
-    echo "No local wheel found, using PyPI: $INSTALL_TARGET"
+    echo "Installing $INSTALL_TARGET from PyPI"
+else
+    WHEELS_DIR="$HOME/repos/dimos-viewer/target/wheels"
+    if ! [ -d "$WHEELS_DIR" ]; then
+        WHEELS_DIR="$HOME/auto/dimos-viewer/target/wheels"
+    fi
+
+    # Determine the platform tag to match
+    case "$(uname -s)-$(uname -m)" in
+        Darwin-arm64)  PLAT_PATTERN="*macosx*arm64*" ;;
+        Darwin-x86_64) PLAT_PATTERN="*macosx*x86_64*" ;;
+        Linux-aarch64) PLAT_PATTERN="*linux*aarch64*" ;;
+        Linux-x86_64)  PLAT_PATTERN="*linux*x86_64*" ;;
+        *)             PLAT_PATTERN="*" ;;
+    esac
+
+    # Find the most recently modified dimos_viewer wheel matching the platform
+    WHEEL="$(ls -t "$WHEELS_DIR"/dimos_viewer*${PLAT_PATTERN}.whl 2>/dev/null | head -1)"
+
+    if [ -z "$WHEEL" ]; then
+        echo "ERROR: No dimos_viewer wheel found in $WHEELS_DIR"
+        echo "Build it first: cd ~/repos/dimos-viewer/dimos && maturin build --release"
+        exit 1
+    fi
+
+    INSTALL_TARGET="$WHEEL"
+    echo "Using local wheel: $(basename "$WHEEL")"
 fi
 
-for repo in ~/repos/dimos ~/repos/dimos2 ~/dimos ~/dimos2 ~/dimos3 ~/dimos4 ~/auto/dimos1485; do
+for repo in ~/repos/dimos ~/repos/dimos2 ~/repos/dimos3 ~/repos/dimos4 ~/repos/dimos5 ~/repos/dimos6 ~/dimos ~/dimos2 ~/dimos3 ~/dimos4 ~/auto/dimos1485; do
     venv="$repo/.venv"
     if [ -d "$venv" ]; then
         echo "Installing into $repo ..."
@@ -39,15 +50,17 @@ for repo in ~/repos/dimos ~/repos/dimos2 ~/dimos ~/dimos2 ~/dimos3 ~/dimos4 ~/au
 done
 
 # Update ~/.cargo/bin/dimos-viewer if it exists (prevents stale binary shadowing venv)
-CARGO_BIN="$HOME/.cargo/bin/dimos-viewer"
-if [ -f "$CARGO_BIN" ]; then
-    # Find the release binary from the same build tree as the wheel
-    RELEASE_BIN="$(dirname "$WHEELS_DIR")/release/dimos-viewer"
-    if [ -x "$RELEASE_BIN" ]; then
-        cp "$RELEASE_BIN" "$CARGO_BIN"
-        echo "Updated $CARGO_BIN"
-    else
-        echo "WARN: $CARGO_BIN exists and may shadow the venv-installed version. Consider removing it."
+if ! $USE_PYPI; then
+    CARGO_BIN="$HOME/.cargo/bin/dimos-viewer"
+    if [ -f "$CARGO_BIN" ]; then
+        # Find the release binary from the same build tree as the wheel
+        RELEASE_BIN="$(dirname "$WHEELS_DIR")/release/dimos-viewer"
+        if [ -x "$RELEASE_BIN" ]; then
+            cp "$RELEASE_BIN" "$CARGO_BIN"
+            echo "Updated $CARGO_BIN"
+        else
+            echo "WARN: $CARGO_BIN exists but no release binary found at $RELEASE_BIN — may shadow venv"
+        fi
     fi
 fi
 
