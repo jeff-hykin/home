@@ -18,7 +18,7 @@ function addToPath(dir) {
 }
 
 async function commandExists(cmd) {
-    return (await $`command -v ${cmd}`.noThrow().quiet("both")).code === 0
+    return (await $.which(cmd)) != null
 }
 
 function log(msg) {
