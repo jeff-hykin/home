@@ -5,9 +5,11 @@ echo "Looking for dimos and Unity processes..."
 
 # Process patterns
 dimos_pattern='dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3'
-native_pattern='result/bin/(local_planner|path_follower|terrain_analysis|far_planner|pct_planner)'
+native_pattern='result/bin/(local_planner|path_follower|terrain_analysis|far_planner|pct_planner|pgo|rtab_map|gazebo_native)'
 unity_pattern='Model\.x86_64|Unity|unity_envs'
-all_pattern="$dimos_pattern|$native_pattern|$unity_pattern"
+gazebo_pattern='gzserver|gzclient|ign-gazebo|ignition-gazebo|gz sim '
+ros_pattern='ros-navigation-autonomy-stack|/opt/ros/|ros2|roscore|rosmaster|roslaunch|rosout|joy_node|teleop_twist_joy|ros2_daemon'
+all_pattern="$dimos_pattern|$native_pattern|$unity_pattern|$gazebo_pattern|$ros_pattern"
 
 find_pids() {
     ps aux | grep -E "$1" | grep -v grep | grep -v "claude" | awk '{print $2}'
@@ -35,7 +37,7 @@ else
 fi
 
 # Kill anything using these ports
-for port in 7779 9090 3030 9876 9877; do
+for port in 7779 9090 3030 9876 9877 10000; do
     port_pids=$(lsof -ti :$port 2>/dev/null)
     if [ -n "$port_pids" ]; then
         echo "Killing processes on port $port: $port_pids"
@@ -43,11 +45,11 @@ for port in 7779 9090 3030 9876 9877; do
     fi
 done
 
-# Kill docker containers starting with "dimos_"
+# Kill docker containers related to dimos or nav stack
 if command -v docker >/dev/null 2>&1; then
-    dimos_containers=$(docker ps -q --filter "name=^dimos_" 2>/dev/null)
+    dimos_containers=$(docker ps -q --filter "name=dimos" --filter "name=ognav" --filter "name=rosnav" --filter "name=nav_stack" 2>/dev/null | sort -u)
     if [ -n "$dimos_containers" ]; then
-        echo "Stopping dimos_ docker containers..."
+        echo "Stopping docker containers..."
         echo "$dimos_containers" | xargs docker kill 2>/dev/null
         echo "$dimos_containers" | xargs docker rm -f 2>/dev/null
         echo "Docker containers stopped."

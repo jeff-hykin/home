@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SRC_BASE="$HOME/.claude.reference/plugins"
+DST_BASE="$HOME/.claude/plugins"
+MARKETPLACE="claude-plugins-official"
+PLUGIN="telegram"
+
+SRC_CACHE="$SRC_BASE/cache/$MARKETPLACE/$PLUGIN"
+DST_CACHE="$DST_BASE/cache/$MARKETPLACE/$PLUGIN"
+SRC_MKT="$SRC_BASE/marketplaces/$MARKETPLACE/external_plugins/$PLUGIN"
+DST_MKT="$DST_BASE/marketplaces/$MARKETPLACE/external_plugins/$PLUGIN"
+
+for src in "$SRC_CACHE" "$SRC_MKT"; do
+    if [ ! -d "$src" ]; then
+        echo "error: source missing: $src" >&2
+        exit 1
+    fi
+done
+
+rm -rf "$DST_CACHE"
+mkdir -p "$(dirname "$DST_CACHE")"
+cp -a "$SRC_CACHE" "$DST_CACHE"
+echo "restored: $DST_CACHE"
+
+rm -rf "$DST_MKT"
+mkdir -p "$(dirname "$DST_MKT")"
+cp -a "$SRC_MKT" "$DST_MKT"
+echo "restored: $DST_MKT"

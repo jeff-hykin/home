@@ -1,0 +1,12 @@
+#!/usr/bin/env -S deno run --allow-all
+
+// PreToolUse hook: hard-block the built-in `schedule` skill.
+// That skill creates remote routines on Anthropic's cloud that can't
+// access local files. Use cbg's create_scheduled_task tool instead.
+
+const input = JSON.parse(await new Response(Deno.stdin.readable).text())
+
+if (input.tool_name === "Skill" && input?.tool_input?.skill === "schedule") {
+    console.error("The `schedule` skill is disabled on this machine — it creates routines on Anthropic's cloud that can't access local files. Use the cbg create_scheduled_task tool instead.")
+    Deno.exit(2)
+}
