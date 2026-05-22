@@ -1,0 +1,42 @@
+#!/usr/bin/env -S deno run --allow-run --allow-env --allow-read
+// lsd — list ~/repos/dimos and ~/repos/dimos<digits> dirs with their git branches.
+
+import $ from "jsr:@david/dax@0.42"
+
+const home = Deno.env.get("HOME")
+const reposDir = `${home}/repos`
+
+const names = []
+for await (const entry of Deno.readDir(reposDir)) {
+    if (!entry.isDirectory) {
+        continue
+    }
+    if (!/^dimos\d*$/.test(entry.name)) {
+        continue
+    }
+    names.push(entry.name)
+}
+
+names.sort((a, b) => {
+    const an = parseInt(a.slice(5), 10) || 0
+    const bn = parseInt(b.slice(5), 10) || 0
+    return an - bn
+})
+
+const width = names.reduce((m, n) => Math.max(m, n.length), 0)
+
+for (const name of names) {
+    const dir = `${reposDir}/${name}`
+    let branch = "(no-git)"
+    try {
+        await Deno.stat(`${dir}/.git`)
+        const r = await $`git -C ${dir} branch --show-current`
+            .stdout("piped")
+            .stderr("null")
+            .noThrow()
+        branch = r.stdout.trim() || "(detached)"
+    } catch {
+        // not a repo — branch stays "(no-git)"
+    }
+    console.log(`${name.padEnd(width)}  ${branch}`)
+}
