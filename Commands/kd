@@ -5,11 +5,14 @@ echo "Looking for dimos and Unity processes..."
 
 # Process patterns
 dimos_pattern='dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3'
-native_pattern='result/bin/(local_planner|path_follower|terrain_analysis|far_planner|pct_planner|pgo|rtab_map|gazebo_native)'
+native_pattern='result/bin/(local_planner|path_follower|terrain_analysis|far_planner|pct_planner|pgo|rtab_map|gazebo_native|fastlio2_native)'
 unity_pattern='Model\.x86_64|Unity|unity_envs'
 gazebo_pattern='gzserver|gzclient|ign-gazebo|ignition-gazebo|gz sim '
 ros_pattern='ros-navigation-autonomy-stack|/opt/ros/|ros2|roscore|rosmaster|roslaunch|rosout|joy_node|teleop_twist_joy|ros2_daemon'
-all_pattern="$dimos_pattern|$native_pattern|$unity_pattern|$gazebo_pattern|$ros_pattern"
+# tcpdumps launched by anything dimos-related (orphaned when parent crashes,
+# since fastlio2 spawns tcpdump with start_new_session=True).
+tcpdump_pattern='tcpdump.*dimos|dimos.*tcpdump'
+all_pattern="$dimos_pattern|$native_pattern|$unity_pattern|$gazebo_pattern|$ros_pattern|$tcpdump_pattern"
 
 find_pids() {
     ps aux | grep -E "$1" | grep -v grep | grep -v "claude" | awk '{print $2}'
