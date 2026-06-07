@@ -1,0 +1,1500 @@
+#!/usr/bin/env -S deno run -A
+// ucp — interactively pick a file from any local/USB volume or an SSH host,
+// pick (or type) a destination, then copy it with a live progress bar + ETA.
+//
+// Places:         local volumes, unmounted drives (auto-mount, sudo + exfat-fuse fallback),
+//                 and "SSH / remote (scp)" which reads ~/.ssh/config.
+// Source picker:  ↑↓ move · → / enter open dir or select file · ← / backspace up · type to filter · ctrl-g toggle hidden
+// Dest picker:    same navigation, but enter on "· put files in THIS folder ·" chooses the folder,
+//                 then you type the file name (subdirs with / are created automatically).
+// Remote copies use scp (its own progress meter); local copies use the built-in bar.
+
+import { basename, dirname, join, relative } from "jsr:@std/path"
+
+// ---------- ANSI ----------
+const RESET = "\x1b[0m"
+const BOLD = "\x1b[1m"
+const DIM = "\x1b[2m"
+const REV = "\x1b[7m"
+const BLUE = "\x1b[34m"
+const CYAN = "\x1b[36m"
+const GREEN = "\x1b[32m"
+const YELLOW = "\x1b[33m"
+const CLEAR = "\x1b[2J\x1b[H"
+const HIDE_CURSOR = "\x1b[?25l"
+const SHOW_CURSOR = "\x1b[?25h"
+
+const enc = new TextEncoder()
+function out(text) {
+    Deno.stdout.writeSync(enc.encode(text))
+}
+
+function size() {
+    try {
+        return Deno.consoleSize()
+    } catch (_) {
+        return { columns: 80, rows: 24 }
+    }
+}
+
+// ---------- keyboard ----------
+let keyQueue = []
+
+function parseKeys(str) {
+    const keys = []
+    let i = 0
+    while (i < str.length) {
+        const c = str[i]
+        if (c === "\x1b") {
+            if (str[i + 1] === "[" || str[i + 1] === "O") {
+                const c2 = str[i + 2]
+                const map = { A: "up", B: "down", C: "right", D: "left", H: "home", F: "end" }
+                if (map[c2]) {
+                    keys.push(map[c2])
+                    i += 3
+                    continue
+                }
+                if (c2 === "3" && str[i + 3] === "~") {
+                    keys.push("delete")
+                    i += 4
+                    continue
+                }
+                if ((c2 === "1" || c2 === "7") && str[i + 3] === "~") {
+                    keys.push("home")
+                    i += 4
+                    continue
+                }
+                if ((c2 === "4" || c2 === "8") && str[i + 3] === "~") {
+                    keys.push("end")
+                    i += 4
+                    continue
+                }
+                let j = i + 2
+                while (j < str.length && !/[A-Za-z~]/.test(str[j])) {
+                    j++
+                }
+                i = j + 1
+                continue
+            }
+            keys.push("esc")
+            i += 1
+            continue
+        }
+        if (c === "\r" || c === "\n") {
+            keys.push("enter")
+            i++
+            continue
+        }
+        if (c === "\x7f" || c === "\x08") {
+            keys.push("backspace")
+            i++
+            continue
+        }
+        if (c === "\x03") {
+            keys.push("ctrl-c")
+            i++
+            continue
+        }
+        if (c === "\x07") {
+            keys.push("ctrl-g")
+            i++
+            continue
+        }
+        if (c === "\x12") {
+            keys.push("ctrl-r")
+            i++
+            continue
+        }
+        const code = c.charCodeAt(0)
+        if (code < 0x20) {
+            i++
+            continue
+        }
+        keys.push({ char: c })
+        i++
+    }
+    return keys
+}
+
+async function readKey() {
+    while (keyQueue.length === 0) {
+        const buf = new Uint8Array(1024)
+        const n = await Deno.stdin.read(buf)
+        if (n === null) {
+            return "ctrl-c"
+        }
+        const str = new TextDecoder().decode(buf.subarray(0, n))
+        keyQueue.push(...parseKeys(str))
+    }
+    return keyQueue.shift()
+}
+
+// ---------- subprocess ----------
+function dec(bytes) {
+    return new TextDecoder().decode(bytes)
+}
+
+async function run(cmd, args, opts = {}) {
+    try {
+        const ac = opts.timeoutMs ? new AbortController() : null
+        const timer = ac ? setTimeout(() => ac.abort(), opts.timeoutMs) : null
+        const proc = new Deno.Command(cmd, { args, stdout: "piped", stderr: "piped", signal: ac ? ac.signal : undefined })
+        const { code, stdout, stderr } = await proc.output()
+        if (timer) {
+            clearTimeout(timer)
+        }
+        return { code, out: dec(stdout), err: dec(stderr) }
+    } catch (e) {
+        return { code: 127, out: "", err: String(e) }
+    }
+}
+
+async function which(cmd) {
+    return (await run("which", [cmd])).code === 0
+}
+
+// Run a command via sudo. password === null → `sudo -n` (no prompt; succeeds only
+// with cached creds or NOPASSWD). password string → `sudo -S` with the password
+// piped in. Returns { code, out, err, auth }; auth === true means sudo wants a password.
+async function sudoRun(cmd, password) {
+    try {
+        if (password === null) {
+            const proc = new Deno.Command("sudo", { args: ["-n", ...cmd], stdin: "null", stdout: "piped", stderr: "piped" })
+            const { code, stdout, stderr } = await proc.output()
+            const err = dec(stderr)
+            const auth = code !== 0 && /password is required|a terminal is required/i.test(err)
+            return { code, out: dec(stdout), err, auth }
+        }
+        const proc = new Deno.Command("sudo", { args: ["-S", "-p", "", ...cmd], stdin: "piped", stdout: "piped", stderr: "piped" })
+        const child = proc.spawn()
+        const writer = child.stdin.getWriter()
+        await writer.write(new TextEncoder().encode(password + "\n"))
+        await writer.close()
+        const { code, stdout, stderr } = await child.output()
+        const err = dec(stderr)
+        const auth = code !== 0 && /incorrect password|sorry, try again|password is required/i.test(err)
+        return { code, out: dec(stdout), err, auth }
+    } catch (e) {
+        return { code: 127, out: "", err: String(e), auth: false }
+    }
+}
+
+// ---------- unmounted drives ----------
+function parseDiskutilInfo(text) {
+    const info = {}
+    for (const line of text.split("\n")) {
+        const match = line.match(/^\s*([^:]+):\s+(.*)$/)
+        if (match) {
+            info[match[1].trim()] = match[2].trim()
+        }
+    }
+    return info
+}
+
+async function getMountablesMac() {
+    const list = await run("diskutil", ["list", "external", "physical"])
+    if (list.code !== 0) {
+        return []
+    }
+    const ids = []
+    for (const line of list.out.split("\n")) {
+        const tokens = line.trim().split(/\s+/)
+        const id = tokens[tokens.length - 1]
+        if (/^disk\d+s\d+$/.test(id)) {
+            ids.push(id)
+        }
+    }
+    const mountables = []
+    for (const id of ids) {
+        const info = parseDiskutilInfo((await run("diskutil", ["info", id])).out)
+        const mounted = (info["Mounted"] || "").toLowerCase().startsWith("yes")
+        const fs = info["File System Personality"] || info["Type (Bundle)"] || ""
+        const name = info["Volume Name"] || info["Media Name"] || id
+        if (mounted || !fs || /EFI/i.test(fs) || name.startsWith("Not applicable")) {
+            continue
+        }
+        mountables.push({ device: id, label: name, fs, size: info["Disk Size"] || "", os: "darwin" })
+    }
+    return mountables
+}
+
+async function mountMac(mountable) {
+    const result = await run("diskutil", ["mount", mountable.device])
+    if (result.code === 0) {
+        const info = parseDiskutilInfo((await run("diskutil", ["info", mountable.device])).out)
+        const mountPoint = info["Mount Point"]
+        if (mountPoint && mountPoint.startsWith("/")) {
+            return { ok: true, path: mountPoint }
+        }
+    }
+    return { ok: false, needsSudo: true, msg: (result.err || result.out).trim() || "diskutil could not mount it" }
+}
+
+async function getMountablesLinux() {
+    const result = await run("lsblk", ["-J", "-o", "NAME,PATH,TYPE,FSTYPE,LABEL,MOUNTPOINT,RM,SIZE"])
+    if (result.code !== 0) {
+        return []
+    }
+    let data
+    try {
+        data = JSON.parse(result.out)
+    } catch (_) {
+        return []
+    }
+    const mountables = []
+    const walk = (nodes) => {
+        for (const node of nodes || []) {
+            const fs = node.fstype
+            const mountPoint = node.mountpoint || (node.mountpoints || []).find(Boolean)
+            if (fs && fs !== "swap" && !mountPoint && node.type !== "disk") {
+                mountables.push({ device: node.path, label: node.label || node.name, fs, size: node.size || "", os: "linux" })
+            }
+            if (node.children) {
+                walk(node.children)
+            }
+        }
+    }
+    walk(data.blockdevices)
+    return mountables
+}
+
+async function mountLinux(mountable) {
+    if (await which("udisksctl")) {
+        const result = await run("udisksctl", ["mount", "-b", mountable.device])
+        const text = result.out + result.err
+        const match = text.match(/(?:at|already mounted at)[`'\s]+(\/[^\s'`.]+)/)
+        if (match) {
+            return { ok: true, path: match[1] }
+        }
+        return { ok: false, needsSudo: true, msg: text.trim() || "udisksctl could not mount it" }
+    }
+    return { ok: false, needsSudo: true, msg: "udisksctl not found" }
+}
+
+function sanitizeName(name) {
+    return name.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "usb"
+}
+
+async function findExfatFuse() {
+    for (const name of ["mount.exfat-fuse", "mount.exfat", "exfat-fuse"]) {
+        const result = await run("which", [name])
+        if (result.code === 0 && result.out.trim()) {
+            return result.out.trim()
+        }
+    }
+    return null
+}
+
+// Locate a FUSE exfat mount helper, fetching one if missing. Prefers an already
+// installed binary, then nix (no system changes), then apt-get. Returns a path or null.
+async function ensureExfatFuse(password, status) {
+    let helper = await findExfatFuse()
+    if (helper) {
+        return { helper }
+    }
+    if (await which("nix")) {
+        status("Fetching an exfat driver via nix (this can take a minute)…")
+        const result = await run("nix", ["build", "nixpkgs#exfat", "--no-link", "--print-out-paths"], { timeoutMs: 300000 })
+        if (result.code === 0) {
+            const store = result.out.trim().split("\n").filter(Boolean).pop()
+            const candidate = store ? `${store}/bin/mount.exfat-fuse` : ""
+            try {
+                Deno.statSync(candidate)
+                return { helper: candidate }
+            } catch (_) {
+                // not where expected; fall through
+            }
+        }
+    }
+    if (await which("apt-get")) {
+        status("Installing exfat support via apt-get…")
+        const result = await sudoRun(["apt-get", "install", "-y", "exfat-fuse", "exfatprogs"], password)
+        if (result.auth) {
+            return { helper: null, needsPassword: true }
+        }
+        if (result.code === 0) {
+            helper = await findExfatFuse()
+            if (helper) {
+                return { helper }
+            }
+        }
+    }
+    return { helper: null, msg: "no exfat driver available (tried existing binaries, nix, apt-get)" }
+}
+
+// Mount via sudo. password === null tries `sudo -n` first; if sudo needs a password
+// the caller re-invokes with the typed password. Returns { ok, path } | { needsPassword } | { ok:false, msg }.
+async function mountWithSudo(mountable, password) {
+    if (mountable.os === "darwin") {
+        const result = await sudoRun(["diskutil", "mount", mountable.device], password)
+        if (result.auth) {
+            return { ok: false, needsPassword: true }
+        }
+        if (result.code !== 0) {
+            return { ok: false, msg: (result.err || result.out).trim() }
+        }
+        const info = parseDiskutilInfo((await run("diskutil", ["info", mountable.device])).out)
+        const mountPoint = info["Mount Point"]
+        return mountPoint && mountPoint.startsWith("/") ? { ok: true, path: mountPoint } : { ok: false, msg: "mounted but no mount point reported" }
+    }
+
+    const user = Deno.env.get("USER") || "user"
+    const uid = (await run("id", ["-u"])).out.trim() || "1000"
+    const gid = (await run("id", ["-g"])).out.trim() || "1000"
+    const mountPoint = `/media/${user}/${sanitizeName(mountable.label)}`
+
+    const mkdir = await sudoRun(["mkdir", "-p", mountPoint], password)
+    if (mkdir.auth) {
+        return { ok: false, needsPassword: true }
+    }
+    if (mkdir.code !== 0) {
+        return { ok: false, msg: (mkdir.err || mkdir.out).trim() }
+    }
+
+    const fatLike = /^(vfat|exfat|msdos|ntfs|fuseblk)$/i.test(mountable.fs)
+    const args = ["mount"]
+    if (fatLike) {
+        args.push("-o", `uid=${uid},gid=${gid}`)
+    }
+    args.push(mountable.device, mountPoint)
+    const result = await sudoRun(args, password)
+    if (result.auth) {
+        return { ok: false, needsPassword: true }
+    }
+    if (result.code === 0) {
+        if (!fatLike) {
+            await sudoRun(["chown", `${uid}:${gid}`, mountPoint], password)
+        }
+        return { ok: true, path: mountPoint }
+    }
+
+    // The kernel may lack exfat (no module, no helper). Fall back to a FUSE driver.
+    const isExfat = /exfat/i.test(mountable.fs) || /unknown filesystem type .?exfat/i.test(result.err)
+    if (isExfat) {
+        const status = (msg) => out(CLEAR + DIM + msg + RESET)
+        const driver = await ensureExfatFuse(password, status)
+        if (driver.needsPassword) {
+            return { ok: false, needsPassword: true }
+        }
+        if (driver.helper) {
+            status(`Mounting ${mountable.label} with exfat-fuse…`)
+            const fuse = await sudoRun([driver.helper, "-o", `uid=${uid},gid=${gid}`, mountable.device, mountPoint], password)
+            if (fuse.auth) {
+                return { ok: false, needsPassword: true }
+            }
+            if (fuse.code === 0) {
+                return { ok: true, path: mountPoint }
+            }
+            return { ok: false, msg: (fuse.err || fuse.out).trim() || "exfat-fuse mount failed" }
+        }
+        return { ok: false, msg: driver.msg || (result.err || result.out).trim() }
+    }
+
+    return { ok: false, msg: (result.err || result.out).trim() }
+}
+
+async function getMountables() {
+    try {
+        if (Deno.build.os === "darwin") {
+            return await getMountablesMac()
+        }
+        if (Deno.build.os === "linux") {
+            return await getMountablesLinux()
+        }
+    } catch (_) {
+        // best effort; no mountables on failure
+    }
+    return []
+}
+
+async function mountDevice(mountable) {
+    if (mountable.os === "darwin") {
+        return await mountMac(mountable)
+    }
+    return await mountLinux(mountable)
+}
+
+// ---------- places ----------
+function getPlaces() {
+    const places = []
+    places.push({ name: "System root", path: "/", kind: "sys" })
+    const home = Deno.env.get("HOME")
+    if (home) {
+        places.push({ name: "Home", path: home, kind: "home" })
+    }
+    const volDirs = []
+    if (Deno.build.os === "darwin") {
+        volDirs.push("/Volumes")
+    } else {
+        const user = Deno.env.get("USER")
+        volDirs.push("/media", `/media/${user}`, "/run/media", `/run/media/${user}`, "/mnt")
+    }
+    const seen = new Set()
+    for (const dir of volDirs) {
+        try {
+            for (const entry of Deno.readDirSync(dir)) {
+                if (!entry.isDirectory && !entry.isSymlink) {
+                    continue
+                }
+                const path = join(dir, entry.name)
+                if (seen.has(path)) {
+                    continue
+                }
+                seen.add(path)
+                places.push({ name: entry.name, path, kind: "usb" })
+            }
+        } catch (_) {
+            // dir not present; skip
+        }
+    }
+    return places
+}
+
+function placeIcon(kind) {
+    if (kind === "usb") {
+        return "🔌"
+    }
+    if (kind === "home") {
+        return "🏠"
+    }
+    return "🖥 "
+}
+
+async function confirmKey(message) {
+    out(CLEAR + BOLD + message + RESET + "\n\n" + DIM + "y / enter = yes · any other key = no" + RESET)
+    const key = await readKey()
+    return key === "enter" || (typeof key === "object" && key.char && "yY".includes(key.char))
+}
+
+async function passwordPrompt(message) {
+    const buf = []
+    out(SHOW_CURSOR)
+    while (true) {
+        out(CLEAR + BOLD + message + RESET + "\n\n  " + "•".repeat(buf.length))
+        const key = await readKey()
+        if (key === "ctrl-c" || key === "esc") {
+            out(HIDE_CURSOR)
+            return null
+        }
+        if (key === "enter") {
+            out(HIDE_CURSOR)
+            return buf.join("")
+        }
+        if (key === "backspace") {
+            buf.pop()
+        } else if (typeof key === "object" && key.char) {
+            buf.push(key.char)
+        }
+    }
+}
+
+// Orchestrates mounting: rootless first, then (with confirmation) sudo -n, then sudo -S
+// with a typed password. Returns a mount path on success, or null to stay in the picker.
+async function mountFlow(mountable) {
+    out(CLEAR + DIM + `Mounting ${mountable.label}…` + RESET)
+    const rootless = await mountDevice(mountable)
+    if (rootless.ok) {
+        return rootless.path
+    }
+    if (!rootless.needsSudo) {
+        await showMountError(mountable.label, rootless.msg)
+        return null
+    }
+    if (!(await confirmKey(`Could not mount ${mountable.label} as your user.\n${DIM}${rootless.msg}${RESET}\n\nTry mounting with sudo?`))) {
+        return null
+    }
+    out(CLEAR + DIM + `Mounting ${mountable.label} with sudo…` + RESET)
+    let result = await mountWithSudo(mountable, null)
+    if (result.ok) {
+        return result.path
+    }
+    if (result.needsPassword) {
+        const password = await passwordPrompt(`sudo password for ${mountable.label}:`)
+        if (password === null) {
+            return null
+        }
+        out(CLEAR + DIM + `Mounting ${mountable.label} with sudo…` + RESET)
+        result = await mountWithSudo(mountable, password)
+        if (result.ok) {
+            return result.path
+        }
+        if (result.needsPassword) {
+            result = { msg: "incorrect password" }
+        }
+    }
+    await showMountError(mountable.label, result.msg || "mount failed")
+    return null
+}
+
+async function showMountError(label, msg) {
+    out(CLEAR + YELLOW + `Could not mount ${label}:` + RESET + `\n\n  ${msg}\n\n` + DIM + "press any key to continue" + RESET)
+    await readKey()
+}
+
+async function pickPlace(title) {
+    let entries = []
+    const load = async () => {
+        const mounted = getPlaces().map((place) => ({ ...place, action: "open" }))
+        const mountables = (await getMountables()).map((m) => ({ kind: "mount", action: "mount", raw: m }))
+        entries = [...mounted, { kind: "ssh", action: "ssh", name: "SSH / remote (scp)" }, ...mountables]
+    }
+    out(CLEAR + DIM + "Scanning drives…" + RESET)
+    await load()
+    let idx = 0
+    while (true) {
+        if (idx >= entries.length) {
+            idx = entries.length - 1
+        }
+        if (idx < 0) {
+            idx = 0
+        }
+        let screen = CLEAR + BOLD + title + RESET + "\n\n"
+        entries.forEach((entry, i) => {
+            const selected = i === idx
+            if (entry.action === "mount") {
+                const m = entry.raw
+                if (selected) {
+                    screen += REV + ` ▶ ⏏ ${m.label}  ${m.device}  (mount) ` + RESET + "\n"
+                } else {
+                    screen += `   ${YELLOW}⏏${RESET} ${m.label}  ${DIM}${m.device} · ${m.fs}${m.size ? " · " + m.size : ""} · not mounted${RESET}\n`
+                }
+            } else if (entry.action === "ssh") {
+                if (selected) {
+                    screen += REV + ` ▶ 🌐 ${entry.name} ` + RESET + "\n"
+                } else {
+                    screen += `   🌐 ${BLUE}${entry.name}${RESET}\n`
+                }
+            } else {
+                const icon = placeIcon(entry.kind)
+                if (selected) {
+                    screen += REV + ` ▶ ${icon} ${entry.name}  ${entry.path} ` + RESET + "\n"
+                } else {
+                    screen += `   ${icon} ${BLUE}${entry.name}${RESET}  ${DIM}${entry.path}${RESET}\n`
+                }
+            }
+        })
+        screen += "\n" + DIM + "↑↓ move · enter select/mount · ctrl-r rescan · ctrl-c quit" + RESET
+        out(screen)
+        const key = await readKey()
+        if (key === "ctrl-c") {
+            return null
+        } else if (key === "up") {
+            idx = Math.max(0, idx - 1)
+        } else if (key === "down") {
+            idx = Math.min(entries.length - 1, idx + 1)
+        } else if (key === "ctrl-r") {
+            out(CLEAR + DIM + "Scanning drives…" + RESET)
+            await load()
+            idx = 0
+        } else if (key === "enter" || key === "right") {
+            const entry = entries[idx]
+            if (!entry) {
+                continue
+            }
+            if (entry.action === "open") {
+                return { remote: false, path: entry.path }
+            }
+            if (entry.action === "ssh") {
+                const result = await pickSshHost()
+                if (result.type === "cancel") {
+                    return null
+                }
+                if (result.type === "host") {
+                    return { remote: true, host: result.host, startDir: result.home }
+                }
+                out(CLEAR + DIM + "Scanning drives…" + RESET)
+                await load()
+                idx = 0
+                continue
+            }
+            const mountedPath = await mountFlow(entry.raw)
+            if (mountedPath) {
+                return { remote: false, path: mountedPath }
+            }
+            out(CLEAR + DIM + "Scanning drives…" + RESET)
+            await load()
+            idx = 0
+        }
+    }
+}
+
+// ---------- directory listing ----------
+function isDirEntry(dir, entry) {
+    if (entry.isDirectory) {
+        return true
+    }
+    if (entry.isSymlink) {
+        try {
+            return Deno.statSync(join(dir, entry.name)).isDirectory
+        } catch (_) {
+            return false
+        }
+    }
+    return false
+}
+
+function readEntries(dir) {
+    const list = []
+    try {
+        for (const entry of Deno.readDirSync(dir)) {
+            list.push({ name: entry.name, isDir: isDirEntry(dir, entry) })
+        }
+    } catch (_) {
+        return []
+    }
+    list.sort((a, b) => {
+        if (a.isDir !== b.isDir) {
+            return a.isDir ? -1 : 1
+        }
+        return a.name.localeCompare(b.name)
+    })
+    return list
+}
+
+// ---------- filesystems (local + ssh) ----------
+function shq(value) {
+    return "'" + String(value).replaceAll("'", "'\\''") + "'"
+}
+
+const localFs = {
+    remote: false,
+    readEntries(dir) {
+        return readEntries(dir)
+    },
+}
+
+function remoteFs(host) {
+    return {
+        remote: true,
+        host,
+        async readEntries(dir) {
+            // -A all-but-dotdirs, -p slash on dirs, -L follow symlinks so linked dirs get a slash
+            const result = await run("ssh", [host, `ls -1ApL -- ${shq(dir)}`])
+            if (result.code !== 0) {
+                return []
+            }
+            const list = []
+            for (const raw of result.out.split("\n")) {
+                if (!raw) {
+                    continue
+                }
+                const isDir = raw.endsWith("/")
+                const name = isDir ? raw.slice(0, -1) : raw
+                if (name === "") {
+                    continue
+                }
+                list.push({ name, isDir })
+            }
+            list.sort((a, b) => {
+                if (a.isDir !== b.isDir) {
+                    return a.isDir ? -1 : 1
+                }
+                return a.name.localeCompare(b.name)
+            })
+            return list
+        },
+    }
+}
+
+// ---------- ssh ----------
+function parseSshConfig() {
+    let text
+    try {
+        text = Deno.readTextFileSync(join(Deno.env.get("HOME") || "", ".ssh", "config"))
+    } catch (_) {
+        return []
+    }
+    const hosts = []
+    let current = null
+    const flush = () => {
+        if (!current) {
+            return
+        }
+        for (const alias of current.aliases) {
+            if (alias.includes("*") || alias.includes("?") || alias === "") {
+                continue
+            }
+            hosts.push({ host: alias, hostName: current.hostName, user: current.user, port: current.port })
+        }
+        current = null
+    }
+    for (const line of text.split("\n")) {
+        const trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith("#")) {
+            continue
+        }
+        const match = trimmed.match(/^(\S+)[\s=]+(.+)$/)
+        if (!match) {
+            continue
+        }
+        const key = match[1].toLowerCase()
+        const value = match[2].trim()
+        if (key === "host") {
+            flush()
+            current = { aliases: value.split(/\s+/), hostName: "", user: "", port: "" }
+        } else if (current) {
+            if (key === "hostname") {
+                current.hostName = value
+            } else if (key === "user") {
+                current.user = value
+            } else if (key === "port") {
+                current.port = value
+            }
+        }
+    }
+    flush()
+    return hosts
+}
+
+function hostMeta(h) {
+    if (!h.hostName) {
+        return "(no HostName)"
+    }
+    return `${h.user ? h.user + "@" : ""}${h.hostName}${h.port && h.port !== "22" ? ":" + h.port : ""}`
+}
+
+// BatchMode=yes disables password prompts, so a failure means key auth isn't set up.
+async function testSshConnection(host) {
+    const result = await run("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host, "echo $HOME"], { timeoutMs: 15000 })
+    if (result.code === 0) {
+        const home = result.out.trim().split("\n").filter(Boolean).pop()
+        return { ok: true, home: home && home.startsWith("/") ? home : "/" }
+    }
+    return { ok: false, msg: (result.err || result.out).trim() || "connection failed" }
+}
+
+async function pickSshHost() {
+    if (!(await which("ssh")) || !(await which("scp"))) {
+        out(CLEAR + YELLOW + "ssh/scp are not installed — remote copy is unavailable." + RESET + "\n\n" + DIM + "press any key to continue" + RESET)
+        await readKey()
+        return { type: "back" }
+    }
+    const hosts = parseSshConfig()
+    if (hosts.length === 0) {
+        out(CLEAR + YELLOW + "No hosts found in ~/.ssh/config." + RESET + "\n\n" + DIM + "press any key to continue" + RESET)
+        await readKey()
+        return { type: "back" }
+    }
+    let idx = 0
+    while (true) {
+        let screen = CLEAR + BOLD + "🌐 SSH — pick a host" + RESET + "\n\n"
+        hosts.forEach((h, i) => {
+            const selected = i === idx
+            if (selected) {
+                screen += REV + ` ▶ ${h.host}  ${hostMeta(h)} ` + RESET + "\n"
+            } else {
+                screen += `   ${BLUE}${h.host}${RESET}  ${DIM}${hostMeta(h)}${RESET}\n`
+            }
+        })
+        screen += "\n" + DIM + "↑↓ move · enter connect · ← back · ctrl-c quit" + RESET
+        out(screen)
+        const key = await readKey()
+        if (key === "ctrl-c") {
+            return { type: "cancel" }
+        } else if (key === "left" || key === "esc") {
+            return { type: "back" }
+        } else if (key === "up") {
+            idx = Math.max(0, idx - 1)
+        } else if (key === "down") {
+            idx = Math.min(hosts.length - 1, idx + 1)
+        } else if (key === "enter" || key === "right") {
+            const host = hosts[idx].host
+            out(CLEAR + DIM + `Connecting to ${host}…` + RESET)
+            const test = await testSshConnection(host)
+            if (test.ok) {
+                return { type: "host", host, home: test.home }
+            }
+            out(CLEAR + YELLOW + `Could not connect to ${host} with key auth:` + RESET + `\n\n  ${test.msg}\n\n` + DIM + `Make sure your SSH key is set up (e.g. ssh-copy-id ${host}).\n\npress any key to continue` + RESET)
+            await readKey()
+        }
+    }
+}
+
+// ---------- navigator ----------
+async function navigate(fs, startDir, dirsOnly) {
+    let dir = startDir
+    let showHidden = false
+    let filter = ""
+    let idx = 0
+    let scroll = 0
+    let currentDirEmpty = false
+
+    async function build() {
+        if (fs.remote) {
+            out(CLEAR + CYAN + dir + RESET + "\n\n" + DIM + "listing over ssh…" + RESET)
+        }
+        const raw = await fs.readEntries(dir)
+        currentDirEmpty = raw.length === 0
+        let entries = raw.filter((e) => showHidden || !e.name.startsWith("."))
+        if (filter) {
+            const needle = filter.toLowerCase()
+            entries = entries.filter((e) => e.name.toLowerCase().startsWith(needle))
+        }
+        let list = entries.map((e) => ({ name: e.name, isDir: e.isDir, path: join(dir, e.name) }))
+        if (dirsOnly) {
+            list = list.filter((e) => e.isDir)
+            list.unshift({ name: "· put files in THIS folder ·", synthetic: true })
+        }
+        return list
+    }
+
+    let list = await build()
+
+    while (true) {
+        if (idx >= list.length) {
+            idx = list.length - 1
+        }
+        if (idx < 0) {
+            idx = 0
+        }
+        const { rows } = size()
+        const viewport = Math.max(3, rows - 6)
+        if (idx < scroll) {
+            scroll = idx
+        }
+        if (idx >= scroll + viewport) {
+            scroll = idx - viewport + 1
+        }
+
+        let screen = CLEAR
+        screen += BOLD + (dirsOnly ? "📂 Choose destination folder" : "📄 Choose a file") + RESET + "\n"
+        screen += CYAN + dir + RESET + "\n"
+        screen += filter ? DIM + "filter: " + RESET + filter + "\n" : "\n"
+
+        const visible = list.slice(scroll, scroll + viewport)
+        visible.forEach((item, vi) => {
+            const i = scroll + vi
+            const selected = i === idx
+            let plain
+            if (item.synthetic) {
+                plain = item.name
+            } else if (item.isDir) {
+                plain = item.name + "/"
+            } else {
+                plain = item.name
+            }
+            if (selected) {
+                screen += REV + " " + plain + " " + RESET + "\n"
+            } else if (item.synthetic) {
+                screen += " " + GREEN + plain + RESET + "\n"
+            } else if (item.isDir) {
+                screen += " " + BLUE + BOLD + plain + RESET + "\n"
+            } else {
+                screen += " " + plain + "\n"
+            }
+        })
+        if (list.length === 0) {
+            screen += DIM + " (empty)" + RESET + "\n"
+        }
+        for (let k = visible.length; k < viewport; k++) {
+            screen += "\n"
+        }
+        const hint = dirsOnly
+            ? `↑↓ move · → open folder · enter pick folder as target · ← up · type filter · ctrl-g hidden${showHidden ? " ✓" : ""} · ctrl-c quit`
+            : `↑↓ move · → open folder · enter select file / copy folder · ← up · type filter · ctrl-g hidden${showHidden ? " ✓" : ""} · ctrl-c quit`
+        screen += DIM + hint + RESET
+        out(screen)
+
+        const descend = async (path) => {
+            dir = path
+            filter = ""
+            idx = 0
+            scroll = 0
+            list = await build()
+        }
+
+        const key = await readKey()
+        if (key === "ctrl-c") {
+            return { type: "cancel" }
+        } else if (key === "up") {
+            idx = Math.max(0, idx - 1)
+        } else if (key === "down") {
+            idx = Math.min(list.length - 1, idx + 1)
+        } else if (key === "ctrl-g") {
+            showHidden = !showHidden
+            filter = ""
+            idx = 0
+            scroll = 0
+            list = await build()
+        } else if (key === "esc") {
+            if (filter) {
+                filter = ""
+                idx = 0
+                scroll = 0
+                list = await build()
+            }
+        } else if (key === "left") {
+            if (dir === "/") {
+                return { type: "back" }
+            }
+            await descend(dirname(dir))
+        } else if (key === "right") {
+            const item = list[idx]
+            if (!item) {
+                continue
+            }
+            if (item.synthetic) {
+                return { type: "selected", path: dir, kind: currentDirEmpty ? "intoFolderEmpty" : "intoFolder" }
+            }
+            if (item.isDir) {
+                await descend(item.path)
+            } else if (!dirsOnly) {
+                return { type: "selected", path: item.path, isDir: false }
+            }
+        } else if (key === "enter") {
+            const item = list[idx]
+            if (!item) {
+                continue
+            }
+            if (dirsOnly) {
+                if (item.synthetic) {
+                    // "put files in THIS folder": type a name, or (empty dir) just use the source basename
+                    return { type: "selected", path: dir, kind: currentDirEmpty ? "intoFolderEmpty" : "intoFolder" }
+                }
+                // enter on a directory: that directory is the target (overwrite/merge decided later)
+                return { type: "selected", path: item.path, kind: "existingDir" }
+            }
+            if (item.synthetic) {
+                return { type: "selected", path: dir, isDir: true }
+            }
+            if (item.isDir) {
+                if (await confirmKey(`Copy folder ${item.name}/ ?`)) {
+                    return { type: "selected", path: item.path, isDir: true }
+                }
+            } else {
+                return { type: "selected", path: item.path, isDir: false }
+            }
+        } else if (key === "backspace") {
+            if (filter) {
+                filter = filter.slice(0, -1)
+                idx = 0
+                scroll = 0
+                list = await build()
+            } else if (dir !== "/") {
+                dir = dirname(dir)
+                idx = 0
+                scroll = 0
+                list = await build()
+            } else {
+                return { type: "back" }
+            }
+        } else if (typeof key === "object" && key.char) {
+            filter += key.char
+            idx = 0
+            scroll = 0
+            list = await build()
+        }
+    }
+}
+
+// ---------- name editor ----------
+async function lineEdit(baseDir, initial) {
+    let buf = [...initial]
+    let cur = buf.length
+    out(SHOW_CURSOR)
+    while (true) {
+        const text = buf.join("")
+        let screen = CLEAR + BOLD + "✏️  Name the destination file" + RESET + "\n\n"
+        screen += "Folder: " + CYAN + baseDir + RESET + "\n"
+        screen += DIM + "(include / to create sub-folders · enter to confirm · esc to pick another folder)" + RESET + "\n\n"
+        screen += "  → " + text
+        out(screen)
+        const back = buf.length - cur
+        if (back > 0) {
+            out(`\x1b[${back}D`)
+        }
+        const key = await readKey()
+        if (key === "ctrl-c") {
+            out(HIDE_CURSOR)
+            return { abort: true }
+        } else if (key === "esc") {
+            out(HIDE_CURSOR)
+            return null
+        } else if (key === "enter") {
+            out(HIDE_CURSOR)
+            return { name: text.trim() }
+        } else if (key === "backspace") {
+            if (cur > 0) {
+                buf.splice(cur - 1, 1)
+                cur--
+            }
+        } else if (key === "delete") {
+            if (cur < buf.length) {
+                buf.splice(cur, 1)
+            }
+        } else if (key === "left") {
+            cur = Math.max(0, cur - 1)
+        } else if (key === "right") {
+            cur = Math.min(buf.length, cur + 1)
+        } else if (key === "home") {
+            cur = 0
+        } else if (key === "end") {
+            cur = buf.length
+        } else if (typeof key === "object" && key.char) {
+            buf.splice(cur, 0, key.char)
+            cur++
+        }
+    }
+}
+
+// ---------- pickers ----------
+async function menu(title, options) {
+    let idx = 0
+    while (true) {
+        let screen = CLEAR + BOLD + title + RESET + "\n\n"
+        options.forEach((o, i) => {
+            if (i === idx) {
+                screen += REV + ` ▶ ${o.label} ` + RESET + "\n"
+            } else {
+                screen += `   ${o.label}\n`
+            }
+        })
+        screen += "\n" + DIM + "↑↓ move · enter select · ctrl-c cancel" + RESET
+        out(screen)
+        const key = await readKey()
+        if (key === "ctrl-c" || key === "esc") {
+            return null
+        } else if (key === "up") {
+            idx = Math.max(0, idx - 1)
+        } else if (key === "down") {
+            idx = Math.min(options.length - 1, idx + 1)
+        } else if (key === "enter" || key === "right") {
+            return options[idx].value
+        }
+    }
+}
+
+async function pathIsDir(remote, host, path) {
+    if (remote) {
+        const result = await run("ssh", [host, `test -d ${shq(path)} && echo D`])
+        return result.out.trim() === "D"
+    }
+    try {
+        return Deno.statSync(path).isDirectory
+    } catch (_) {
+        return false
+    }
+}
+
+async function pickSource() {
+    while (true) {
+        const place = await pickPlace("📍 SOURCE — where is the file?")
+        if (!place) {
+            return null
+        }
+        const fs = place.remote ? remoteFs(place.host) : localFs
+        const start = place.startDir || place.path
+        const result = await navigate(fs, start, false)
+        if (result.type === "cancel") {
+            return null
+        }
+        if (result.type === "back") {
+            continue
+        }
+        return { remote: place.remote, host: place.host, path: result.path, isDir: result.isDir }
+    }
+}
+
+async function pickDest(src) {
+    const srcBase = basename(src.path)
+    while (true) {
+        const place = await pickPlace("📍 DESTINATION — which volume?")
+        if (!place) {
+            return null
+        }
+        const fs = place.remote ? remoteFs(place.host) : localFs
+        const start = place.startDir || place.path
+        const result = await navigate(fs, start, true)
+        if (result.type === "cancel") {
+            return null
+        }
+        if (result.type === "back") {
+            continue
+        }
+
+        // Resolve the candidate destination path from how the folder was chosen.
+        let candidate
+        if (result.kind === "existingDir") {
+            // enter on a folder → that folder is the target (the menu below decides what that means)
+            candidate = src.isDir ? result.path : join(result.path, srcBase)
+        } else if (result.kind === "intoFolderEmpty") {
+            // empty folder + enter → drop the source in, keeping its name
+            candidate = join(result.path, srcBase)
+        } else {
+            // "put files in THIS folder" → type the rest of the name (subdirs allowed)
+            const edited = await lineEdit(result.path, srcBase)
+            if (edited === null) {
+                continue
+            }
+            if (edited.abort) {
+                return null
+            }
+            if (!edited.name) {
+                continue
+            }
+            candidate = join(result.path, edited.name)
+        }
+
+        // If we'd land on an existing folder and the source is a folder, ask what to do.
+        let disposition = "default"
+        let path = candidate
+        if (src.isDir && (await pathIsDir(place.remote, place.host, candidate))) {
+            const label = place.remote ? `${place.host}:${candidate}` : candidate
+            const choice = await menu(`"${label}" already exists as a folder.`, [
+                { label: `Overwrite — replace it entirely with ${srcBase}/`, value: "overwrite" },
+                { label: `Merge — copy contents of ${srcBase}/ into it`, value: "merge" },
+                { label: `Inside — copy ${srcBase}/ as an item inside it`, value: "inside" },
+                { label: "Cancel", value: "cancel" },
+            ])
+            if (!choice || choice === "cancel") {
+                continue
+            }
+            if (choice === "overwrite") {
+                disposition = "overwrite"
+            } else if (choice === "merge") {
+                disposition = "merge"
+            } else if (choice === "inside") {
+                path = join(candidate, srcBase)
+            }
+        }
+
+        return { remote: place.remote, host: place.host, path, disposition }
+    }
+}
+
+// ---------- formatting ----------
+function fmtBytes(n) {
+    const units = ["B", "KB", "MB", "GB", "TB"]
+    let value = n
+    let i = 0
+    while (value >= 1024 && i < units.length - 1) {
+        value /= 1024
+        i++
+    }
+    return `${value.toFixed(i === 0 ? 0 : 1)}${units[i]}`
+}
+
+function fmtTime(sec) {
+    if (!isFinite(sec) || sec < 0) {
+        return "--:--"
+    }
+    sec = Math.round(sec)
+    const h = Math.floor(sec / 3600)
+    const m = Math.floor((sec % 3600) / 60)
+    const s = sec % 60
+    if (h > 0) {
+        return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    }
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+}
+
+function renderProgress(copied, total, start) {
+    const elapsed = (performance.now() - start) / 1000
+    const speed = elapsed > 0 ? copied / elapsed : 0
+    const frac = total > 0 ? copied / total : 1
+    const eta = speed > 0 ? (total - copied) / speed : 0
+    const cols = size().columns
+    const barWidth = Math.max(10, cols - 52)
+    const filled = Math.round(frac * barWidth)
+    const bar = "█".repeat(filled) + "░".repeat(barWidth - filled)
+    const pct = (frac * 100).toFixed(0).padStart(3)
+    out(`\r\x1b[K${GREEN}${bar}${RESET} ${pct}%  ${fmtBytes(copied)}/${fmtBytes(total)}  ${fmtBytes(speed)}/s  ETA ${fmtTime(eta)}`)
+}
+
+// ---------- copy ----------
+async function* walkFiles(root) {
+    for (const entry of Deno.readDirSync(root)) {
+        const path = join(root, entry.name)
+        if (entry.isDirectory) {
+            yield* walkFiles(path)
+        } else if (entry.isFile) {
+            yield path
+        } else if (entry.isSymlink) {
+            try {
+                if (Deno.statSync(path).isFile) {
+                    yield path
+                }
+            } catch (_) {
+                // dangling symlink; skip
+            }
+        }
+    }
+}
+
+async function copyWithProgress(src, dst, isDir) {
+    const jobs = []
+    let total = 0
+    if (isDir) {
+        for await (const file of walkFiles(src)) {
+            const to = join(dst, relative(src, file))
+            const fileSize = Deno.statSync(file).size
+            jobs.push({ from: file, to, size: fileSize })
+            total += fileSize
+        }
+    } else {
+        total = Deno.statSync(src).size
+        jobs.push({ from: src, to: dst, size: total })
+    }
+
+    let copied = 0
+    let lastRender = 0
+    const start = performance.now()
+    const buf = new Uint8Array(4 * 1024 * 1024)
+
+    for (const job of jobs) {
+        Deno.mkdirSync(dirname(job.to), { recursive: true })
+        const rf = Deno.openSync(job.from, { read: true })
+        const wf = Deno.openSync(job.to, { write: true, create: true, truncate: true })
+        try {
+            while (true) {
+                const n = rf.readSync(buf)
+                if (n === null) {
+                    break
+                }
+                let offset = 0
+                while (offset < n) {
+                    offset += wf.writeSync(buf.subarray(offset, n))
+                }
+                copied += n
+                const now = performance.now()
+                if (now - lastRender > 60) {
+                    renderProgress(copied, total, start)
+                    lastRender = now
+                }
+            }
+        } finally {
+            rf.close()
+            wf.close()
+        }
+    }
+    renderProgress(copied, total, start)
+    out("\n")
+}
+
+function locLabel(loc) {
+    return loc.remote ? `${loc.host}:${loc.path}` : loc.path
+}
+
+async function destExists(dest) {
+    if (dest.remote) {
+        const result = await run("ssh", [dest.host, `test -e ${shq(dest.path)} && echo E`])
+        return result.out.trim() === "E"
+    }
+    try {
+        Deno.statSync(dest.path)
+        return true
+    } catch (_) {
+        return false
+    }
+}
+
+async function sourceSize(src) {
+    if (src.remote) {
+        const result = await run("ssh", [src.host, `du -sk ${shq(src.path)} | cut -f1`])
+        const kb = parseInt(result.out.trim(), 10)
+        return isFinite(kb) ? kb * 1024 : 0
+    }
+    try {
+        if (src.isDir) {
+            let total = 0
+            for await (const file of walkFiles(src.path)) {
+                try {
+                    total += Deno.statSync(file).size
+                } catch (_) {
+                    // unreadable; skip
+                }
+            }
+            return total
+        }
+        return Deno.statSync(src.path).size
+    } catch (_) {
+        return 0
+    }
+}
+
+// scp transfer (recreates the destination; can't merge into an existing dir).
+async function scpCopy(src, dest) {
+    if (dest.remote) {
+        await run("ssh", [dest.host, `mkdir -p ${shq(dirname(dest.path))}`])
+    } else {
+        Deno.mkdirSync(dirname(dest.path), { recursive: true })
+    }
+    const args = []
+    if (src.remote && dest.remote) {
+        args.push("-3")
+    }
+    args.push("-r", "-p")
+    args.push(src.remote ? `${src.host}:${src.path}` : src.path)
+    args.push(dest.remote ? `${dest.host}:${dest.path}` : dest.path)
+    out(SHOW_CURSOR)
+    try {
+        Deno.stdin.setRaw(false)
+    } catch (_) {
+        // not a tty
+    }
+    const proc = new Deno.Command("scp", { args, stdin: "inherit", stdout: "inherit", stderr: "inherit" })
+    const { code } = await proc.output()
+    return code === 0
+}
+
+// Merge a directory's contents into an existing destination dir via a tar pipe
+// (scp can't merge). Streams bytes through this process so we can show progress.
+async function tarMerge(src, dest) {
+    if (dest.remote) {
+        await run("ssh", [dest.host, `mkdir -p ${shq(dest.path)}`])
+    } else {
+        Deno.mkdirSync(dest.path, { recursive: true })
+    }
+    const total = await sourceSize(src)
+    const producer = src.remote
+        ? new Deno.Command("ssh", { args: [src.host, `tar -C ${shq(src.path)} -cf - .`], stdout: "piped", stderr: "piped" })
+        : new Deno.Command("tar", { args: ["-C", src.path, "-cf", "-", "."], stdout: "piped", stderr: "piped" })
+    const consumer = dest.remote
+        ? new Deno.Command("ssh", { args: [dest.host, `tar -C ${shq(dest.path)} -xf -`], stdin: "piped", stdout: "piped", stderr: "piped" })
+        : new Deno.Command("tar", { args: ["-C", dest.path, "-xf", "-"], stdin: "piped", stdout: "piped", stderr: "piped" })
+
+    const p = producer.spawn()
+    const c = consumer.spawn()
+    const drain = async (stream) => {
+        const reader = stream.getReader()
+        while (true) {
+            const { done } = await reader.read()
+            if (done) {
+                break
+            }
+        }
+    }
+    const drains = [drain(p.stderr), drain(c.stdout), drain(c.stderr)]
+
+    const reader = p.stdout.getReader()
+    const writer = c.stdin.getWriter()
+    let copied = 0
+    let lastRender = 0
+    const start = performance.now()
+    out("\n")
+    try {
+        while (true) {
+            const { value, done } = await reader.read()
+            if (done) {
+                break
+            }
+            await writer.write(value)
+            copied += value.length
+            const now = performance.now()
+            if (now - lastRender > 60) {
+                renderProgress(Math.min(copied, total || copied), total || copied, start)
+                lastRender = now
+            }
+        }
+    } finally {
+        try {
+            await writer.close()
+        } catch (_) {
+            // consumer already gone
+        }
+    }
+    const [ps, cs] = await Promise.all([p.status, c.status])
+    await Promise.all(drains)
+    renderProgress(total || copied, total || copied, start)
+    out("\n")
+    return ps.success && cs.success
+}
+
+// Local→local uses the custom progress bar; remote transfers use scp (its own
+// progress meter), except "merge" which streams through a tar pipe.
+async function performCopy(src, dest) {
+    const disposition = dest.disposition || "default"
+
+    if (!src.remote && !dest.remote) {
+        if (disposition === "overwrite") {
+            try {
+                Deno.removeSync(dest.path, { recursive: true })
+            } catch (_) {
+                // nothing to remove
+            }
+        }
+        await copyWithProgress(src.path, dest.path, src.isDir)
+        return true
+    }
+
+    if (disposition === "merge") {
+        return await tarMerge(src, dest)
+    }
+    if (disposition === "overwrite") {
+        if (dest.remote) {
+            await run("ssh", [dest.host, `rm -rf ${shq(dest.path)}`])
+        } else {
+            try {
+                Deno.removeSync(dest.path, { recursive: true })
+            } catch (_) {
+                // nothing to remove
+            }
+        }
+    }
+    return await scpCopy(src, dest)
+}
+
+// ---------- main ----------
+async function main() {
+    if (Deno.args.includes("--scan")) {
+        console.log("mounted places:", getPlaces())
+        console.log("mountable drives:", await getMountables())
+        console.log("ssh hosts:", parseSshConfig())
+        return
+    }
+    try {
+        Deno.stdin.setRaw(true)
+    } catch (_) {
+        console.error("ucp must be run in an interactive terminal.")
+        Deno.exit(1)
+    }
+    out(HIDE_CURSOR)
+    try {
+        const src = await pickSource()
+        if (!src) {
+            return
+        }
+        const dest = await pickDest(src)
+        if (!dest) {
+            return
+        }
+
+        const disposition = dest.disposition || "default"
+        const exists = disposition === "default" ? await destExists(dest) : true
+        const remote = src.remote || dest.remote
+
+        out(CLEAR + BOLD + "Ready to copy:" + RESET + "\n\n")
+        out("  from  " + CYAN + locLabel(src) + RESET + (src.isDir ? DIM + "  (folder)" + RESET : "") + "\n")
+        out("  to    " + CYAN + locLabel(dest) + RESET + "\n")
+        if (remote) {
+            out(DIM + `  (transfer via ${disposition === "merge" ? "tar over ssh" : "scp"})` + RESET + "\n")
+        }
+        if (disposition === "overwrite") {
+            out("\n" + YELLOW + "  ⚠ the existing folder will be replaced entirely" + RESET + "\n")
+        } else if (disposition === "merge") {
+            out("\n" + YELLOW + "  ⚠ contents will be merged into the existing folder (overwriting clashes)" + RESET + "\n")
+        } else if (exists) {
+            out("\n" + YELLOW + "  ⚠ destination already exists — it will be overwritten" + RESET + "\n")
+        }
+        out("\n" + DIM + "enter/y to copy · n/esc to cancel" + RESET)
+        const key = await readKey()
+        const confirmed = key === "enter" || (typeof key === "object" && key.char && "yY".includes(key.char))
+        if (!confirmed) {
+            out("\n")
+            return
+        }
+
+        out(CLEAR + BOLD + `Copying ${basename(src.path)} → ${locLabel(dest)}` + RESET + "\n\n")
+        const ok = await performCopy(src, dest)
+        out("\n" + (ok ? GREEN + "✓ Done" : YELLOW + "✗ Copy failed") + RESET + "\n")
+    } finally {
+        out(SHOW_CURSOR)
+        try {
+            Deno.stdin.setRaw(false)
+        } catch (_) {
+            // not a tty
+        }
+    }
+}
+
+await main()
