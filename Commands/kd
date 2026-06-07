@@ -33,9 +33,19 @@ else
     if [ -z "$remaining" ]; then
         echo "All dimos and Unity processes killed."
     else
+        # AppArmor's tcpdump profile rejects signals from the vscode-labeled
+        # shell, so plain kill -9 EPERMs even as root. Re-issue from an
+        # unconfined label, which tcpdump's profile accepts.
         echo "Some processes still running: $remaining"
-        echo "Retrying..."
-        kill -9 $remaining 2>/dev/null
+        echo "Retrying via aa-exec unconfined..."
+        florp aa-exec -p unconfined -- kill -9 $remaining 2>/dev/null
+        sleep 0.5
+        still=$(find_pids "$all_pattern" | xargs)
+        if [ -z "$still" ]; then
+            echo "All dimos and Unity processes killed."
+        else
+            echo "Still running after retry: $still"
+        fi
     fi
 fi
 
