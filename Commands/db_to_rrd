@@ -1,0 +1,637 @@
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-ffi --unstable-ffi
+
+import * as Arrow from "https://esm.sh/apache-arrow@18.1.0"
+import lz4 from "https://esm.sh/lz4js@0.2.0"
+import { sensor_msgs, nav_msgs, geometry_msgs } from "jsr:@dimos/msgs"
+
+import { Database } from "jsr:@db/sqlite@0.12"
+
+// --- CLI ---
+const args = [...Deno.args]
+let dbPath = null, outPath = null, cameraHz = 2.0, voxelSize = 0.05, axisLength = 0.3
+
+for (let i = 0; i < args.length; i++) {
+    if (args[i] === "-o" || args[i] === "--out") { outPath = args[++i] }
+    else if (args[i] === "--camera-hz") { cameraHz = parseFloat(args[++i]) }
+    else if (args[i] === "--voxel") { voxelSize = parseFloat(args[++i]) }
+    else if (args[i] === "--axis") { axisLength = parseFloat(args[++i]) }
+    else if (args[i] === "-h" || args[i] === "--help") {
+        console.log(`db_to_rrd — Convert a dimos memory2 .db recording to a rerun .rrd file
+
+Usage: db_to_rrd <recording.db> [-o output.rrd] [--camera-hz N] [--voxel N]
+
+Options:
+  -o, --out         Output .rrd path (default: <input>.rrd)
+  --camera-hz N     Throttle images to N Hz (default: 2.0, 0 = all)
+  --voxel N         Point size hint (default: 0.05)
+  --axis N          XYZ axis-arrow length (meters) on every transform frame (default: 0.3, 0 = off)`)
+        Deno.exit(0)
+    }
+    else if (!dbPath) { dbPath = args[i] }
+}
+
+if (!dbPath) { console.error("Usage: db_to_rrd <recording.db> [-o output.rrd]"); Deno.exit(1) }
+if (!outPath) { outPath = dbPath.replace(/\.db$/, "") + ".rrd" }
+
+// --- RRD Writer ---
+const RRD_HEADER = new Uint8Array([
+    0x52, 0x52, 0x46, 0x32,  // "RRF2"
+    0x00, 0x20, 0x00, 0x00,  // version 0.32.0
+    0x01, 0x02, 0x00, 0x00,  // protobuf serializer, LZ4 compression
+])
+
+function encodeVarint(v) {
+    const b = []
+    do { b.push((v & 0x7f) | (v > 0x7f ? 0x80 : 0)); v >>>= 7 } while (v > 0)
+    return new Uint8Array(b)
+}
+
+function concat(arrs) {
+    const total = arrs.reduce((s, a) => s + a.length, 0)
+    const r = new Uint8Array(total)
+    let o = 0
+    for (const a of arrs) { r.set(a, o); o += a.length }
+    return r
+}
+
+let storeIdBytes
+
+function pbField(fieldNum, wireType, data) {
+    const tag = encodeVarint((fieldNum << 3) | wireType)
+    if (wireType === 0) return concat([tag, encodeVarint(data)])  // varint
+    if (wireType === 1) { const b = new Uint8Array(8); new DataView(b.buffer).setBigUint64(0, BigInt(data), true); return concat([tag, b]) }  // fixed64
+    if (wireType === 2) { const d = data instanceof Uint8Array ? data : new TextEncoder().encode(data); return concat([tag, encodeVarint(d.length), d]) }  // length-delimited
+}
+
+function pbMsg(fieldNum, ...fields) {
+    const inner = concat(fields)
+    return pbField(fieldNum, 2, inner)
+}
+
+function initStoreId() {
+    const recordingName = dbPath.replace(/.*\//, "").replace(/\.db$/, "")
+
+    // StoreId used in ArrowMsg
+    const storeIdInner = concat([
+        pbField(1, 0, 1),  // kind = Recording
+        pbField(2, 2, recordingName),  // id
+    ])
+    storeIdBytes = pbField(1, 2, storeIdInner)
+}
+
+function makeSetStoreInfoMsg() {
+    const recordingName = dbPath.replace(/.*\//, "").replace(/\.db$/, "")
+    const nowNs = BigInt(Date.now()) * 1000000n
+
+    // Tuid: field 1 = inc (fixed64), field 2 = time_ns (fixed64)
+    const tuid = concat([pbField(1, 1, 1), pbField(2, 1, nowNs)])
+
+    // StoreId: kind=Recording, id=recordingName
+    const storeId = concat([pbField(1, 0, 1), pbField(2, 2, recordingName)])
+
+    // ApplicationId: id="db_to_rrd"
+    const appId = pbField(1, 2, "db_to_rrd")
+
+    // StoreSource: kind=Other(6), extra=StoreSourceExtra{payload="db_to_rrd"}
+    const storeSource = concat([
+        pbField(1, 0, 6),
+        pbMsg(2, pbField(1, 2, "db_to_rrd")),
+    ])
+
+    // StoreInfo: application_id=1, store_id=2, store_source=5
+    const storeInfo = concat([
+        pbMsg(1, appId),
+        pbMsg(2, storeId),
+        pbMsg(5, storeSource),
+    ])
+
+    // SetStoreInfo: row_id=1, info=2
+    const setStoreInfo = concat([
+        pbField(1, 2, tuid),
+        pbField(2, 2, storeInfo),
+    ])
+
+    // Frame: kind=1 (SetStoreInfo)
+    const frame = new Uint8Array(16 + setStoreInfo.length)
+    const fv = new DataView(frame.buffer)
+    fv.setBigUint64(0, 1n, true)  // kind = 1
+    fv.setBigUint64(8, BigInt(setStoreInfo.length), true)
+    frame.set(setStoreInfo, 16)
+    return frame
+}
+
+function makeArrowMsg(arrowIpc) {
+    const maxOut = lz4.compressBound(arrowIpc.length)
+    const compressed = new Uint8Array(maxOut)
+    const hashTable = new Int32Array(65536)
+    const compLen = lz4.compressBlock(arrowIpc, compressed, 0, arrowIpc.length, hashTable)
+    const compData = compressed.slice(0, compLen)
+
+    const pb = concat([
+        storeIdBytes,  // field 1: store_id (StoreId message)
+        new Uint8Array([0x10, 0x02]),  // field 2: compression = LZ4
+        concat([encodeVarint((3 << 3) | 0), encodeVarint(arrowIpc.length)]),  // field 3: uncompressed_size
+        new Uint8Array([0x20, 0x01]),  // field 4: encoding = ARROW_IPC (1)
+        concat([new Uint8Array([(5 << 3) | 2]), encodeVarint(compData.length), compData]),  // field 5: payload
+    ])
+
+    const frame = new Uint8Array(16 + pb.length)
+    const fv = new DataView(frame.buffer)
+    fv.setBigUint64(0, 2n, true)  // kind = 2 (ArrowMsg)
+    fv.setBigUint64(8, BigInt(pb.length), true)
+    frame.set(pb, 16)
+    return frame
+}
+
+let logTick = 0n
+
+function makeRowId() {
+    const uid = new Uint8Array(16)
+    crypto.getRandomValues(uid)
+    return uid
+}
+
+// --- Arrow Schema Builders ---
+const posInnerField = new Arrow.Field("item", new Arrow.Float32(), false)
+const fsl3Type = new Arrow.FixedSizeList(3, posInnerField)
+const fsl4Type = new Arrow.FixedSizeList(4, posInnerField)
+const posListType = new Arrow.List(new Arrow.Field("item", fsl3Type, true))
+const quatListType = new Arrow.List(new Arrow.Field("item", fsl4Type, true))
+const radiiListType = new Arrow.List(new Arrow.Field("item", new Arrow.Float32(), true))
+const colorListType = new Arrow.List(new Arrow.Field("item", new Arrow.Uint32(), true))
+const stripInnerType = new Arrow.List(new Arrow.Field("item", fsl3Type, false))
+const stripListType = new Arrow.List(new Arrow.Field("item", stripInnerType, true))
+const blobInnerType = new Arrow.List(new Arrow.Field("item", new Arrow.Uint8(), false))
+const blobListType = new Arrow.List(new Arrow.Field("item", blobInnerType, true))
+const utf8ListType = new Arrow.List(new Arrow.Field("item", new Arrow.Utf8(), true))
+
+function makeControlFields() {
+    return [
+        new Arrow.Field("rerun.controls.RowId", new Arrow.FixedSizeBinary(16), false,
+            new Map([["rerun:kind", "control"], ["ARROW:extension:name", "rerun.datatypes.TUID"],
+                     ["ARROW:extension:metadata", '{"namespace":"row"}'], ["rerun:is_sorted", "true"]])),
+    ]
+}
+
+function makeIndexFields(hasLogTick = true, hasLogTime = true) {
+    const fields = []
+    if (hasLogTick) {
+        fields.push(new Arrow.Field("log_tick", new Arrow.Int64(), true,
+            new Map([["rerun:kind", "index"], ["rerun:index_name", "log_tick"], ["rerun:is_sorted", "true"]])))
+    }
+    if (hasLogTime) {
+        fields.push(new Arrow.Field("log_time", new Arrow.TimestampNanosecond(), true,
+            new Map([["rerun:kind", "index"], ["rerun:index_name", "log_time"], ["rerun:is_sorted", "true"]])))
+    }
+    fields.push(new Arrow.Field("ts", new Arrow.TimestampNanosecond(), true,
+        new Map([["rerun:kind", "index"], ["rerun:index_name", "ts"], ["rerun:is_sorted", "true"]])))
+    return fields
+}
+
+function makeRowIdData(n) {
+    const builder = Arrow.makeBuilder({ type: new Arrow.FixedSizeBinary(16) })
+    for (let i = 0; i < n; i++) {
+        const uid = new Uint8Array(16)
+        crypto.getRandomValues(uid)
+        builder.append(uid)
+    }
+    builder.finish()
+    return builder.toVector().data[0]
+}
+
+function makeIndexData(timestamps, startTick) {
+    const n = timestamps.length
+    const tickBuilder = Arrow.makeBuilder({ type: new Arrow.Int64() })
+    const logTimeBuilder = Arrow.makeBuilder({ type: new Arrow.Int64() })
+    const tsBuilder = Arrow.makeBuilder({ type: new Arrow.Int64() })
+    for (let i = 0; i < n; i++) {
+        tickBuilder.append(startTick + BigInt(i))
+        const ns = BigInt(Math.round(timestamps[i] * 1e9))
+        logTimeBuilder.append(ns)
+        tsBuilder.append(ns)
+    }
+    tickBuilder.finish(); logTimeBuilder.finish(); tsBuilder.finish()
+    return {
+        logTick: tickBuilder.toVector().data[0],
+        logTime: logTimeBuilder.toVector().data[0],
+        ts: tsBuilder.toVector().data[0],
+    }
+}
+
+function chunkId() {
+    const hex = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, "0")).join("")
+    return `chunk_${hex}`
+}
+
+// --- Chunk builders for each archetype ---
+
+function buildPoints3DChunk(entityPath, timestamps, positionArrays, radiusVal, colorArrays) {
+    const n = timestamps.length
+    const startTick = logTick; logTick += BigInt(n)
+    const dataFields = [
+        new Arrow.Field("Points3D:positions", posListType, true,
+            new Map([["rerun:kind", "data"], ["rerun:archetype", "rerun.archetypes.Points3D"],
+                     ["rerun:component", "Points3D:positions"], ["rerun:component_type", "rerun.components.Position3D"]])),
+        new Arrow.Field("Points3D:radii", radiiListType, true,
+            new Map([["rerun:kind", "data"], ["rerun:archetype", "rerun.archetypes.Points3D"],
+                     ["rerun:component", "Points3D:radii"], ["rerun:component_type", "rerun.components.Radius"]])),
+    ]
+    if (colorArrays) {
+        dataFields.push(new Arrow.Field("Points3D:colors", colorListType, true,
+            new Map([["rerun:kind", "data"], ["rerun:archetype", "rerun.archetypes.Points3D"],
+                     ["rerun:component", "Points3D:colors"], ["rerun:component_type", "rerun.components.Color"]])))
+    }
+    const schema = new Arrow.Schema([
+        ...makeControlFields(), ...makeIndexFields(), ...dataFields,
+    ], new Map([["rerun:entity_path", entityPath], ["rerun:id", chunkId()], ["sorbet:version", "0.1.3"]]))
+
+    const posBuilder = Arrow.makeBuilder({ type: posListType })
+    const radiiBuilder = Arrow.makeBuilder({ type: radiiListType })
+    for (let i = 0; i < n; i++) {
+        posBuilder.append(positionArrays[i])
+        radiiBuilder.append(Array(positionArrays[i].length).fill(radiusVal))
+    }
+    posBuilder.finish(); radiiBuilder.finish()
+
+    const children = [makeRowIdData(n)]
+    const idx = makeIndexData(timestamps, startTick)
+    children.push(idx.logTick, idx.logTime, idx.ts, posBuilder.toVector().data[0], radiiBuilder.toVector().data[0])
+
+    if (colorArrays) {
+        const colorBuilder = Arrow.makeBuilder({ type: colorListType })
+        for (let i = 0; i < n; i++) {
+            colorBuilder.append(colorArrays[i])
+        }
+        colorBuilder.finish()
+        children.push(colorBuilder.toVector().data[0])
+    }
+
+    const structData = Arrow.makeData({ type: new Arrow.Struct(schema.fields), length: n, nullCount: 0, children })
+    const batch = new Arrow.RecordBatch(schema, structData)
+    return Arrow.tableToIPC(new Arrow.Table(schema, [batch]), "stream")
+}
+
+function buildTransform3DChunk(entityPath, timestamps, translations, quaternions) {
+    const n = timestamps.length
+    const startTick = logTick; logTick += BigInt(n)
+    // A chunk is per-entity but may carry columns from several archetypes. We pigg-back the
+    // TransformAxes3D archetype's axis_length onto the same rows so each pose draws an XYZ triad.
+    const dataFields = [
+        new Arrow.Field("Transform3D:translation", new Arrow.List(new Arrow.Field("item", fsl3Type, true)), true,
+            new Map([["rerun:kind", "data"], ["rerun:archetype", "rerun.archetypes.Transform3D"],
+                     ["rerun:component", "Transform3D:translation"], ["rerun:component_type", "rerun.components.Translation3D"]])),
+        new Arrow.Field("Transform3D:quaternion", quatListType, true,
+            new Map([["rerun:kind", "data"], ["rerun:archetype", "rerun.archetypes.Transform3D"],
+                     ["rerun:component", "Transform3D:quaternion"], ["rerun:component_type", "rerun.components.RotationQuat"]])),
+    ]
+    if (axisLength > 0) {
+        dataFields.push(new Arrow.Field("TransformAxes3D:axis_length", radiiListType, true,
+            new Map([["rerun:kind", "data"], ["rerun:archetype", "rerun.archetypes.TransformAxes3D"],
+                     ["rerun:component", "TransformAxes3D:axis_length"], ["rerun:component_type", "rerun.components.AxisLength"]])))
+    }
+    const schema = new Arrow.Schema([
+        ...makeControlFields(), ...makeIndexFields(), ...dataFields,
+    ], new Map([["rerun:entity_path", entityPath], ["rerun:id", chunkId()], ["sorbet:version", "0.1.3"]]))
+
+    const transBuilder = Arrow.makeBuilder({ type: new Arrow.List(new Arrow.Field("item", fsl3Type, true)) })
+    const quatBuilder = Arrow.makeBuilder({ type: quatListType })
+    for (let i = 0; i < n; i++) {
+        transBuilder.append([translations[i]])
+        quatBuilder.append([quaternions[i]])
+    }
+    transBuilder.finish(); quatBuilder.finish()
+
+    const idx = makeIndexData(timestamps, startTick)
+    const children = [makeRowIdData(n), idx.logTick, idx.logTime, idx.ts, transBuilder.toVector().data[0], quatBuilder.toVector().data[0]]
+    if (axisLength > 0) {
+        const axisBuilder = Arrow.makeBuilder({ type: radiiListType })
+        for (let i = 0; i < n; i++) { axisBuilder.append([axisLength]) }
+        axisBuilder.finish()
+        children.push(axisBuilder.toVector().data[0])
+    }
+    const structData = Arrow.makeData({ type: new Arrow.Struct(schema.fields), length: n, nullCount: 0, children })
+    const batch = new Arrow.RecordBatch(schema, structData)
+    return Arrow.tableToIPC(new Arrow.Table(schema, [batch]), "stream")
+}
+
+function buildLineStrips3DChunk(entityPath, ts, strips, color) {
+    const startTick = logTick; logTick += 1n
+    const schema = new Arrow.Schema([
+        ...makeControlFields(), ...makeIndexFields(),
+        new Arrow.Field("LineStrips3D:strips", stripListType, true,
+            new Map([["rerun:kind", "data"], ["rerun:archetype", "rerun.archetypes.LineStrips3D"],
+                     ["rerun:component", "LineStrips3D:strips"], ["rerun:component_type", "rerun.components.LineStrip3D"]])),
+        new Arrow.Field("LineStrips3D:colors", colorListType, true,
+            new Map([["rerun:kind", "data"], ["rerun:archetype", "rerun.archetypes.LineStrips3D"],
+                     ["rerun:component", "LineStrips3D:colors"], ["rerun:component_type", "rerun.components.Color"]])),
+    ], new Map([["rerun:entity_path", entityPath], ["rerun:id", chunkId()], ["sorbet:version", "0.1.3"]]))
+
+    const stripBuilder = Arrow.makeBuilder({ type: stripListType })
+    stripBuilder.append(strips)
+    stripBuilder.finish()
+
+    const colorBuilder = Arrow.makeBuilder({ type: colorListType })
+    const rgba = ((color[0] & 0xFF) << 24) | ((color[1] & 0xFF) << 16) | ((color[2] & 0xFF) << 8) | 0xFF
+    colorBuilder.append([rgba >>> 0])
+    colorBuilder.finish()
+
+    const idx = makeIndexData([ts], startTick)
+    const children = [makeRowIdData(1), idx.logTick, idx.logTime, idx.ts, stripBuilder.toVector().data[0], colorBuilder.toVector().data[0]]
+    const structData = Arrow.makeData({ type: new Arrow.Struct(schema.fields), length: 1, nullCount: 0, children })
+    const batch = new Arrow.RecordBatch(schema, structData)
+    return Arrow.tableToIPC(new Arrow.Table(schema, [batch]), "stream")
+}
+
+function buildEncodedImageChunk(entityPath, timestamps, jpegBlobs) {
+    const n = timestamps.length
+    const startTick = logTick; logTick += BigInt(n)
+    const schema = new Arrow.Schema([
+        ...makeControlFields(), ...makeIndexFields(),
+        new Arrow.Field("EncodedImage:blob", blobListType, true,
+            new Map([["rerun:kind", "data"], ["rerun:archetype", "rerun.archetypes.EncodedImage"],
+                     ["rerun:component", "EncodedImage:blob"], ["rerun:component_type", "rerun.components.Blob"]])),
+        new Arrow.Field("EncodedImage:media_type", utf8ListType, true,
+            new Map([["rerun:kind", "data"], ["rerun:archetype", "rerun.archetypes.EncodedImage"],
+                     ["rerun:component", "EncodedImage:media_type"], ["rerun:component_type", "rerun.components.MediaType"]])),
+    ], new Map([["rerun:entity_path", entityPath], ["rerun:id", chunkId()], ["sorbet:version", "0.1.3"]]))
+
+    const blobBuilder = Arrow.makeBuilder({ type: blobListType })
+    const mtBuilder = Arrow.makeBuilder({ type: utf8ListType })
+    for (let i = 0; i < n; i++) {
+        blobBuilder.append([Array.from(jpegBlobs[i])])
+        mtBuilder.append(["image/jpeg"])
+    }
+    blobBuilder.finish(); mtBuilder.finish()
+
+    const idx = makeIndexData(timestamps, startTick)
+    const children = [makeRowIdData(n), idx.logTick, idx.logTime, idx.ts, blobBuilder.toVector().data[0], mtBuilder.toVector().data[0]]
+    const structData = Arrow.makeData({ type: new Arrow.Struct(schema.fields), length: n, nullCount: 0, children })
+    const batch = new Arrow.RecordBatch(schema, structData)
+    return Arrow.tableToIPC(new Arrow.Table(schema, [batch]), "stream")
+}
+
+// --- Point cloud extraction with height-based coloring ---
+function extractPointsWithColors(msg, lowColor, highColor) {
+    const { width, height, point_step, data, fields } = msg
+    const numPoints = width * height
+    if (numPoints === 0 || !data || data.length === 0) return { points: [], colors: [] }
+
+    let xOff = 0, yOff = 4, zOff = 8
+    for (const f of fields) {
+        if (f.name === "x") xOff = f.offset
+        else if (f.name === "y") yOff = f.offset
+        else if (f.name === "z") zOff = f.offset
+    }
+
+    const dv = new DataView(data.buffer, data.byteOffset, data.byteLength)
+    const points = []
+    const zValues = []
+    for (let i = 0; i < numPoints; i++) {
+        const base = i * point_step
+        if (base + zOff + 4 > data.byteLength) break
+        const x = dv.getFloat32(base + xOff, true)
+        const y = dv.getFloat32(base + yOff, true)
+        const z = dv.getFloat32(base + zOff, true)
+        if (isFinite(x) && isFinite(y) && isFinite(z)) {
+            points.push([x, y, z])
+            zValues.push(z)
+        }
+    }
+
+    if (points.length === 0) return { points: [], colors: [] }
+
+    let zMin = zValues[0], zMax = zValues[0]
+    for (let i = 1; i < zValues.length; i++) {
+        if (zValues[i] < zMin) zMin = zValues[i]
+        if (zValues[i] > zMax) zMax = zValues[i]
+    }
+    const zRange = zMax - zMin || 1
+
+    const colors = new Array(points.length)
+    for (let i = 0; i < points.length; i++) {
+        const t = (zValues[i] - zMin) / zRange
+        const r = Math.round(lowColor[0] + t * (highColor[0] - lowColor[0]))
+        const g = Math.round(lowColor[1] + t * (highColor[1] - lowColor[1]))
+        const b = Math.round(lowColor[2] + t * (highColor[2] - lowColor[2]))
+        colors[i] = (((r & 0xFF) << 24) | ((g & 0xFF) << 16) | ((b & 0xFF) << 8) | 0xFF) >>> 0
+    }
+    return { points, colors }
+}
+
+// --- Pose extraction from blob ---
+function extractPoseFromBlob(data, streamType) {
+    if (streamType === "Odometry") {
+        const msg = nav_msgs.Odometry.decode(data)
+        return {
+            x: msg.pose?.pose?.position?.x ?? 0, y: msg.pose?.pose?.position?.y ?? 0, z: msg.pose?.pose?.position?.z ?? 0,
+            qx: msg.pose?.pose?.orientation?.x ?? 0, qy: msg.pose?.pose?.orientation?.y ?? 0,
+            qz: msg.pose?.pose?.orientation?.z ?? 0, qw: msg.pose?.pose?.orientation?.w ?? 1,
+        }
+    } else if (streamType === "PoseStamped") {
+        const msg = geometry_msgs.PoseStamped.decode(data)
+        return {
+            x: msg.pose?.position?.x ?? 0, y: msg.pose?.position?.y ?? 0, z: msg.pose?.position?.z ?? 0,
+            qx: msg.pose?.orientation?.x ?? 0, qy: msg.pose?.orientation?.y ?? 0,
+            qz: msg.pose?.orientation?.z ?? 0, qw: msg.pose?.orientation?.w ?? 1,
+        }
+    }
+    return null
+}
+
+// --- Color palettes ---
+const LIDAR_GRADIENTS = [
+    [[30, 60, 220], [30, 220, 80]],    // blue → green
+    [[220, 40, 220], [40, 220, 220]],   // magenta → cyan
+    [[220, 120, 20], [220, 220, 40]],   // orange → yellow
+    [[40, 180, 180], [180, 40, 220]],   // teal → violet
+]
+
+const PATH_COLORS = [
+    [255, 165, 0], [100, 200, 255], [0, 200, 100], [255, 80, 80],
+    [200, 150, 255], [255, 220, 50], [80, 255, 200], [255, 130, 180],
+]
+
+// --- Main pipeline ---
+initStoreId()
+console.log(`Reading ${dbPath}...`)
+const db = new Database(dbPath, { readonly: true })
+
+const streamRows = db.prepare("SELECT name, config FROM _streams").all()
+const streams = {}
+for (const row of streamRows) {
+    const config = JSON.parse(row.config)
+    streams[row.name] = {
+        name: row.name,
+        codec: config.codec_id,
+        type: config.payload_module?.split(".").pop(),
+    }
+}
+
+console.log("Streams:", Object.entries(streams).map(([k, v]) => `${k} (${v.type}, ${v.codec})`).join(", "))
+
+const outChunks = [RRD_HEADER, makeSetStoreInfoMsg()]
+let totalChunks = 0
+
+function writeChunk(ipcBytes) {
+    outChunks.push(makeArrowMsg(ipcBytes))
+    totalChunks++
+}
+
+function progress(label, current, total) {
+    const pct = total > 0 ? Math.floor(100 * current / total) : 100
+    const bar = "█".repeat(Math.floor(pct / 5)) + "░".repeat(20 - Math.floor(pct / 5))
+    Deno.stderr.writeSync(new TextEncoder().encode(`\r  ${label} ${bar} ${pct}% [${current}/${total}]`))
+    if (current >= total) Deno.stderr.writeSync(new TextEncoder().encode("\n"))
+}
+
+const CHUNK_SIZE = 32
+let lidarColorIndex = 0
+let pathColorIndex = 0
+
+for (const [streamName, streamInfo] of Object.entries(streams)) {
+    const { type, codec } = streamInfo
+    const entity = `/world/${streamName}`
+    const hasBlobs = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(`${streamName}_blob`)
+
+    if (type === "PointCloud2") {
+        const count = db.prepare(`SELECT COUNT(*) as cnt FROM "${streamName}"`).get().cnt
+        const gradient = LIDAR_GRADIENTS[lidarColorIndex++ % LIDAR_GRADIENTS.length]
+        console.log(`Processing ${streamName} (PointCloud2): ${count} frames → ${entity}`)
+
+        let batchTs = [], batchPositions = [], batchColors = [], processed = 0
+        const stmt = db.prepare(`SELECT m.id, m.ts, b.data FROM "${streamName}" m JOIN "${streamName}_blob" b ON m.id = b.id ORDER BY m.ts`)
+
+        for (const row of stmt.iter()) {
+            try {
+                const msg = sensor_msgs.PointCloud2.decode(new Uint8Array(row.data))
+                const { points, colors } = extractPointsWithColors(msg, gradient[0], gradient[1])
+                if (points.length > 0) {
+                    batchTs.push(row.ts)
+                    batchPositions.push(points)
+                    batchColors.push(colors)
+                }
+            } catch { /* skip malformed */ }
+
+            if (batchTs.length >= CHUNK_SIZE) {
+                writeChunk(buildPoints3DChunk(entity, batchTs, batchPositions, voxelSize, batchColors))
+                batchTs = []; batchPositions = []; batchColors = []
+            }
+            processed++
+            if (processed % 50 === 0 || processed === count) progress(streamName, processed, count)
+        }
+        if (batchTs.length > 0) {
+            writeChunk(buildPoints3DChunk(entity, batchTs, batchPositions, voxelSize, batchColors))
+        }
+
+    } else if (type === "Image") {
+        const count = db.prepare(`SELECT COUNT(*) as cnt FROM "${streamName}"`).get().cnt
+        console.log(`Processing ${streamName} (Image): ${count} frames → ${entity}/image`)
+
+        let batchTs = [], batchBlobs = [], processed = 0, lastTs = 0
+        const minInterval = cameraHz > 0 ? 1.0 / cameraHz : 0
+
+        for (const row of db.prepare(`SELECT m.id, m.ts, b.data FROM "${streamName}" m JOIN "${streamName}_blob" b ON m.id = b.id ORDER BY m.ts`).iter()) {
+            if (cameraHz > 0 && (row.ts - lastTs) < minInterval) { processed++; continue }
+            lastTs = row.ts
+
+            try {
+                const img = sensor_msgs.Image.decode(new Uint8Array(row.data))
+                if (!img.data || img.data.length === 0) { processed++; continue }
+                batchTs.push(row.ts)
+                batchBlobs.push(img.data)
+            } catch { processed++; continue }
+
+            if (batchTs.length >= 8) {
+                writeChunk(buildEncodedImageChunk(`${entity}/image`, batchTs, batchBlobs))
+                batchTs = []; batchBlobs = []
+            }
+            processed++
+            if (processed % 20 === 0 || processed === count) progress(streamName, processed, count)
+        }
+        if (batchTs.length > 0) {
+            writeChunk(buildEncodedImageChunk(`${entity}/image`, batchTs, batchBlobs))
+        }
+
+        // Camera pose from the stream's pose columns
+        const camTs = [], camTrans = [], camQuat = []
+        for (const row of db.prepare(`SELECT ts, pose_x, pose_y, pose_z, pose_qx, pose_qy, pose_qz, pose_qw FROM "${streamName}" WHERE pose_qw != 0 ORDER BY ts`).iter()) {
+            camTs.push(row.ts)
+            camTrans.push([row.pose_x, row.pose_y, row.pose_z])
+            camQuat.push([row.pose_qx, row.pose_qy, row.pose_qz, row.pose_qw])
+        }
+        if (camTs.length > 0) {
+            for (let i = 0; i < camTs.length; i += CHUNK_SIZE) {
+                const end = Math.min(i + CHUNK_SIZE, camTs.length)
+                writeChunk(buildTransform3DChunk(entity, camTs.slice(i, end), camTrans.slice(i, end), camQuat.slice(i, end)))
+            }
+            console.log(`  camera poses: ${camTs.length} frames`)
+        }
+
+    } else if (type === "Odometry" || type === "PoseStamped") {
+        const count = db.prepare(`SELECT COUNT(*) as cnt FROM "${streamName}"`).get().cnt
+        const pathColor = PATH_COLORS[pathColorIndex++ % PATH_COLORS.length]
+        console.log(`Processing ${streamName} (${type}): ${count} frames → ${entity}`)
+
+        const batchTs = [], batchTrans = [], batchQuat = []
+        const pathPoints = []
+        let processed = 0
+
+        for (const row of db.prepare(`SELECT ts, pose_x, pose_y, pose_z, pose_qx, pose_qy, pose_qz, pose_qw FROM "${streamName}" ORDER BY ts`).iter()) {
+            let x = row.pose_x, y = row.pose_y, z = row.pose_z
+            let qx = row.pose_qx, qy = row.pose_qy, qz = row.pose_qz, qw = row.pose_qw
+
+            if (x === 0 && y === 0 && z === 0 && qx === 0 && qy === 0 && qz === 0 && qw === 0 && hasBlobs) {
+                try {
+                    const blobRow = db.prepare(`SELECT b.data FROM "${streamName}" m JOIN "${streamName}_blob" b ON m.id = b.id WHERE m.ts = ?`).get(row.ts)
+                    if (blobRow) {
+                        const pose = extractPoseFromBlob(new Uint8Array(blobRow.data), type)
+                        if (pose) { x = pose.x; y = pose.y; z = pose.z; qx = pose.qx; qy = pose.qy; qz = pose.qz; qw = pose.qw }
+                    }
+                } catch { /* skip */ }
+            }
+
+            if (x === 0 && y === 0 && z === 0 && qw === 0) { processed++; continue }
+
+            batchTs.push(row.ts)
+            batchTrans.push([x, y, z])
+            batchQuat.push([qx, qy, qz, qw])
+            pathPoints.push([x, y, z])
+
+            if (batchTs.length >= CHUNK_SIZE) {
+                writeChunk(buildTransform3DChunk(entity, batchTs, batchTrans, batchQuat))
+                batchTs.length = 0; batchTrans.length = 0; batchQuat.length = 0
+            }
+            processed++
+            if (processed % 100 === 0 || processed === count) progress(streamName, processed, count)
+        }
+        if (batchTs.length > 0) {
+            writeChunk(buildTransform3DChunk(entity, batchTs, batchTrans, batchQuat))
+        }
+
+        if (pathPoints.length >= 2) {
+            const lastTs = db.prepare(`SELECT MAX(ts) as ts FROM "${streamName}"`).get().ts
+            writeChunk(buildLineStrips3DChunk(`${entity}_path`, lastTs, [pathPoints], pathColor))
+            console.log(`  path: ${pathPoints.length} points → ${entity}_path`)
+        }
+
+    } else {
+        console.log(`Skipping ${streamName} (${type ?? "unknown type"}) — no handler`)
+    }
+}
+
+db.close()
+
+// --- Write output ---
+console.log(`\nWriting ${outPath}...`)
+const totalSize = outChunks.reduce((s, c) => s + c.length, 0)
+const output = new Uint8Array(totalSize)
+let offset = 0
+for (const chunk of outChunks) {
+    output.set(chunk, offset)
+    offset += chunk.length
+}
+await Deno.writeFile(outPath, output)
+
+const sizeMB = (totalSize / 1024 / 1024).toFixed(1)
+console.log(`Done: ${totalChunks} chunks, ${sizeMB} MiB → ${outPath}`)
+console.log(`Open with: rerun ${outPath}`)
