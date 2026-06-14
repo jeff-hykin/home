@@ -20,7 +20,7 @@ const BLUE = "\x1b[34m"
 const CYAN = "\x1b[36m"
 const GREEN = "\x1b[32m"
 const YELLOW = "\x1b[33m"
-const CLEAR = "\x1b[2J\x1b[H"
+const CLEAR = "\x1b[2J\x1b[H\n\n"
 const HIDE_CURSOR = "\x1b[?25l"
 const SHOW_CURSOR = "\x1b[?25h"
 
@@ -541,6 +541,7 @@ async function pickPlace(title) {
     out(CLEAR + DIM + "Scanning drives…" + RESET)
     await load()
     let idx = 0
+    let scroll = 0
     while (true) {
         if (idx >= entries.length) {
             idx = entries.length - 1
@@ -548,8 +549,17 @@ async function pickPlace(title) {
         if (idx < 0) {
             idx = 0
         }
+        const { rows } = size()
+        const viewport = Math.max(3, rows - 6)
+        if (idx < scroll) {
+            scroll = idx
+        }
+        if (idx >= scroll + viewport) {
+            scroll = idx - viewport + 1
+        }
         let screen = CLEAR + BOLD + title + RESET + "\n\n"
-        entries.forEach((entry, i) => {
+        entries.slice(scroll, scroll + viewport).forEach((entry, vi) => {
+            const i = scroll + vi
             const selected = i === idx
             if (entry.action === "mount") {
                 const m = entry.raw
@@ -674,7 +684,10 @@ function remoteFs(host) {
                 return []
             }
             const list = []
-            for (const raw of result.out.split("\n")) {
+            for (const line of result.out.split("\n")) {
+                // Some remotes force `ls --color`, embedding ANSI codes in names; strip
+                // those (and a stray trailing CR) so the slash test and name are clean.
+                const raw = line.replace(/\x1b\[[0-9;]*m/g, "").replace(/\r$/, "")
                 if (!raw) {
                     continue
                 }
@@ -776,9 +789,19 @@ async function pickSshHost() {
         return { type: "back" }
     }
     let idx = 0
+    let scroll = 0
     while (true) {
+        const { rows } = size()
+        const viewport = Math.max(3, rows - 6)
+        if (idx < scroll) {
+            scroll = idx
+        }
+        if (idx >= scroll + viewport) {
+            scroll = idx - viewport + 1
+        }
         let screen = CLEAR + BOLD + "🌐 SSH — pick a host" + RESET + "\n\n"
-        hosts.forEach((h, i) => {
+        hosts.slice(scroll, scroll + viewport).forEach((h, vi) => {
+            const i = scroll + vi
             const selected = i === idx
             if (selected) {
                 screen += REV + ` ▶ ${h.host}  ${hostMeta(h)} ` + RESET + "\n"
@@ -848,7 +871,7 @@ async function navigate(fs, startDir, dirsOnly) {
             idx = 0
         }
         const { rows } = size()
-        const viewport = Math.max(3, rows - 6)
+        const viewport = Math.max(3, rows - 8)
         if (idx < scroll) {
             scroll = idx
         }
