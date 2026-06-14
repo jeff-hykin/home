@@ -5,7 +5,7 @@ echo "Looking for dimos and Unity processes..."
 
 # Process patterns
 dimos_pattern='dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3'
-native_pattern='result/bin/(local_planner|path_follower|terrain_analysis|far_planner|pct_planner|pgo|rtab_map|gazebo_native)'
+native_pattern='result/bin/(local_planner|path_follower|terrain_analysis|far_planner|pct_planner|pgo|rtab_map|gazebo_native|fastlio2_native|mid360_native)'
 unity_pattern='Model\.x86_64|Unity|unity_envs'
 gazebo_pattern='gzserver|gzclient|ign-gazebo|ignition-gazebo|gz sim '
 ros_pattern='ros-navigation-autonomy-stack|/opt/ros/|ros2|roscore|rosmaster|roslaunch|rosout|joy_node|teleop_twist_joy|ros2_daemon'
@@ -36,13 +36,17 @@ else
     fi
 fi
 
-# Kill anything using these ports
+# Kill anything using these ports (but never kill Blender, which hosts the MCP on 9876)
 for port in 7779 9090 3030 9876 9877 10000; do
-    port_pids=$(lsof -ti :$port 2>/dev/null)
-    if [ -n "$port_pids" ]; then
-        echo "Killing processes on port $port: $port_pids"
-        echo "$port_pids" | xargs kill -9 2>/dev/null
-    fi
+    for pid in $(lsof -ti :$port 2>/dev/null); do
+        pcmd=$(ps -p "$pid" -o command= 2>/dev/null)
+        if printf '%s' "$pcmd" | grep -qi blender; then
+            echo "Skipping Blender (MCP) on port $port: pid $pid"
+            continue
+        fi
+        echo "Killing pid $pid on port $port"
+        kill -9 "$pid" 2>/dev/null
+    done
 done
 
 # Kill docker containers related to dimos or nav stack
