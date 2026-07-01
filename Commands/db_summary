@@ -1,0 +1,103 @@
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-ffi --unstable-ffi
+
+import { Database } from "jsr:@db/sqlite@0.12"
+
+// --- CLI ---
+const args = [...Deno.args]
+let dbPath = null
+let showEmpty = true
+let asJson = false
+
+for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--no-empty") {
+        showEmpty = false
+    } else if (args[i] === "--json") {
+        asJson = true
+    } else if (args[i] === "-h" || args[i] === "--help") {
+        console.log(`db_summary — Per-stream row counts and time ranges for a dimos memory2 .db recording
+
+Usage: db_summary <recording.db> [--no-empty] [--json]
+
+Options:
+  --no-empty   Hide streams that have zero messages
+  --json       Emit machine-readable JSON instead of a table
+
+Counts rows in each stream's table (no payload decoding), so it works even when
+a recording references a renamed/missing payload module.`)
+        Deno.exit(0)
+    } else if (!dbPath) {
+        dbPath = args[i]
+    }
+}
+
+if (!dbPath) {
+    console.error("error: no recording .db given (see --help)")
+    Deno.exit(1)
+}
+
+const db = new Database(dbPath, { readonly: true })
+
+// Pull each stream's registered payload module (a string; not imported).
+const streams = db.prepare("SELECT name, config FROM _streams ORDER BY name").all()
+
+const rows = []
+for (const { name, config } of streams) {
+    let payload = ""
+    try {
+        payload = JSON.parse(config)?.payload_module ?? ""
+    } catch (_e) {
+        payload = ""
+    }
+    const count = db.prepare(`SELECT COUNT(*) AS c FROM "${name}"`).get().c
+    let lo = null
+    let hi = null
+    if (count > 0) {
+        const r = db.prepare(`SELECT MIN(ts) AS lo, MAX(ts) AS hi FROM "${name}"`).get()
+        lo = r.lo
+        hi = r.hi
+    }
+    const dur = (lo !== null && hi !== null) ? (hi - lo) : 0
+    const hz = (dur > 0) ? (count / dur) : 0
+    rows.push({ name, count, start: lo, end: hi, duration_s: dur, hz, payload })
+}
+
+db.close()
+
+const visible = showEmpty ? rows : rows.filter((r) => r.count > 0)
+
+if (asJson) {
+    console.log(JSON.stringify(visible, null, 4))
+    Deno.exit(0)
+}
+
+// --- pretty table ---
+const fmtDur = (s) => {
+    if (!s || s <= 0) {
+        return "-"
+    }
+    if (s < 60) {
+        return `${s.toFixed(1)}s`
+    }
+    const whole = Math.round(s)
+    const m = Math.floor(whole / 60)
+    const sec = whole - m * 60
+    return `${m}m${String(sec).padStart(2, "0")}s`
+}
+
+const nameW = Math.max(5, ...visible.map((r) => r.name.length))
+const header = `${"stream".padEnd(nameW)}  ${"count".padStart(9)}  ${"dur".padStart(8)}  ${"hz".padStart(7)}  payload`
+console.log(header)
+console.log("-".repeat(header.length))
+
+let total = 0
+for (const r of visible) {
+    total += r.count
+    const hzStr = r.hz > 0 ? r.hz.toFixed(1) : "-"
+    console.log(
+        `${r.name.padEnd(nameW)}  ${String(r.count).padStart(9)}  ${fmtDur(r.duration_s).padStart(8)}  ${hzStr.padStart(7)}  ${r.payload}`,
+    )
+}
+
+console.log("-".repeat(header.length))
+const nonEmpty = rows.filter((r) => r.count > 0).length
+console.log(`${rows.length} streams (${nonEmpty} non-empty), ${total} total messages`)
