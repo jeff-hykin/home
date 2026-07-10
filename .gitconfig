@@ -25,3 +25,5 @@
 	smudge = git-lfs smudge -- %f
 	process = git-lfs filter-process
 	required = true
+[credential "https://lfs.dimensionalos.com"]
+	helper = "!f() { if [ \"$1\" = \"get\" ]; then echo \"username=token\"; echo \"password=$(gh auth token)\"; fi; }; f"
