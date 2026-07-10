@@ -1,0 +1,161 @@
+#!/usr/bin/env -S deno run --allow-read
+// var_table — tokenize source files, keep identifier-like names, drop common
+// keywords, and print an aligned table sorted by name length.
+//
+// Usage:
+//   var_table file1.js file2.py ...
+//   var_table --min-freq 2 *.ts
+//   cat list.txt | var_table          # one path per line on stdin
+//
+// Columns (comma after every item, aligned):
+//   name,   frequency,   files-that-use-it
+//
+// Note: this is a heuristic tokenizer (regex over identifiers), not a real
+// parser — it can't tell a variable from a function/type name, it just keeps
+// every identifier that isn't a reserved keyword.
+
+import { Command } from "jsr:@cliffy/command@1.0.0-rc.7"
+
+// Reserved words across the common languages, so `if`/`for`/etc. get dropped
+// no matter what the input file's language is.
+const KEYWORDS = new Set([
+    // english exceptions
+    'an','at','be','by','cp','db','Hz','If',"ip",'In','io','IP','it','It','no','ok','on','os','to','up','add','all','ALL','Arc','are','can','but','etc','fix','get','gid','git','has','max','min','time','toml','yaml','true','false',"True","False","user",
+    // var exceptions
+    'udp','tcp','env','err',
+    // control flow / structure (shared by most C-family + python + others)
+    "if", "else", "elif", "for", "while", "do", "switch", "case", "default",
+    "break", "continue", "return", "goto", "yield", "await", "async",
+    "try", "catch", "except", "finally", "throw", "throws", "raise", "with",
+    "match", "when", "where", "then", "fi", "esac", "done", "end", "begin",
+    // declarations / modifiers
+    "var", "let", "const", "function", "func", "def", "fn", "lambda",
+    "class", "struct", "enum", "interface", "trait", "impl", "type", "typedef",
+    "namespace", "module", "package", "import", "export", "from", "use",
+    "using", "include", "require", "extends", "implements", "public",
+    "private", "protected", "static", "final", "abstract", "virtual",
+    "override", "new", "delete", "this", "self", "super", "base",
+    "extern", "inline", "register", "volatile", "mutable", "constexpr",
+    "auto", "global", "nonlocal", "dyn", "ref", "out", "in", "is", "as",
+    "of", "pass", "del", "assert", "debugger", "void", "operator", "friend",
+    "template", "typename", "decltype", "sizeof", "alignof", "nullptr",
+    // primitive types
+    "int", "uint", "long", "short", "char", "float", "double", "bool",
+    "boolean", "byte", "string", "str", "object", "number", "bigint",
+    "symbol", "list", "dict", "set", "tuple", "map", "vector", "array",
+    "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64",
+    "usize", "isize", "size_t", "unsigned", "signed", "wchar_t",
+    // literals / values
+    "true", "false", "none", "null", "nil", "undefined", "nan", "infinity",
+    "and", "or", "not", "xor", "instanceof", "typeof",
+])
+
+const { options, args: files } = await new Command()
+    .name("var_table")
+    .description("Tokenize files, keep identifiers minus keywords, print an aligned frequency table.")
+    .option("--min-freq <n:number>", "Only show names used at least n times.", { default: 2 })
+    .option("--keep-keywords", "Do not strip language keywords.", { default: false })
+    .arguments("[files...:string]")
+    .parse(Deno.args)
+
+// Gather file paths from args and/or stdin (one per line).
+let paths = [...files]
+if (paths.length === 0 && !Deno.stdin.isTerminal()) {
+    const stdinText = new TextDecoder().decode(await readAll(Deno.stdin))
+    paths = stdinText.split("\n").map((line) => line.trim()).filter((line) => line.length > 0)
+}
+if (paths.length === 0) {
+    console.error("var_table: no input files (pass paths as args or pipe them on stdin)")
+    Deno.exit(1)
+}
+
+async function readAll(reader) {
+    const chunks = []
+    const buffer = new Uint8Array(65536)
+    while (true) {
+        const bytesRead = await reader.read(buffer)
+        if (bytesRead === null) {
+            break
+        }
+        chunks.push(buffer.slice(0, bytesRead))
+    }
+    return new Uint8Array(await new Blob(chunks).arrayBuffer())
+}
+
+// name -> { count, files:Set<string> }
+const stats = new Map()
+const identifierPattern = /[A-Za-z_$][A-Za-z0-9_$]*/g
+
+for (const path of paths) {
+    let text
+    try {
+        text = Deno.readTextFileSync(path)
+        // backslash then word doesn't count
+        text = text.replace(/\\\w+/g, "")
+        if (path.endsWith(".py") || path.endsWith(".toml") || path.endsWith(".yaml")) {
+            // remove f strings
+            text = text.replace(/\bf("|')/g, "$1")
+            // remove standalone comments
+            text = text.replace(/\n *#.+/g, "")
+        }
+        if (path.endsWith(".rs") || path.endsWith(".cpp") || path.endsWith(".hpp")) {
+            text = text.replace(/\b(f|r)("|')/g, "$1")
+            // remove standalone comments
+            text = text.replace(/\n *\/\/.+/g, "")
+        }
+    } catch (error) {
+        console.error(`var_table: skipping ${path}: ${error.message}`)
+        continue
+    }
+    for (const match of text.matchAll(identifierPattern)) {
+        const name = match[0]
+        if (!options.keepKeywords && KEYWORDS.has(name)) {
+            continue
+        }
+        // Pure-number-ish or single-underscore noise is not a useful "var name".
+        if (name === "_") {
+            continue
+        }
+        let entry = stats.get(name)
+        if (entry === undefined) {
+            entry = { count: 0, files: new Set() }
+            stats.set(name, entry)
+        }
+        entry.count += 1
+        entry.files.add(path)
+    }
+}
+
+// Build rows, filter by min frequency, sort by name length then alphabetically.
+const rows = [...stats.entries()]
+    .filter(([_name, entry]) => entry.count >= options.minFreq)
+    .map(([name, entry]) => ({
+        name,
+        frequency: String(entry.count),
+        files: [...entry.files].sort().join(" "),
+    }))
+    .sort((left, right) => {
+        if (left.name.length !== right.name.length) {
+            return left.name.length - right.name.length
+        }
+        return left.name.localeCompare(right.name)
+    })
+
+if (rows.length === 0) {
+    console.error("var_table: no identifiers matched")
+    Deno.exit(0)
+}
+
+// Comma after every item, then pad each column to its widest cell for alignment.
+const nameCells = rows.map((row) => `${row.name},`)
+const freqCells = rows.map((row) => `${row.frequency},`)
+const fileCells = rows.map((row) => `${row.files},`)
+
+const nameWidth = Math.max(...nameCells.map((cell) => cell.length))
+const freqWidth = Math.max(...freqCells.map((cell) => cell.length))
+
+for (let index = 0; index < rows.length; index++) {
+    const namePadded = nameCells[index].padEnd(nameWidth)
+    const freqPadded = freqCells[index].padEnd(freqWidth)
+    console.log(`${namePadded}  ${freqPadded}  ${fileCells[index]}`)
+}

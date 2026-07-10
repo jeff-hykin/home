@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Control the always-on DimOS dashboard service (launchd LaunchAgent).
+#   dash            → status
+#   dash start      → load + start the service
+#   dash stop       → stop + unload the service
+#   dash restart    → restart (use after editing server.js)
+#   dash reload     → alias for restart
+#   dash log        → follow the service log
+set -euo pipefail
+
+LABEL="com.dimos.desktop"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+DOMAIN="gui/$(id -u)"
+TARGET="$DOMAIN/$LABEL"
+LOG="$HOME/.local/share/dim/dashboard-service.log"
+
+case "${1:-status}" in
+    start)
+        launchctl bootstrap "$DOMAIN" "$PLIST" 2>/dev/null || true
+        launchctl kickstart "$TARGET"
+        echo "started $LABEL → http://127.0.0.1:1024/"
+        ;;
+    stop)
+        launchctl bootout "$TARGET" 2>/dev/null || true
+        echo "stopped $LABEL"
+        ;;
+    restart|reload)
+        # Full reload so plist edits (env vars, args) AND server.js changes both
+        # take effect: launchctl caches the plist at bootstrap, so kickstart alone
+        # would reuse stale config. Wait for the old job to fully unload before
+        # bootstrapping (else the new one races the old one's port and fails).
+        launchctl bootout "$TARGET" 2>/dev/null || true
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+            launchctl print "$TARGET" >/dev/null 2>&1 || break
+            sleep 0.3
+        done
+        launchctl bootstrap "$DOMAIN" "$PLIST"
+        echo "restarted $LABEL"
+        ;;
+    status)
+        if launchctl print "$TARGET" >/dev/null 2>&1; then
+            launchctl print "$TARGET" | grep -E '^\s*(state|pid|last exit code) =' || true
+        else
+            echo "$LABEL: not loaded (run 'dash start')"
+        fi
+        ;;
+    log)
+        tail -f "$LOG"
+        ;;
+    *)
+        echo "usage: dash {status|start|stop|restart|reload|log}" >&2
+        exit 2
+        ;;
+esac

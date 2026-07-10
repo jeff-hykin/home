@@ -1,0 +1,105 @@
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-ffi --unstable-ffi
+
+// db_cp — copy (overwrite) one data stream from one dimos memory2 .db into another.
+//
+// A dimos stream is three things in the sqlite file: a row in `_streams` (name +
+// config/type/codec), a per-stream table "<name>" (ts + pose columns + id), and an
+// optional "<name>_blob" table (id -> serialized message bytes). This recreates
+// each from the source's exact DDL and copies rows through two independent
+// handles, so any stream type works untouched. (ATTACH is avoided — @db/sqlite's
+// attached-schema view is unreliable for tables absent from the destination.)
+
+import { Database } from "jsr:@db/sqlite@0.12"
+
+const args = [...Deno.args]
+let fromPath = null
+let toPath = null
+let stream = null
+
+for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (a === "--from" || a === "-f") {
+        fromPath = args[++i]
+    } else if (a === "--to" || a === "-t") {
+        toPath = args[++i]
+    } else if (a === "--stream" || a === "-s") {
+        stream = args[++i]
+    } else if (a === "-h" || a === "--help") {
+        console.log(`db_cp — copy (overwrite) one data stream from one dimos mem2.db into another.
+
+Usage: db_cp --from SRC.db --to DST.db --stream NAME
+
+Copies the stream's table, its _blob table (if present), and its _streams metadata
+row, overwriting any stream of the same name already in the destination db.`)
+        Deno.exit(0)
+    } else if (!fromPath) {
+        fromPath = a
+    } else if (!toPath) {
+        toPath = a
+    } else if (!stream) {
+        stream = a
+    }
+}
+
+if (!fromPath || !toPath || !stream) {
+    console.error("Usage: db_cp --from SRC.db --to DST.db --stream NAME")
+    Deno.exit(1)
+}
+
+const src = new Database(fromPath, { readonly: true })
+const meta = src.prepare("SELECT * FROM _streams WHERE name=?").get(stream)
+if (!meta) {
+    const have = src.prepare("SELECT name FROM _streams").all().map((r) => r.name)
+    console.error(`stream '${stream}' not in ${fromPath}\navailable: ${have.join(", ")}`)
+    src.close()
+    Deno.exit(1)
+}
+
+const ddlFor = (table) => {
+    const row = src.prepare(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+    ).get(table)
+    return row ? row.sql : null
+}
+
+const dst = new Database(toPath)
+
+const copyTable = (table, ddl) => {
+    const cols = src.prepare(`PRAGMA table_info("${table}")`).all().map((r) => r.name)
+    const placeholders = cols.map(() => "?").join(", ")
+    const colList = cols.map((c) => `"${c}"`).join(", ")
+    dst.exec(`DROP TABLE IF EXISTS "${table}"`)
+    dst.exec(ddl)
+    const insert = dst.prepare(`INSERT INTO "${table}" (${colList}) VALUES (${placeholders})`)
+    let count = 0
+    dst.exec("BEGIN")
+    for (const row of src.prepare(`SELECT * FROM "${table}"`).iter()) {
+        insert.run(...cols.map((c) => row[c]))
+        count++
+    }
+    dst.exec("COMMIT")
+    return count
+}
+
+try {
+    const rows = copyTable(stream, ddlFor(stream))
+    const blobDDL = ddlFor(`${stream}_blob`)
+    if (blobDDL) {
+        copyTable(`${stream}_blob`, blobDDL)
+    }
+    // overwrite the _streams metadata row
+    dst.prepare("DELETE FROM _streams WHERE name=?").run(stream)
+    const metaCols = Object.keys(meta)
+    dst.prepare(
+        `INSERT INTO _streams (${metaCols.map((c) => `"${c}"`).join(", ")})` +
+            ` VALUES (${metaCols.map(() => "?").join(", ")})`,
+    ).run(...metaCols.map((c) => meta[c]))
+    src.close()
+    dst.close()
+    console.log(`copied '${stream}' (${rows} rows${blobDDL ? " + blobs" : ""}) -> ${toPath}`)
+} catch (e) {
+    src.close()
+    dst.close()
+    console.error(`failed: ${e.message}`)
+    Deno.exit(1)
+}

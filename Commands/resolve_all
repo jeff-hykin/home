@@ -1,0 +1,134 @@
+#!/usr/bin/env -S deno run -A
+// resolve_all — resolve every review conversation on a GitHub PR.
+//
+// Usage:
+//   resolve_all https://github.com/owner/repo/pull/1234
+//   resolve_all owner/repo#1234
+//   resolve_all --dry-run https://github.com/owner/repo/pull/1234
+//
+// Review "conversations" are resolved through the GraphQL resolveReviewThread
+// mutation (the REST API can't do it), so this drives `gh api graphql`.
+
+import { Command } from "jsr:@cliffy/command@1.0.0-rc.7"
+import { $ } from "https://esm.sh/dax-sh@0.42.0"
+
+const THREADS_QUERY = `
+query($owner:String!, $repo:String!, $number:Int!, $cursor:String) {
+  repository(owner:$owner, name:$repo) {
+    pullRequest(number:$number) {
+      reviewThreads(first:100, after:$cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          isResolved
+          isOutdated
+          comments(first:1) { nodes { author { login } path } }
+        }
+      }
+    }
+  }
+}`
+
+const RESOLVE_MUTATION = `
+mutation($threadId:ID!) {
+  resolveReviewThread(input:{threadId:$threadId}) {
+    thread { id isResolved }
+  }
+}`
+
+function parsePr(input) {
+    const url = input.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/)
+    if (url) {
+        return { owner: url[1], repo: url[2], number: url[3] }
+    }
+    const short = input.match(/^([^/]+)\/([^/#]+)#(\d+)$/)
+    if (short) {
+        return { owner: short[1], repo: short[2], number: short[3] }
+    }
+    return null
+}
+
+async function fetchThreads(owner, repo, number) {
+    const threads = []
+    let cursor = null
+    while (true) {
+        const args = ["api", "graphql", "-f", `query=${THREADS_QUERY}`, "-F", `owner=${owner}`, "-F", `repo=${repo}`, "-F", `number=${number}`]
+        if (cursor) {
+            args.push("-f", `cursor=${cursor}`)
+        }
+        const data = await $`gh ${args}`.json()
+        const reviewThreads = data?.data?.repository?.pullRequest?.reviewThreads
+        if (!reviewThreads) {
+            throw new Error("Unexpected GraphQL response (is the PR URL correct and are you authed?)")
+        }
+        threads.push(...reviewThreads.nodes)
+        if (reviewThreads.pageInfo.hasNextPage) {
+            cursor = reviewThreads.pageInfo.endCursor
+        } else {
+            break
+        }
+    }
+    return threads
+}
+
+function describe(thread) {
+    const comment = thread.comments?.nodes?.[0]
+    const who = comment?.author?.login ? `@${comment.author.login}` : "unknown"
+    const where = comment?.path || "(PR-level)"
+    return `${where} — ${who}${thread.isOutdated ? " (outdated)" : ""}`
+}
+
+await new Command()
+    .name("resolve_all")
+    .description("Resolve all review conversations on a GitHub PR")
+    .arguments("<pr:string>")
+    .option("-n, --dry-run", "List unresolved conversations without resolving them")
+    .action(async (opts, pr) => {
+        if (!(await $.commandExists("gh"))) {
+            console.error("gh CLI not found — install it and run `gh auth login`.")
+            Deno.exit(1)
+        }
+        const target = parsePr(pr)
+        if (!target) {
+            console.error(`Could not parse a PR from: ${pr}`)
+            console.error("Expected e.g. https://github.com/owner/repo/pull/1234 or owner/repo#1234")
+            Deno.exit(1)
+        }
+
+        const { owner, repo, number } = target
+        console.log(`Fetching conversations for ${owner}/${repo}#${number}…`)
+        const threads = await fetchThreads(owner, repo, number)
+        const unresolved = threads.filter((t) => !t.isResolved)
+        console.log(`Found ${threads.length} conversation(s); ${unresolved.length} unresolved.`)
+
+        if (unresolved.length === 0) {
+            console.log("Nothing to do ✓")
+            return
+        }
+
+        if (opts.dryRun) {
+            console.log("\nWould resolve:")
+            for (const thread of unresolved) {
+                console.log(`  • ${describe(thread)}`)
+            }
+            return
+        }
+
+        let resolved = 0
+        let failed = 0
+        for (const thread of unresolved) {
+            try {
+                await $`gh api graphql -f query=${RESOLVE_MUTATION} -f threadId=${thread.id}`.quiet()
+                resolved++
+                console.log(`  ✓ ${describe(thread)}`)
+            } catch (error) {
+                failed++
+                console.error(`  ✗ ${describe(thread)} — ${error.message ?? error}`)
+            }
+        }
+        console.log(`\nResolved ${resolved}/${unresolved.length}${failed ? `, ${failed} failed` : ""}.`)
+        if (failed) {
+            Deno.exit(1)
+        }
+    })
+    .parse(Deno.args)

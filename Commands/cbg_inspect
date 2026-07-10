@@ -1,0 +1,448 @@
+#!/usr/bin/env -S deno run --allow-read --allow-env
+// cbg_inspect — health check + usage stats for the cbg system
+//
+// Scans:
+//   - $CBG_DIR/state/specialData.json (scheduled tasks, long tasks)
+//   - $CBG_DIR/topics/<name>/messages.jsonl (recent topic activity)
+//   - $CBG_DIR/state/cold-storage/{messages,hooks,long-tasks}.jsonl (usage stats)
+//
+// Flags:
+//   --json             Output JSON instead of human text
+//   --problems-only    Suppress healthy items; print nothing & exit 0 if all clean
+//   --hours=N          Window for "recent" stats (default 24)
+//   --topic-msgs=N     Last N messages to surface per topic (default 3)
+//   --overdue-min=N    Grace period in minutes before a scheduled task counts overdue (default 30)
+//   --stale-hours=N    Hours before a long-task / abandoned question is stale (default 6)
+
+const HOME = Deno.env.get("HOME") ?? ""
+const CBG_DIR = Deno.env.get("CBG_DIR") ?? `${HOME}/.local/share/cbg`
+
+const args = parseArgs(Deno.args)
+const asJson = args.flags.has("json")
+const problemsOnly = args.flags.has("problems-only")
+const HOURS = num(args.opts.get("hours"), 24)
+const TOPIC_MSGS = num(args.opts.get("topic-msgs"), 3)
+const OVERDUE_MIN = num(args.opts.get("overdue-min"), 30)
+const STALE_HOURS = num(args.opts.get("stale-hours"), 6)
+
+const now = Date.now()
+const windowStart = now - HOURS * 3600 * 1000
+const staleCutoff = now - STALE_HOURS * 3600 * 1000
+
+const result = {
+    scannedAt: new Date(now).toISOString(),
+    scheduledTasks: [],
+    longTasks: [],
+    topics: [],
+    stats: {},
+    problems: [],
+}
+
+inspectScheduledAndLongTasks()
+inspectTopics()
+computeStats()
+
+if (problemsOnly) {
+    if (result.problems.length === 0) {
+        Deno.exit(0)
+    }
+    // Only emit problems + the items they reference
+    const minimal = {
+        scannedAt: result.scannedAt,
+        problems: result.problems,
+        stats: result.stats,
+    }
+    if (asJson) {
+        console.log(JSON.stringify(minimal, null, 2))
+    } else {
+        renderHuman(minimal, { onlyProblems: true })
+    }
+    Deno.exit(0)
+}
+
+if (asJson) {
+    console.log(JSON.stringify(result, null, 2))
+} else {
+    renderHuman(result, { onlyProblems: false })
+}
+
+// ───────── helpers ─────────
+
+function parseArgs(argv) {
+    const flags = new Set()
+    const opts = new Map()
+    for (const a of argv) {
+        if (a.startsWith("--") && a.includes("=")) {
+            const [k, v] = a.slice(2).split("=", 2)
+            opts.set(k, v)
+        } else if (a.startsWith("--")) {
+            flags.add(a.slice(2))
+        }
+    }
+    return { flags, opts }
+}
+
+function num(v, dflt) {
+    if (v === undefined) {
+        return dflt
+    }
+    const n = Number(v)
+    return Number.isFinite(n) ? n : dflt
+}
+
+function safeReadJson(path) {
+    try {
+        return JSON.parse(Deno.readTextFileSync(path))
+    } catch (e) {
+        return null
+    }
+}
+
+function readJsonlTail(path, maxLines = 5000) {
+    try {
+        const text = Deno.readTextFileSync(path)
+        const lines = text.split("\n").filter((l) => l.length > 0)
+        const start = Math.max(0, lines.length - maxLines)
+        return lines.slice(start).map((l) => {
+            try {
+                return JSON.parse(l)
+            } catch (e) {
+                return null
+            }
+        }).filter((x) => x !== null)
+    } catch (e) {
+        return []
+    }
+}
+
+function isoToMs(s) {
+    if (!s) {
+        return null
+    }
+    const t = Date.parse(s)
+    return Number.isFinite(t) ? t : null
+}
+
+function ageHours(ms) {
+    if (ms == null) {
+        return null
+    }
+    return (now - ms) / 3600000
+}
+
+function fmtAge(hrs) {
+    if (hrs == null) {
+        return "never"
+    }
+    if (hrs < 1) {
+        return `${Math.round(hrs * 60)}m`
+    }
+    if (hrs < 48) {
+        return `${hrs.toFixed(1)}h`
+    }
+    return `${(hrs / 24).toFixed(1)}d`
+}
+
+function looksLikeQuestion(text) {
+    if (!text || typeof text !== "string") {
+        return false
+    }
+    const t = text.trim()
+    if (t.endsWith("?")) {
+        return true
+    }
+    const lower = t.toLowerCase()
+    const starters = ["can you", "could you", "would you", "what ", "how ", "why ", "when ", "where ", "should i", "do i ", "is there", "any chance"]
+    for (const s of starters) {
+        if (lower.includes(s)) {
+            return true
+        }
+    }
+    return false
+}
+
+// ───────── inspections ─────────
+
+function inspectScheduledAndLongTasks() {
+    const special = safeReadJson(`${CBG_DIR}/state/specialData.json`)
+    if (!special) {
+        result.problems.push({
+            kind: "MISSING_STATE",
+            message: "Could not read state/specialData.json — daemon may be down or path wrong",
+            severity: "high",
+        })
+        return
+    }
+
+    // Scheduled tasks
+    const sched = special.scheduledTaskByChatId ?? {}
+    for (const [chatId, tasks] of Object.entries(sched)) {
+        for (const [tid, t] of Object.entries(tasks ?? {})) {
+            const tracking = t.tracking ?? {}
+            const nextFireMs = isoToMs(tracking.nextFireAt)
+            const lastRunMs = isoToMs(tracking.lastRunAt)
+            const createdMs = isoToMs(t.createdAt)
+            const row = {
+                id: tid,
+                chatId,
+                title: t.title ?? t.originalPrompt?.slice(0, 60) ?? "(untitled)",
+                state: t.state,
+                totalRuns: tracking.totalRuns ?? 0,
+                lastRunAt: tracking.lastRunAt,
+                lastRunStatus: tracking.lastRunStatus,
+                nextFireAt: tracking.nextFireAt,
+                ageOfLastRunH: ageHours(lastRunMs),
+                ageOfNextFireH: nextFireMs ? (nextFireMs - now) / 3600000 : null,
+            }
+            result.scheduledTasks.push(row)
+
+            if (t.state !== "scheduled") {
+                continue
+            }
+            // OVERDUE
+            if (nextFireMs && nextFireMs < now - OVERDUE_MIN * 60000) {
+                const overdueMin = Math.round((now - nextFireMs) / 60000)
+                result.problems.push({
+                    kind: "SCHEDULED_TASK_OVERDUE",
+                    severity: "high",
+                    id: tid,
+                    chatId,
+                    title: row.title,
+                    message: `Scheduled task ${tid} (${row.title}) is ${overdueMin}m overdue — nextFireAt=${tracking.nextFireAt}`,
+                })
+            }
+            // NO_RUNS_BUT_OLD: state=scheduled, never ran, created > 6h ago
+            if ((tracking.totalRuns ?? 0) === 0 && createdMs && createdMs < staleCutoff) {
+                result.problems.push({
+                    kind: "SCHEDULED_TASK_NEVER_RAN",
+                    severity: "medium",
+                    id: tid,
+                    chatId,
+                    title: row.title,
+                    message: `Scheduled task ${tid} (${row.title}) has never fired since createdAt=${t.createdAt}`,
+                })
+            }
+            // RECENT_ERROR
+            if (tracking.lastRunStatus === "errored" && lastRunMs && lastRunMs > windowStart) {
+                result.problems.push({
+                    kind: "SCHEDULED_TASK_RECENT_ERROR",
+                    severity: "medium",
+                    id: tid,
+                    chatId,
+                    title: row.title,
+                    message: `Last run of ${tid} errored: ${(tracking.lastRunSummary ?? "").slice(0, 200)}`,
+                })
+            }
+        }
+    }
+
+    // Long tasks
+    const lt = special.longTaskByChatId ?? {}
+    for (const [chatId, tasks] of Object.entries(lt)) {
+        for (const [tid, t] of Object.entries(tasks ?? {})) {
+            const lastNudgeMs = isoToMs(t.lastNudgeAt)
+            const createdMs = isoToMs(t.createdAt)
+            const activeStates = new Set(["defining", "running", "drafting", "active"])
+            const row = {
+                id: tid,
+                chatId,
+                title: t.title,
+                state: t.state,
+                workerSessionId: t.workerSessionId,
+                totalNudges: t.totalNudges,
+                lastNudgeAt: t.lastNudgeAt,
+                ageOfLastNudgeH: ageHours(lastNudgeMs),
+                createdAt: t.createdAt,
+            }
+            result.longTasks.push(row)
+
+            if (!activeStates.has(t.state)) {
+                continue
+            }
+            // STALE_LONG_TASK: active but no nudge in stale-hours window AND created longer ago than stale window
+            if (createdMs && createdMs < staleCutoff) {
+                if (lastNudgeMs == null || lastNudgeMs < staleCutoff) {
+                    const nudgePart = lastNudgeMs == null ? "never nudged" : `last nudge ${fmtAge(row.ageOfLastNudgeH)} ago`
+                    result.problems.push({
+                        kind: "LONG_TASK_STALE",
+                        severity: "medium",
+                        id: tid,
+                        chatId,
+                        title: t.title,
+                        message: `Long task ${tid} (${t.title}) is ${t.state} for ${fmtAge(ageHours(createdMs))} — ${nudgePart}`,
+                    })
+                }
+            }
+        }
+    }
+}
+
+function inspectTopics() {
+    const topicsDir = `${CBG_DIR}/topics`
+    let entries
+    try {
+        entries = [...Deno.readDirSync(topicsDir)]
+    } catch (e) {
+        result.problems.push({
+            kind: "TOPICS_DIR_MISSING",
+            severity: "high",
+            message: `Cannot read topics dir at ${topicsDir}: ${e.message}`,
+        })
+        return
+    }
+    for (const ent of entries) {
+        if (!ent.isDirectory) {
+            continue
+        }
+        const msgPath = `${topicsDir}/${ent.name}/messages.jsonl`
+        const msgs = readJsonlTail(msgPath, 50)
+        const recent = msgs.slice(-TOPIC_MSGS)
+        const last = msgs[msgs.length - 1]
+        const lastMs = last ? isoToMs(last.ts) : null
+        const row = {
+            name: ent.name,
+            messageCount: msgs.length, // last 50 only, but enough for activity hint
+            lastMessageAt: last?.ts ?? null,
+            ageOfLastMessageH: ageHours(lastMs),
+            recent: recent.map((m) => ({
+                ts: m.ts,
+                from: summarizeFrom(m.from),
+                to: summarizeFrom(m.to),
+                text: (m.text ?? "").slice(0, 200),
+            })),
+        }
+        result.topics.push(row)
+
+        // ABANDONED_QUESTION: last message is from user, > stale-hours old, and looks like a question
+        if (last && last.from && typeof last.from === "object" && last.from.userId && lastMs && lastMs < staleCutoff) {
+            if (looksLikeQuestion(last.text)) {
+                result.problems.push({
+                    kind: "ABANDONED_USER_QUESTION",
+                    severity: "medium",
+                    topic: ent.name,
+                    ageH: row.ageOfLastMessageH,
+                    message: `Topic '${ent.name}': user question ${fmtAge(row.ageOfLastMessageH)} ago with no agent reply — "${(last.text ?? "").slice(0, 120)}"`,
+                })
+            }
+        }
+    }
+    result.topics.sort((a, b) => (b.ageOfLastMessageH == null ? Infinity : -b.ageOfLastMessageH) - (a.ageOfLastMessageH == null ? Infinity : -a.ageOfLastMessageH))
+}
+
+function summarizeFrom(f) {
+    if (!f) {
+        return null
+    }
+    if (typeof f === "string") {
+        return f
+    }
+    if (f.cli) {
+        return "cli"
+    }
+    if (f.userId) {
+        return `user:${f.userId}`
+    }
+    if (f.sessionId) {
+        return `session:${f.sessionId}`
+    }
+    return JSON.stringify(f).slice(0, 60)
+}
+
+function computeStats() {
+    const cold = `${CBG_DIR}/state/cold-storage`
+    const cutoffSec = now - HOURS * 3600 * 1000
+    const within = (ts) => {
+        if (typeof ts === "number") {
+            return ts >= cutoffSec
+        }
+        const ms = isoToMs(ts)
+        return ms != null && ms >= cutoffSec
+    }
+
+    const messages = readJsonlTail(`${cold}/messages.jsonl`, 5000).filter((m) => within(m.ts))
+    const hooks = readJsonlTail(`${cold}/hooks.jsonl`, 5000).filter((m) => within(m.ts))
+    const longTaskEvents = readJsonlTail(`${cold}/long-tasks.jsonl`, 5000).filter((m) => within(m.ts))
+
+    const messagesByFrom = {}
+    for (const m of messages) {
+        const k = m.from ?? "?"
+        messagesByFrom[k] = (messagesByFrom[k] ?? 0) + 1
+    }
+
+    const ltEventsByKind = {}
+    for (const e of longTaskEvents) {
+        const k = e.event ?? "?"
+        ltEventsByKind[k] = (ltEventsByKind[k] ?? 0) + 1
+    }
+
+    const errored = longTaskEvents.filter((e) => e.event === "errored" || e.event === "cancelled" || e.status === "errored")
+
+    result.stats = {
+        windowHours: HOURS,
+        messages: { total: messages.length, byFrom: messagesByFrom },
+        hooks: { total: hooks.length },
+        longTaskEvents: { total: longTaskEvents.length, byKind: ltEventsByKind },
+        erroredLongTaskEvents: errored.length,
+    }
+
+    // Surface long-task error spike
+    if (errored.length >= 3) {
+        result.problems.push({
+            kind: "LONG_TASK_ERROR_SPIKE",
+            severity: "medium",
+            message: `${errored.length} long-task error/cancel events in last ${HOURS}h`,
+        })
+    }
+}
+
+// ───────── human renderer ─────────
+
+function renderHuman(r, opts) {
+    if (opts.onlyProblems) {
+        console.log(`cbg_inspect — ${r.problems.length} problem(s) at ${r.scannedAt}`)
+        for (const p of r.problems) {
+            console.log(`  [${p.severity}] ${p.kind}: ${p.message}`)
+        }
+        console.log("")
+        console.log("Stats (last", r.stats.windowHours + "h):")
+        console.log("  messages:", JSON.stringify(r.stats.messages))
+        console.log("  longTaskEvents:", JSON.stringify(r.stats.longTaskEvents))
+        return
+    }
+    console.log(`cbg_inspect @ ${r.scannedAt}`)
+    console.log("")
+    console.log(`Problems (${r.problems.length}):`)
+    if (r.problems.length === 0) {
+        console.log("  (none)")
+    } else {
+        for (const p of r.problems) {
+            console.log(`  [${p.severity}] ${p.kind}: ${p.message}`)
+        }
+    }
+    console.log("")
+    console.log(`Scheduled tasks (${r.scheduledTasks.length}):`)
+    for (const t of r.scheduledTasks) {
+        const next = t.nextFireAt ? `next=${t.nextFireAt} (${t.ageOfNextFireH > 0 ? "in " + t.ageOfNextFireH.toFixed(1) + "h" : Math.abs(t.ageOfNextFireH).toFixed(1) + "h ago"})` : ""
+        const last = t.lastRunAt ? `last=${t.lastRunStatus} ${fmtAge(t.ageOfLastRunH)} ago` : "never ran"
+        console.log(`  ${t.id} [${t.state}] runs=${t.totalRuns} ${last} ${next}`)
+        console.log(`    title: ${t.title}`)
+    }
+    console.log("")
+    console.log(`Long tasks (${r.longTasks.length}):`)
+    for (const t of r.longTasks) {
+        console.log(`  ${t.id} [${t.state}] nudges=${t.totalNudges} lastNudge=${fmtAge(t.ageOfLastNudgeH)} title=${t.title}`)
+    }
+    console.log("")
+    console.log(`Topics (${r.topics.length}) — last ${TOPIC_MSGS} msgs each:`)
+    for (const t of r.topics) {
+        console.log(`  ${t.name} — last activity ${fmtAge(t.ageOfLastMessageH)} ago`)
+        for (const m of t.recent) {
+            console.log(`    ${m.ts}  ${m.from} → ${m.to}: ${m.text.replace(/\n/g, " ")}`)
+        }
+    }
+    console.log("")
+    console.log(`Usage stats (last ${r.stats.windowHours}h):`)
+    console.log(`  messages: ${r.stats.messages.total} (by from: ${JSON.stringify(r.stats.messages.byFrom)})`)
+    console.log(`  hooks: ${r.stats.hooks.total}`)
+    console.log(`  long-task events: ${r.stats.longTaskEvents.total} (${JSON.stringify(r.stats.longTaskEvents.byKind)})`)
+}
