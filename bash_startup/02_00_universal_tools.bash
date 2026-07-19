@@ -23,11 +23,7 @@ escape_shell_arguments () {
     printf '%s' "$__temp_var__command_string"
 }
 
-print () {
-    printf '%s' "$1"
-}
-
-# 
+#
 # sudo replacement (avoids 'command not found' issues)
 # 
 # 
