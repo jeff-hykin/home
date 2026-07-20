@@ -1,7 +1,6 @@
 #!/usr/bin/env -S deno run --allow-run --allow-env --allow-read
 // lsd — list ~/repos/dimos and ~/repos/dimos<digits> dirs with their git branches.
-
-import $ from "jsr:@david/dax@0.42"
+// No external deps (no jsr, no esm) — uses native Deno.Command for git.
 
 const home = Deno.env.get("HOME")
 const reposDir = `${home}/repos`
@@ -25,18 +24,40 @@ names.sort((a, b) => {
 
 const width = names.reduce((m, n) => Math.max(m, n.length), 0)
 
-for (const name of names) {
-    const dir = `${reposDir}/${name}`
-    let branch = "(no-git)"
+async function gitBranch(dir) {
+    let out
     try {
-        await Deno.stat(`${dir}/.git`)
-        const r = await $`git -C ${dir} branch --show-current`
-            .stdout("piped")
-            .stderr("null")
-            .noThrow()
-        branch = r.stdout.trim() || "(detached)"
-    } catch {
-        // not a repo — branch stays "(no-git)"
+        out = await new Deno.Command("git", {
+            args: ["-C", dir, "rev-parse", "--abbrev-ref", "HEAD"],
+            stdout: "piped",
+            stderr: "piped",
+        }).output()
+    } catch (err) {
+        if (err instanceof Deno.errors.NotFound) {
+            console.error("lsd: `git` not found on PATH — install git or fix PATH")
+            Deno.exit(1)
+        }
+        return `(error: ${err.message})`
     }
+    if (!out.success) {
+        const errText = new TextDecoder().decode(out.stderr).trim()
+        if (/not a git repository/i.test(errText)) {
+            return "(no-git)"
+        }
+        if (/dubious ownership/i.test(errText)) {
+            return `(untrusted: git config --global --add safe.directory ${dir})`
+        }
+        const firstLine = errText.split("\n")[0] || "unknown git error"
+        return `(error: ${firstLine})`
+    }
+    const branch = new TextDecoder().decode(out.stdout).trim()
+    if (branch === "" || branch === "HEAD") {
+        return "(detached)"
+    }
+    return branch
+}
+
+for (const name of names) {
+    const branch = await gitBranch(`${reposDir}/${name}`)
     console.log(`${name.padEnd(width)}  ${branch}`)
 }
