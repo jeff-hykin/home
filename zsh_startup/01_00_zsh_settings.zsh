@@ -65,6 +65,13 @@ export HISTFILE="$HOME/.zsh_history"
 export HISTSIZE=50000
 export SAVEHIST=50000
 setopt appendhistory
+# write each command to the history file as soon as it's entered, so nothing is
+# lost on an unclean exit (crash, kill -9, closed terminal) instead of only at exit
+setopt inc_append_history
+# record timestamps so incrementally-appended entries stay well-formed
+setopt extended_history
+# use fcntl locking for safe concurrent writes from multiple shells
+setopt hist_fcntl_lock
 
 # Would you like to use another custom folder than $ZSH/custom?
 # ZSH_CUSTOM=/path/to/new-custom-folder

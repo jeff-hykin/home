@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Downsample streams in a .rrd file by keeping every Nth frame."""
+
+import argparse
+import sys
+import os
+
+def ensure_rerun():
+    """Re-exec under ~/repos/dimos/.venv python if rerun isn't available."""
+    try:
+        import rerun
+        return
+    except ImportError:
+        pass
+
+    if os.environ.get("_RRD_THIN_REEXEC"):
+        print("error: re-exec'd but still can't import rerun", file=sys.stderr)
+        sys.exit(1)
+
+    venv_python = os.path.expanduser("~/repos/dimos/.venv/bin/python3")
+    if os.path.isfile(venv_python):
+        os.environ["_RRD_THIN_REEXEC"] = "1"
+        os.execv(venv_python, [venv_python] + sys.argv)
+
+    print("error: could not find ~/repos/dimos/.venv/bin/python3", file=sys.stderr)
+    sys.exit(1)
+
+ensure_rerun()
+
+import rerun as rr
+from rerun.experimental import Chunk, LazyChunkStream
+import pyarrow as pa
+import numpy as np
+
+def parse_skip_rates(args):
+    rates = {}
+    for spec in args:
+        if ":" not in spec:
+            print(f"error: invalid --skip_rate format '{spec}', expected pattern:N", file=sys.stderr)
+            sys.exit(1)
+        pattern, n = spec.rsplit(":", 1)
+        try:
+            n = int(n)
+        except ValueError:
+            print(f"error: skip rate must be an integer, got '{n}'", file=sys.stderr)
+            sys.exit(1)
+        if n < 1:
+            print(f"error: skip rate must be >= 1, got {n}", file=sys.stderr)
+            sys.exit(1)
+        rates[pattern] = n
+    return rates
+
+def match_skip_rate(entity_path, rates):
+    for pattern, n in rates.items():
+        if pattern in entity_path:
+            return n
+    return None
+
+def main():
+    parser = argparse.ArgumentParser(description="Downsample streams in a .rrd file.")
+    parser.add_argument("input", help="Input .rrd file")
+    parser.add_argument("-o", "--output", help="Output .rrd file (default: <input>_thinned.rrd)")
+    parser.add_argument(
+        "--skip_rate", action="append", default=[], metavar="PATTERN:N",
+        help="Keep 1 out of every N frames for entities matching PATTERN (substring match). "
+             "Can be specified multiple times. Default: image:100",
+    )
+    args = parser.parse_args()
+
+    if not os.path.isfile(args.input):
+        print(f"error: file not found: {args.input}", file=sys.stderr)
+        sys.exit(1)
+
+    rates = parse_skip_rates(args.skip_rate) if args.skip_rate else {"image": 100}
+
+    if args.output:
+        out_path = args.output
+    else:
+        base, ext = os.path.splitext(args.input)
+        out_path = f"{base}_thinned{ext}"
+
+    print(f"Input:  {args.input}")
+    print(f"Output: {out_path}")
+    print(f"Skip rates: {rates}")
+
+    reader = rr.experimental.RrdReader(args.input)
+    app_id = reader.application_id
+    rec_id = reader.recording_id
+    stream = reader.stream()
+
+    counters = {}
+    stats = {"kept_chunks": 0, "dropped_chunks": 0, "thinned_chunks": 0}
+
+    def thin(chunk):
+        entity = chunk.entity_path
+        rate = match_skip_rate(entity, rates)
+
+        if rate is None or chunk.is_static:
+            stats["kept_chunks"] += 1
+            return [chunk]
+
+        batch = chunk.to_record_batch()
+        n = batch.num_rows
+        if entity not in counters:
+            counters[entity] = 0
+
+        keep = []
+        for i in range(n):
+            if counters[entity] % rate == 0:
+                keep.append(i)
+            counters[entity] += 1
+
+        if not keep:
+            stats["dropped_chunks"] += 1
+            return []
+
+        if len(keep) == n:
+            stats["kept_chunks"] += 1
+            return [chunk]
+
+        stats["thinned_chunks"] += 1
+        return [Chunk.from_record_batch(batch.take(keep))]
+
+    filtered = stream.flat_map(thin)
+    filtered.write_rrd(out_path, application_id=app_id, recording_id=rec_id)
+
+    total = stats["kept_chunks"] + stats["dropped_chunks"] + stats["thinned_chunks"]
+    print(f"\nDone. {total} chunks processed: {stats['kept_chunks']} kept, "
+          f"{stats['thinned_chunks']} thinned, {stats['dropped_chunks']} dropped")
+
+    for entity, count in sorted(counters.items()):
+        rate = match_skip_rate(entity, rates)
+        print(f"  {entity}: {count} frames -> ~{count // rate} kept (1/{rate})")
+
+    size_in = os.path.getsize(args.input)
+    size_out = os.path.getsize(out_path)
+    print(f"\n{size_in / 2**30:.2f} GiB -> {size_out / 2**30:.2f} GiB ({100 * (1 - size_out / size_in):.1f}% reduction)")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,235 @@
+#!/usr/bin/env -S deno run --allow-read --allow-net --allow-env
+
+// rrd_summary: Show per-entity frame counts and sizes in a .rrd file.
+// Parses the RRD container (protobuf + LZ4 + Arrow IPC) directly — no rerun binary needed.
+
+import lz4 from "https://esm.sh/lz4js@0.2.0"
+import { tableFromIPC } from "https://esm.sh/apache-arrow@18.1.0"
+
+// ── File I/O ───────────────────────────────────────────────────────────────
+
+async function readExact(file, buf) {
+    let off = 0
+    while (off < buf.length) {
+        const n = await file.read(buf.subarray(off))
+        if (n === null) return off
+        off += n
+    }
+    return off
+}
+
+async function readAt(file, pos, size) {
+    await file.seek(pos, Deno.SeekMode.Start)
+    const buf = new Uint8Array(size)
+    const n = await readExact(file, buf)
+    return n === size ? buf : buf.subarray(0, n)
+}
+
+// ── Protobuf varint + field reader ─────────────────────────────────────────
+
+function readVarint(data, pos) {
+    let result = 0, shift = 0
+    while (pos < data.length) {
+        const b = data[pos++]
+        result |= (b & 0x7f) << shift
+        if (!(b & 0x80)) break
+        shift += 7
+    }
+    return [result, pos]
+}
+
+function readProtobufFields(data) {
+    const fields = {}
+    let pos = 0
+    while (pos < data.length) {
+        const [tag, p1] = readVarint(data, pos)
+        pos = p1
+        const fieldNum = tag >>> 3
+        const wireType = tag & 7
+        if (wireType === 0) {
+            const [val, p2] = readVarint(data, pos)
+            pos = p2
+            fields[fieldNum] = val
+        } else if (wireType === 2) {
+            const [len, p2] = readVarint(data, pos)
+            pos = p2
+            fields[fieldNum] = data.subarray(pos, pos + len)
+            pos += len
+        } else if (wireType === 1) {
+            pos += 8
+        } else if (wireType === 5) {
+            pos += 4
+        } else {
+            break
+        }
+    }
+    return fields
+}
+
+// ── Arrow IPC schema-only parser ───────────────────────────────────────────
+
+function parseArrowIPC(ipcBytes) {
+    try {
+        const table = tableFromIPC(ipcBytes)
+        const entityPath = table.schema.metadata.get("rerun:entity_path") || ""
+        const columns = table.schema.fields
+            .map(f => f.name)
+            .filter(n => !n.startsWith("rerun."))
+        return { entityPath, columns, rows: table.numRows }
+    } catch {
+        return null
+    }
+}
+
+// ── Main ───────────────────────────────────────────────────────────────────
+
+const path = Deno.args[0]
+if (!path) {
+    console.error("Usage: rrd_summary <file.rrd>")
+    Deno.exit(1)
+}
+
+const file = await Deno.open(path, { read: true })
+const { size: fileSize } = await file.stat()
+const startTime = Date.now()
+const enc = new TextEncoder()
+
+// ── Stream header (12 bytes) ───────────────────────────────────────────────
+
+const header = await readAt(file, 0, 12)
+const magic = new TextDecoder().decode(header.subarray(0, 4))
+if (magic !== "RRF2") {
+    console.error("Not an RRD file (expected RRF2 magic)")
+    file.close()
+    Deno.exit(1)
+}
+
+const version = `${header[4]}.${header[5]}.${header[6]}${header[7] & 0x80 ? `-alpha.${header[7] & 0x7f}` : ""}`
+const compression = header[8] // 0=off, 1=lz4
+const serializer = header[9]  // 2=protobuf
+
+// ── Iterate messages ───────────────────────────────────────────────────────
+
+const entities = new Map()
+let pos = 12
+let msgCount = 0
+const msgHdrBuf = new Uint8Array(16)
+const dv = new DataView(msgHdrBuf.buffer)
+
+while (pos + 16 <= fileSize) {
+    await file.seek(pos, Deno.SeekMode.Start)
+    if (await readExact(file, msgHdrBuf) < 16) break
+
+    const kind = Number(dv.getBigUint64(0, true))
+    const payloadLen = Number(dv.getBigUint64(8, true))
+
+    if (kind === 0) break // End/footer message
+
+    pos += 16
+
+    if (kind !== 2 || payloadLen <= 0 || payloadLen > 2e9) {
+        // Skip non-ArrowMsg (e.g. SetStoreInfo kind=1)
+        pos += payloadLen
+        continue
+    }
+
+    // Read protobuf payload
+    const pbData = await readAt(file, pos, payloadLen)
+    pos += payloadLen
+
+    // Parse ArrowMsg protobuf
+    // Fields: 1=store_id, 2=compression, 3=uncompressed_size, 4=encoding, 5=payload, 6=chunk_id, 7=is_static
+    const fields = readProtobufFields(pbData)
+    const msgCompression = fields[2] ?? 0  // 1=none, 2=lz4
+    const uncompressedSize = fields[3] ?? 0
+    const arrowPayload = fields[5]
+
+    if (!arrowPayload || arrowPayload.length === 0) continue
+
+    // Decompress if LZ4
+    let ipcBytes
+    if (msgCompression === 2 && uncompressedSize > 0) {
+        const out = lz4.makeBuffer(uncompressedSize)
+        lz4.decompressBlock(arrowPayload, out, 0, arrowPayload.length, 0)
+        ipcBytes = new Uint8Array(out.buffer || out, 0, uncompressedSize)
+    } else {
+        ipcBytes = arrowPayload
+    }
+
+    // Parse Arrow IPC to get entity path and row count
+    const parsed = parseArrowIPC(ipcBytes)
+    if (!parsed || !parsed.entityPath) continue
+
+    msgCount++
+    let entry = entities.get(parsed.entityPath)
+    if (!entry) {
+        entry = { rows: 0, compressedBytes: 0, columns: new Set() }
+        entities.set(parsed.entityPath, entry)
+    }
+    entry.rows += parsed.rows
+    entry.compressedBytes += arrowPayload.length
+    for (const c of parsed.columns) entry.columns.add(c)
+
+    if (msgCount % 2000 === 0) {
+        const pct = ((pos / fileSize) * 100).toFixed(1)
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(0)
+        Deno.stderr.writeSync(enc.encode(`\r  ${pct}% (${msgCount} chunks, ${elapsed}s)`))
+    }
+}
+
+file.close()
+
+if (msgCount > 2000) {
+    Deno.stderr.writeSync(enc.encode("\r" + " ".repeat(60) + "\r"))
+}
+
+// ── Output ─────────────────────────────────────────────────────────────────
+
+function fmtSize(bytes) {
+    if (bytes >= 1 << 30) return `${(bytes / (1 << 30)).toFixed(2)} GiB`
+    if (bytes >= 1 << 20) return `${(bytes / (1 << 20)).toFixed(1)} MiB`
+    if (bytes >= 1 << 10) return `${(bytes / (1 << 10)).toFixed(1)} KiB`
+    return `${bytes} B`
+}
+
+function fmtNum(n) {
+    return n.toLocaleString("en-US")
+}
+
+const sorted = [...entities.entries()].sort((a, b) => b[1].compressedBytes - a[1].compressedBytes)
+
+if (sorted.length === 0) {
+    console.log("No data entities found.")
+    Deno.exit(0)
+}
+
+const maxPath = Math.max(...sorted.map(([p]) => p.length), 6)
+const maxRows = Math.max(...sorted.map(([, v]) => fmtNum(v.rows).length), 6)
+
+console.log(`\n${path}  (${fmtSize(fileSize)})`)
+console.log(`  version: ${version}  compression: ${compression ? "lz4" : "off"}  serializer: ${serializer === 2 ? "protobuf" : "?"}`)
+console.log()
+console.log(
+    `${"Entity".padEnd(maxPath)}  ${"Frames".padStart(maxRows)}  ${"Size".padStart(10)}  Components`
+)
+console.log("─".repeat(maxPath + maxRows + 30))
+
+let totalRows = 0
+let totalBytes = 0
+
+for (const [entity, { rows, compressedBytes, columns }] of sorted) {
+    const cols = [...columns].join(", ")
+    console.log(
+        `${entity.padEnd(maxPath)}  ${fmtNum(rows).padStart(maxRows)}  ${fmtSize(compressedBytes).padStart(10)}  ${cols}`
+    )
+    totalRows += rows
+    totalBytes += compressedBytes
+}
+
+console.log("─".repeat(maxPath + maxRows + 30))
+console.log(
+    `${"Total".padEnd(maxPath)}  ${fmtNum(totalRows).padStart(maxRows)}  ${fmtSize(totalBytes).padStart(10)}`
+)
+
+const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+console.log(`\n${fmtNum(msgCount)} chunks parsed in ${elapsed}s`)
