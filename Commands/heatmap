@@ -1,0 +1,335 @@
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-ffi --unstable-ffi
+
+// heatmap — top-down dark render of a memory2 recording: Point-LIO lidar as a
+// density heatmap, with the odometry path over it coloured start-to-end.
+
+import { Database } from "jsr:@db/sqlite@0.12"
+import { Command } from "https://esm.sh/jsr/@cliffy/command@1.2.1"
+import { Odometry } from "https://esm.sh/jsr/@dimos/msgs@0.1.4/nav_msgs"
+import { PointCloud2 } from "https://esm.sh/jsr/@dimos/msgs@0.1.4/sensor_msgs"
+
+// --- decoding ----------------------------------------------------------
+
+/** Point-LIO's odometry is world->body: position plus an xyzw quaternion. */
+function odometryPose(blob) {
+    const pose = Odometry.decode(blob).pose.pose
+    return {
+        x: pose.position.x,
+        y: pose.position.y,
+        z: pose.position.z,
+        q: [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w],
+    }
+}
+
+/** v + 2u x (u x v + wv) -- the quaternion sandwich without building a matrix. */
+function rotate(q, x, y, z) {
+    const [qx, qy, qz, qw] = q
+    const ix = qy * z - qz * y + qw * x
+    const iy = qz * x - qx * z + qw * y
+    const iz = qx * y - qy * x + qw * z
+    return [
+        x + 2 * (qy * iz - qz * iy),
+        y + 2 * (qz * ix - qx * iz),
+        z + 2 * (qx * iy - qy * ix),
+    ]
+}
+
+/** PointCloud2 -> Float32Array of xyz triples, in whatever frame it was stored. */
+function cloudXyz(blob) {
+    const cloud = PointCloud2.decode(blob)
+    const offsets = {}
+    for (const field of cloud.fields) {
+        offsets[field.name] = field.offset
+    }
+    if (offsets.x === undefined || offsets.y === undefined || offsets.z === undefined) {
+        return new Float32Array(0)
+    }
+    const data = cloud.data instanceof Uint8Array ? cloud.data : new Uint8Array(cloud.data)
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+    const step = cloud.point_step
+    const count = Math.min(cloud.width * Math.max(1, cloud.height), Math.floor(data.byteLength / step))
+    const out = new Float32Array(count * 3)
+    for (let i = 0; i < count; i++) {
+        const base = i * step
+        out[i * 3 + 0] = view.getFloat32(base + offsets.x, true)
+        out[i * 3 + 1] = view.getFloat32(base + offsets.y, true)
+        out[i * 3 + 2] = view.getFloat32(base + offsets.z, true)
+    }
+    return out
+}
+
+// --- PNG -------------------------------------------------------------------
+// Written by hand rather than pulled in: the only hard part is deflate, and
+// CompressionStream is already in the runtime.
+
+const CRC_TABLE = (() => {
+    const table = new Uint32Array(256)
+    for (let n = 0; n < 256; n++) {
+        let c = n
+        for (let k = 0; k < 8; k++) {
+            c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+        }
+        table[n] = c >>> 0
+    }
+    return table
+})()
+
+function crc32(bytes) {
+    let c = 0xffffffff
+    for (const byte of bytes) {
+        c = CRC_TABLE[(c ^ byte) & 0xff] ^ (c >>> 8)
+    }
+    return (c ^ 0xffffffff) >>> 0
+}
+
+async function deflate(bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate"))
+    return new Uint8Array(await new Response(stream).arrayBuffer())
+}
+
+function chunk(type, body) {
+    const out = new Uint8Array(12 + body.length)
+    const view = new DataView(out.buffer)
+    view.setUint32(0, body.length, false)
+    out.set(new TextEncoder().encode(type), 4)
+    out.set(body, 8)
+    view.setUint32(8 + body.length, crc32(out.subarray(4, 8 + body.length)), false)
+    return out
+}
+
+/** rgb is a Uint8Array of width*height*3. */
+async function encodePng(rgb, width, height) {
+    const raw = new Uint8Array(height * (width * 3 + 1))
+    for (let y = 0; y < height; y++) {
+        raw[y * (width * 3 + 1)] = 0 // filter: none
+        raw.set(rgb.subarray(y * width * 3, (y + 1) * width * 3), y * (width * 3 + 1) + 1)
+    }
+    const ihdr = new Uint8Array(13)
+    const view = new DataView(ihdr.buffer)
+    view.setUint32(0, width, false)
+    view.setUint32(4, height, false)
+    ihdr[8] = 8 // bit depth
+    ihdr[9] = 2 // truecolour
+    const parts = [
+        new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        chunk("IHDR", ihdr),
+        chunk("IDAT", await deflate(raw)),
+        chunk("IEND", new Uint8Array(0)),
+    ]
+    const total = parts.reduce((n, p) => n + p.length, 0)
+    const png = new Uint8Array(total)
+    let at = 0
+    for (const part of parts) {
+        png.set(part, at)
+        at += part.length
+    }
+    return png
+}
+
+// --- colour ----------------------------------------------------------------
+
+/** Turbo-ish ramp: blue at the start of the run, red at the end. */
+function pathColour(t) {
+    const stops = [
+        [0.0, [64, 110, 255]],
+        [0.25, [0, 220, 220]],
+        [0.5, [90, 235, 90]],
+        [0.75, [255, 205, 60]],
+        [1.0, [255, 70, 70]],
+    ]
+    for (let i = 1; i < stops.length; i++) {
+        if (t <= stops[i][0]) {
+            const [t0, c0] = stops[i - 1]
+            const [t1, c1] = stops[i]
+            const f = (t - t0) / (t1 - t0)
+            return c0.map((v, k) => Math.round(v + (c1[k] - v) * f))
+        }
+    }
+    return stops[stops.length - 1][1]
+}
+
+// --- main ------------------------------------------------------------------
+
+await new Command()
+    .name("heatmap")
+    .version("1.0.0")
+    .description("Top-down dark render of Point-LIO lidar + odometry path from a memory2 .db")
+    .arguments("<recording:string> [output:string]")
+    .option("-w, --width <px:integer>", "Image width in pixels", { default: 1600 })
+    .option("--min-height <m:number>", "Drop points below this world z, in metres")
+    .option("--max-height <m:number>", "Drop points above this world z, in metres")
+    .option("--stride <n:integer>", "Use every Nth lidar scan", { default: 1 })
+    .action(async (options, recording, output) => {
+        const target = output ?? recording.replace(/\.db$/, "") + "_heatmap.png"
+        const db = new Database(recording, { readonly: true })
+
+        const odom = []
+        for (const row of db.prepare("SELECT o.ts, b.data FROM pointlio_odometry_blob b JOIN pointlio_odometry o ON o.id = b.id ORDER BY o.ts").values()) {
+            odom.push({ ts: row[0], ...odometryPose(new Uint8Array(row[1])) })
+        }
+        if (odom.length === 0) {
+            console.error(`heatmap: no pointlio_odometry in ${recording}`)
+            Deno.exit(1)
+        }
+
+        // The scans are in the sensor frame, so each one has to be carried into the
+        // world by the pose at its own timestamp. Stacking them raw just draws the
+        // lidar's own field of view over and over on top of itself.
+        const stamps = odom.map((p) => p.ts)
+        const poseAt = (ts) => {
+            let lo = 0
+            let hi = stamps.length - 1
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1
+                if (stamps[mid] < ts) { lo = mid + 1 } else { hi = mid }
+            }
+            return odom[lo]
+        }
+
+        const clouds = []
+        let index = 0
+        let scanCount = 0
+        for (const row of db.prepare("SELECT l.ts, b.data FROM pointlio_lidar_blob b JOIN pointlio_lidar l ON l.id = b.id ORDER BY l.ts").values()) {
+            scanCount++
+            if (index++ % options.stride !== 0) {
+                continue
+            }
+            const pose = poseAt(row[0])
+            const cloud = cloudXyz(new Uint8Array(row[1]))
+            for (let i = 0; i < cloud.length; i += 3) {
+                const [wx, wy, wz] = rotate(pose.q, cloud[i], cloud[i + 1], cloud[i + 2])
+                cloud[i] = wx + pose.x
+                cloud[i + 1] = wy + pose.y
+                cloud[i + 2] = wz + pose.z
+            }
+            clouds.push(cloud)
+        }
+        db.close()
+
+        // Report the z distribution, because "chop above 2 m" is unanswerable
+        // without knowing where this recording's floor actually sits.
+        const heights = []
+        for (const cloud of clouds) {
+            for (let i = 2; i < cloud.length; i += 3) {
+                heights.push(cloud[i])
+            }
+        }
+        heights.sort((a, b) => a - b)
+        const pct = (f) => heights[Math.min(heights.length - 1, Math.floor(heights.length * f))] ?? 0
+        console.log(
+            `heatmap: world z  min ${pct(0).toFixed(2)}  p2 ${pct(0.02).toFixed(2)}  ` +
+                `median ${pct(0.5).toFixed(2)}  p98 ${pct(0.98).toFixed(2)}  max ${pct(1).toFixed(2)} m`,
+        )
+
+        const low = options.minHeight ?? -Infinity
+        const high = options.maxHeight ?? Infinity
+        const keep = []
+        for (const cloud of clouds) {
+            for (let i = 0; i < cloud.length; i += 3) {
+                const z = cloud[i + 2]
+                if (z >= low && z <= high) {
+                    keep.push(cloud[i], cloud[i + 1])
+                }
+            }
+        }
+
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+        const note = (x, y) => {
+            if (x < minX) { minX = x }
+            if (x > maxX) { maxX = x }
+            if (y < minY) { minY = y }
+            if (y > maxY) { maxY = y }
+        }
+        for (let i = 0; i < keep.length; i += 2) {
+            note(keep[i], keep[i + 1])
+        }
+        for (const p of odom) {
+            note(p.x, p.y)
+        }
+
+        const margin = 1.0
+        minX -= margin; maxX += margin; minY -= margin; maxY += margin
+        const width = options.width
+        const scale = width / (maxX - minX)
+        const height = Math.max(1, Math.round((maxY - minY) * scale))
+        const toPx = (x, y) => [
+            Math.round((x - minX) * scale),
+            height - 1 - Math.round((y - minY) * scale),
+        ]
+
+        // Accumulate hits per pixel, then map density through a log ramp: a single
+        // stray return should stay dim while a wall seen a thousand times is bright.
+        const density = new Float32Array(width * height)
+        for (let i = 0; i < keep.length; i += 2) {
+            const [px, py] = toPx(keep[i], keep[i + 1])
+            if (px >= 0 && px < width && py >= 0 && py < height) {
+                density[py * width + px] += 1
+            }
+        }
+        let peak = 0
+        for (const value of density) {
+            if (value > peak) {
+                peak = value
+            }
+        }
+        const ceiling = Math.max(1, peak * 0.25)
+
+        const rgb = new Uint8Array(width * height * 3)
+        for (let i = 0; i < width * height; i++) {
+            rgb[i * 3] = 12
+            rgb[i * 3 + 1] = 14
+            rgb[i * 3 + 2] = 18
+        }
+        for (let i = 0; i < density.length; i++) {
+            if (density[i] > 0) {
+                const t = Math.min(1, Math.log1p(density[i]) / Math.log1p(ceiling))
+                const level = Math.round(30 + t * 205)
+                rgb[i * 3] = level
+                rgb[i * 3 + 1] = level
+                rgb[i * 3 + 2] = Math.round(level * 0.95 + 12)
+            }
+        }
+
+        // Path last, so it is never buried by the cloud, and drawn as joined
+        // segments: at 30 Hz the poses are far enough apart to read as dots.
+        const plot = (x, y, r, g, b, radius) => {
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    const px = x + dx
+                    const py = y + dy
+                    if (px >= 0 && px < width && py >= 0 && py < height) {
+                        const at = (py * width + px) * 3
+                        rgb[at] = r
+                        rgb[at + 1] = g
+                        rgb[at + 2] = b
+                    }
+                }
+            }
+        }
+
+        let previous = toPx(odom[0].x, odom[0].y)
+        for (let i = 1; i < odom.length; i++) {
+            const current = toPx(odom[i].x, odom[i].y)
+            const [r, g, b] = pathColour(i / (odom.length - 1))
+            const steps = Math.max(Math.abs(current[0] - previous[0]), Math.abs(current[1] - previous[1]), 1)
+            for (let s = 0; s <= steps; s++) {
+                const x = Math.round(previous[0] + ((current[0] - previous[0]) * s) / steps)
+                const y = Math.round(previous[1] + ((current[1] - previous[1]) * s) / steps)
+                plot(x, y, r, g, b, 1)
+            }
+            previous = current
+        }
+        const first = toPx(odom[0].x, odom[0].y)
+        const last = toPx(odom[odom.length - 1].x, odom[odom.length - 1].y)
+        plot(first[0], first[1], 255, 255, 255, 4)
+        plot(first[0], first[1], 64, 110, 255, 3)
+        plot(last[0], last[1], 255, 255, 255, 4)
+        plot(last[0], last[1], 255, 70, 70, 3)
+
+        await Deno.writeFile(target, await encodePng(rgb, width, height))
+        const span = Math.hypot(maxX - minX - 2 * margin, maxY - minY - 2 * margin)
+        console.log(`heatmap: ${odom.length} poses, ${clouds.length} of ${scanCount} scans, ${keep.length / 2} points drawn`)
+        console.log(`heatmap: ${(maxX - minX).toFixed(1)} x ${(maxY - minY).toFixed(1)} m, diagonal ${span.toFixed(1)} m`)
+        console.log(`heatmap: blue = start, red = end -> ${target}`)
+    })
+    .parse(Deno.args)

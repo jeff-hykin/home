@@ -1,0 +1,155 @@
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-ffi --unstable-ffi
+
+// to_vid — turn an image stream in a memory2 recording into an mp4.
+
+import { Database } from "jsr:@db/sqlite@0.12"
+import { Command } from "https://esm.sh/jsr/@cliffy/command@1.2.1"
+import { Image } from "https://esm.sh/jsr/@dimos/msgs@0.1.4/sensor_msgs"
+import lz4 from "https://esm.sh/lz4js@0.2.0"
+
+// Recorded image streams are lz4-framed around the LCM bytes; everything else is
+// plain LCM. The frame magic tells them apart without consulting the registry.
+const LZ4_MAGIC = 0x184d2204
+
+function decodeImage(blob) {
+    const view = new DataView(blob.buffer, blob.byteOffset, blob.byteLength)
+    const bytes = view.getUint32(0, true) === LZ4_MAGIC ? lz4.decompress(blob) : blob
+    return Image.decode(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes))
+}
+
+/** ffmpeg's pixel format for a ROS encoding, plus how many bytes a pixel takes. */
+function pixelFormat(encoding) {
+    const table = {
+        mono8: ["gray", 1],
+        "8UC1": ["gray", 1],
+        rgb8: ["rgb24", 3],
+        bgr8: ["bgr24", 3],
+        rgba8: ["rgba", 4],
+        bgra8: ["bgra", 4],
+        mono16: ["gray16le", 2],
+        "16UC1": ["gray16le", 2],
+    }
+    return table[encoding] ?? null
+}
+
+/** Depth is 16-bit millimetres; squash it to 8-bit so the mp4 is watchable. */
+function depthToGray(data, range) {
+    const source = new DataView(data.buffer, data.byteOffset, data.byteLength)
+    const out = new Uint8Array(data.byteLength / 2)
+    for (let i = 0; i < out.length; i++) {
+        const mm = source.getUint16(i * 2, true)
+        out[i] = mm === 0 ? 0 : Math.min(255, Math.round((mm / range) * 255))
+    }
+    return out
+}
+
+await new Command()
+    .name("to_vid")
+    .version("1.0.0")
+    .description("Encode an image stream from a memory2 .db recording as an mp4")
+    .arguments("<recording:string> <stream:string> [output:string]")
+    .option("--fps <n:number>", "Override the frame rate (default: the stream's own)")
+    // These videos are a sanity check on a recording, not a deliverable, so the
+    // default trades a lot of size for quality nobody is going to inspect.
+    .option("--crf <n:integer>", "x264 quality, lower is better", { default: 28 })
+    .option("--scale <px:integer>", "Scale the long edge down to this many pixels")
+    .option("--stride <n:integer>", "Use every Nth frame", { default: 1 })
+    .option("--depth-range <m:number>", "Metres mapped to white for 16-bit depth", { default: 8 })
+    .option("--list", "List the image streams in the recording and exit")
+    .action(async (options, recording, stream, output) => {
+        const db = new Database(recording, { readonly: true })
+
+        if (options.list) {
+            for (const [name, config] of db.prepare('SELECT name, config FROM _streams').values()) {
+                if (JSON.parse(config).payload_module.endsWith("Image.Image")) {
+                    const [count] = db.prepare(`SELECT COUNT(*) FROM "${name}"`).values()[0]
+                    console.log(`  ${name.padEnd(28)} ${count} frames`)
+                }
+            }
+            db.close()
+            return
+        }
+
+        const rows = db.prepare(
+            `SELECT s.ts, b.data FROM "${stream}_blob" b JOIN "${stream}" s ON s.id = b.id ORDER BY s.ts`,
+        ).values()
+        if (rows.length === 0) {
+            console.error(`to_vid: no frames in "${stream}". Try --list.`)
+            db.close()
+            Deno.exit(1)
+        }
+
+        const stamps = rows.map((r) => r[0])
+        const gaps = stamps.slice(1).map((t, i) => t - stamps[i]).sort((a, b) => a - b)
+        const median = gaps[Math.floor(gaps.length / 2)] || 1 / 30
+        const fps = options.fps ?? Math.round((1 / median) * 10) / 10 / options.stride
+
+        const first = decodeImage(new Uint8Array(rows[0][1]))
+        const format = pixelFormat(first.encoding)
+        if (format === null) {
+            console.error(`to_vid: unsupported encoding "${first.encoding}"`)
+            db.close()
+            Deno.exit(1)
+        }
+        // A 16-bit depth frame is converted to 8-bit greyscale on the way past,
+        // so tell ffmpeg what it will actually receive rather than what was stored.
+        const depth = format[0] === "gray16le"
+        const [pixFmt, pixBytes] = depth ? ["gray", 1] : format
+        const target = output ?? `${recording.replace(/\.db$/, "")}_${stream}.mp4`
+
+        console.log(`to_vid: ${stream} ${first.width}x${first.height} ${first.encoding} -> ${pixFmt}`)
+        console.log(`to_vid: ${rows.length} frames over ${(stamps.at(-1) - stamps[0]).toFixed(1)}s at ${fps} fps`)
+
+        const ffmpeg = new Deno.Command("ffmpeg", {
+            args: [
+                "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "rawvideo",
+                "-pix_fmt", pixFmt,
+                "-s", `${first.width}x${first.height}`,
+                "-r", String(fps),
+                "-i", "pipe:0",
+                ...(options.scale ? ["-vf", `scale=${options.scale}:-2`] : []),
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-crf", String(options.crf),
+                "-pix_fmt", "yuv420p",
+                target,
+            ],
+            stdin: "piped",
+            stdout: "inherit",
+            stderr: "inherit",
+        }).spawn()
+
+        const writer = ffmpeg.stdin.getWriter()
+        const expected = first.width * first.height * pixBytes
+        let written = 0
+        let skipped = 0
+        for (let i = 0; i < rows.length; i += options.stride) {
+            const image = decodeImage(new Uint8Array(rows[i][1]))
+            const frame = depth ? depthToGray(image.data, options.depthRange * 1000) : image.data
+            if (frame.byteLength !== expected) {
+                // A frame of the wrong size would desync every frame after it.
+                skipped++
+                continue
+            }
+            await writer.write(frame)
+            written++
+            if (written % 500 === 0) {
+                console.log(`to_vid: ${written}/${Math.ceil(rows.length / options.stride)} frames`)
+            }
+        }
+        await writer.close()
+        const status = await ffmpeg.status
+        db.close()
+
+        if (skipped > 0) {
+            console.warn(`to_vid: skipped ${skipped} frames whose size did not match the first`)
+        }
+        if (!status.success) {
+            console.error(`to_vid: ffmpeg exited ${status.code}`)
+            Deno.exit(status.code)
+        }
+        const size = (await Deno.stat(target)).size
+        console.log(`to_vid: ${written} frames, ${(size / 1e6).toFixed(1)} MB -> ${target}`)
+    })
+    .parse(Deno.args)
