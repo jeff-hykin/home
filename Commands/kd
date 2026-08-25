@@ -5,7 +5,11 @@ echo "Looking for dimos and Unity processes..."
 
 # Process patterns
 dimos_pattern='dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3'
-native_pattern='result/bin/(local_planner|path_follower|terrain_analysis|far_planner|pct_planner|pgo|rtab_map|gazebo_native|fastlio2_native|mid360_native)'
+# Native modules run either from a nix output (result/bin/) or a cargo build
+# (rust/target/release/). Matching the directory rather than a list of binary names
+# keeps new modules covered; the old list missed mls_planner and left three orphaned
+# copies holding 220 GB each after a killed run.
+native_pattern='/(result/bin|rust/target/release)/[A-Za-z0-9_-]+'
 unity_pattern='Model\.x86_64|Unity|unity_envs'
 gazebo_pattern='gzserver|gzclient|ign-gazebo|ignition-gazebo|gz sim '
 ros_pattern='ros-navigation-autonomy-stack|/opt/ros/|ros2|roscore|rosmaster|roslaunch|rosout|joy_node|teleop_twist_joy|ros2_daemon'
@@ -49,8 +53,9 @@ else
     fi
 fi
 
-# Kill anything using these ports (but never kill Blender, which hosts the MCP on 9876)
-for port in 7779 9090 3030 9876 9877 10000; do
+# Kill anything using these ports (but never kill Blender, which hosts the MCP on 9876).
+# 7446 = zenoh RPC multicast; stray peers here wedge the next run's set_transport.
+for port in 7446 7779 9090 3030 9876 9877 10000; do
     for pid in $(lsof -ti :$port 2>/dev/null); do
         pcmd=$(ps -p "$pid" -o command= 2>/dev/null)
         if printf '%s' "$pcmd" | grep -qi blender; then
