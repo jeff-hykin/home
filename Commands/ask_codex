@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+    echo "Usage: ask_codex [--model MODEL] <question>" >&2
+}
+
+model_args=()
+question_parts=()
+
+while (($#)); do
+    case "$1" in
+        --model)
+            if (($# < 2)); then
+                echo "ask_codex: --model requires a value" >&2
+                usage
+                exit 2
+            fi
+            model_args=(--model "$2")
+            shift 2
+            ;;
+        --model=*)
+            model="${1#--model=}"
+            if [[ -z "$model" ]]; then
+                echo "ask_codex: --model requires a value" >&2
+                usage
+                exit 2
+            fi
+            model_args=(--model "$model")
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            question_parts+=("$@")
+            break
+            ;;
+        *)
+            question_parts+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if ((${#question_parts[@]} == 0)); then
+    usage
+    exit 2
+fi
+
+question="${question_parts[*]}"
+
+codex_args=(
+    exec
+    --ephemeral
+    --skip-git-repo-check
+    --sandbox read-only
+    --color never
+)
+if ((${#model_args[@]})); then
+    codex_args+=("${model_args[@]}")
+fi
+
+exec codex "${codex_args[@]}" -- "$question" </dev/null
