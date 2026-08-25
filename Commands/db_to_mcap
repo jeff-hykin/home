@@ -1,4 +1,22 @@
-#!/usr/bin/env -S uv run --project /Users/jeffhykin/repos/dimos --with mcap --with rosbags python
+#!/bin/sh
+''''true
+# Runs as /bin/sh first, then re-execs itself under python. The script needs a
+# dimos checkout for `import dimos` and its project environment for the deps, and
+# that path is per-machine, which a plain shebang cannot express. Same repo probe
+# as dview. Set DIMOS_REPO to override.
+for candidate in "$DIMOS_REPO" "$HOME/repos/dimos" "$HOME/repos/dimos2" \
+                 "$HOME/repos/dimos3" "$HOME/repos/dimos4" "$HOME/dimos"; do
+    if [ -n "$candidate" ] && [ -d "$candidate/dimos" ]; then
+        repo="$candidate"
+        break
+    fi
+done
+if [ -z "$repo" ]; then
+    echo "db_to_mcap: no dimos checkout found. Set DIMOS_REPO to one." >&2
+    exit 1
+fi
+exec uv run --project "$repo" --with mcap --with rosbags python "$0" "$@"
+# '''
 """Convert a dimos memory2 .db recording into a ROS2-compatible .mcap file."""
 
 import argparse
