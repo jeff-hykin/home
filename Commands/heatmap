@@ -1,18 +1,210 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-ffi --unstable-ffi
 
-// heatmap — top-down dark render of a memory2 recording: Point-LIO lidar as a
+// heatmap — top-down dark render of a recording: a point cloud stream as a
 // density heatmap, with the odometry path over it coloured start-to-end.
+// Reads either a memory2 .db or an .mcap.
 
 import { Database } from "jsr:@db/sqlite@0.12"
+import { McapIndexedReader } from "https://esm.sh/@mcap/core@2.1.7"
+import { decompress as zstdDecompress } from "https://esm.sh/fzstd@0.1.1"
+import lz4 from "https://esm.sh/lz4js@0.2.0"
 import { Command } from "https://esm.sh/jsr/@cliffy/command@1.2.1"
 import { Odometry } from "https://esm.sh/jsr/@dimos/msgs@0.1.4/nav_msgs"
 import { PointCloud2 } from "https://esm.sh/jsr/@dimos/msgs@0.1.4/sensor_msgs"
+import { TFMessage } from "https://esm.sh/jsr/@dimos/msgs@0.1.4/tf2_msgs"
+
+// --- CDR ---------------------------------------------------------------
+// mcaps written against ROS2 carry CDR rather than LCM, so the three types
+// this tool reads need a second decoder. Only these three, and only the
+// fields actually used below.
+
+class CdrReader {
+    constructor(bytes) {
+        this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+        // Byte 1 of the encapsulation header picks the endianness; the body
+        // starts after those 4 bytes, and all alignment is measured from there.
+        this.little = (this.view.getUint8(1) & 1) === 1
+        this.at = 4
+    }
+
+    align(width) {
+        this.at += (width - ((this.at - 4) % width)) % width
+    }
+
+    uint8() {
+        return this.view.getUint8(this.at++)
+    }
+
+    int32() {
+        this.align(4)
+        const value = this.view.getInt32(this.at, this.little)
+        this.at += 4
+        return value
+    }
+
+    uint32() {
+        this.align(4)
+        const value = this.view.getUint32(this.at, this.little)
+        this.at += 4
+        return value
+    }
+
+    float64() {
+        this.align(8)
+        const value = this.view.getFloat64(this.at, this.little)
+        this.at += 8
+        return value
+    }
+
+    string() {
+        const length = this.uint32()
+        const bytes = new Uint8Array(this.view.buffer, this.view.byteOffset + this.at, length - 1)
+        this.at += length
+        return new TextDecoder().decode(bytes)
+    }
+
+    bytes(count) {
+        const out = new Uint8Array(
+            this.view.buffer.slice(this.view.byteOffset + this.at, this.view.byteOffset + this.at + count),
+        )
+        this.at += count
+        return out
+    }
+
+    header() {
+        return { stamp: { sec: this.int32(), nanosec: this.uint32() }, frame_id: this.string() }
+    }
+
+    vector3() {
+        return { x: this.float64(), y: this.float64(), z: this.float64() }
+    }
+
+    quaternion() {
+        return { x: this.float64(), y: this.float64(), z: this.float64(), w: this.float64() }
+    }
+}
+
+const CDR_DECODERS = {
+    Odometry: (bytes) => {
+        const reader = new CdrReader(bytes)
+        const header = reader.header()
+        reader.string() // child_frame_id
+        const pose = { position: reader.vector3(), orientation: reader.quaternion() }
+        return { header, pose: { pose } }
+    },
+    TFMessage: (bytes) => {
+        const reader = new CdrReader(bytes)
+        const transforms = []
+        for (let i = reader.uint32(); i > 0; i--) {
+            transforms.push({
+                header: reader.header(),
+                child_frame_id: reader.string(),
+                transform: { translation: reader.vector3(), rotation: reader.quaternion() },
+            })
+        }
+        return { transforms }
+    },
+    PointCloud2: (bytes) => {
+        const reader = new CdrReader(bytes)
+        const header = reader.header()
+        const height = reader.uint32()
+        const width = reader.uint32()
+        const fields = []
+        for (let i = reader.uint32(); i > 0; i--) {
+            fields.push({
+                name: reader.string(),
+                offset: reader.uint32(),
+                datatype: reader.uint8(),
+                count: reader.uint32(),
+            })
+        }
+        reader.uint8() // is_bigendian
+        const point_step = reader.uint32()
+        reader.uint32() // row_step
+        const data = reader.bytes(reader.uint32())
+        return { header, height, width, fields, point_step, data }
+    },
+}
+
+const LCM_DECODERS = {
+    Odometry: (bytes) => Odometry.decode(bytes),
+    TFMessage: (bytes) => TFMessage.decode(bytes),
+    PointCloud2: (bytes) => PointCloud2.decode(bytes),
+}
+
+// --- sources ---------------------------------------------------------------
+// Both kinds of recording expose the same thing: `read(stream, kind)` giving
+// timestamped, decoded messages in time order.
+
+function sqliteSource(path) {
+    const db = new Database(path, { readonly: true })
+    return {
+        read(stream, kind) {
+            const rows = db.prepare(
+                `SELECT o.ts, b.data FROM ${stream}_blob b JOIN ${stream} o ON o.id = b.id ORDER BY o.ts`,
+            ).values()
+            return rows.map((row) => ({ ts: row[0], message: LCM_DECODERS[kind](new Uint8Array(row[1])) }))
+        },
+        close: () => db.close(),
+    }
+}
+
+async function mcapSource(path) {
+    const file = await Deno.open(path, { read: true })
+    const size = (await file.stat()).size
+    const readable = {
+        size: async () => BigInt(size),
+        read: async (offset, length) => {
+            const buffer = new Uint8Array(Number(length))
+            await file.seek(Number(offset), Deno.SeekMode.Start)
+            let filled = 0
+            while (filled < buffer.length) {
+                const read = await file.read(buffer.subarray(filled))
+                if (read === null) {
+                    break
+                }
+                filled += read
+            }
+            return buffer
+        },
+    }
+    // @mcap/core ships no codecs of its own, and every writer we use compresses:
+    // db_to_mcap defaults to zstd, web_ctrl offers both.
+    const decompressHandlers = {
+        zstd: (bytes, size) => zstdDecompress(bytes, new Uint8Array(Number(size))),
+        lz4: (bytes) => new Uint8Array(lz4.decompress(bytes)),
+    }
+    const reader = await McapIndexedReader.Initialize({ readable, decompressHandlers })
+    const topics = new Map()
+    for (const channel of reader.channelsById.values()) {
+        topics.set(channel.topic.replace(/^\//, ""), channel)
+    }
+    return {
+        async read(stream, kind) {
+            const channel = topics.get(stream.replace(/^\//, ""))
+            if (channel === undefined) {
+                throw new Error(`no topic ${stream}; have ${[...topics.keys()].sort().join(", ")}`)
+            }
+            const decode = channel.messageEncoding === "cdr" ? CDR_DECODERS[kind] : LCM_DECODERS[kind]
+            if (channel.messageEncoding !== "cdr" && channel.messageEncoding !== "lcm") {
+                throw new Error(`topic ${stream} is ${channel.messageEncoding}, which heatmap cannot decode`)
+            }
+            const out = []
+            for await (const message of reader.readMessages({ topics: [channel.topic] })) {
+                out.push({ ts: Number(message.logTime) / 1e9, message: decode(message.data) })
+            }
+            out.sort((a, b) => a.ts - b.ts)
+            return out
+        },
+        close: () => file.close(),
+    }
+}
 
 // --- decoding ----------------------------------------------------------
 
 /** Point-LIO's odometry is world->body: position plus an xyzw quaternion. */
-function odometryPose(blob) {
-    const pose = Odometry.decode(blob).pose.pose
+function odometryPose(message) {
+    const pose = message.pose.pose
     return {
         x: pose.position.x,
         y: pose.position.y,
@@ -34,9 +226,82 @@ function rotate(q, x, y, z) {
     ]
 }
 
+/** Rigid transforms are {t: [x,y,z], q: [x,y,z,w]}; compose is parent ∘ child. */
+const IDENTITY = { t: [0, 0, 0], q: [0, 0, 0, 1] }
+
+function compose(parent, child) {
+    const [ax, ay, az, aw] = parent.q
+    const [bx, by, bz, bw] = child.q
+    return {
+        t: rotate(parent.q, child.t[0], child.t[1], child.t[2]).map((v, i) => v + parent.t[i]),
+        q: [
+            aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw,
+            aw * bw - ax * bx - ay * by - az * bz,
+        ],
+    }
+}
+
+/** TFMessage -> {child_frame -> {parent, transform}}, so a frame can be walked to the root. */
+function tfEdges(message) {
+    const edges = {}
+    for (const stamped of message.transforms) {
+        edges[stamped.child_frame_id] = {
+            parent: stamped.header.frame_id,
+            transform: {
+                t: [
+                    stamped.transform.translation.x,
+                    stamped.transform.translation.y,
+                    stamped.transform.translation.z,
+                ],
+                q: [
+                    stamped.transform.rotation.x,
+                    stamped.transform.rotation.y,
+                    stamped.transform.rotation.z,
+                    stamped.transform.rotation.w,
+                ],
+            },
+        }
+    }
+    return edges
+}
+
+/** child_frame -> its parent edge over time, so a tree split across publishers still resolves.
+ *
+ * A single tf message rarely holds the whole tree: dimos publishes the static mount frames
+ * from one module and the moving odom->base_link from another, so picking the one message
+ * nearest a scan truncates the chain at base_link and stacks every scan in one spot.
+ */
+function tfTimeline(samples) {
+    const timeline = {}
+    for (const { ts, edges } of samples) {
+        for (const [child, edge] of Object.entries(edges)) {
+            timeline[child] ??= []
+            timeline[child].push({ ts, parent: edge.parent, transform: edge.transform })
+        }
+    }
+    for (const samplesForChild of Object.values(timeline)) {
+        samplesForChild.sort((a, b) => a.ts - b.ts)
+    }
+    return timeline
+}
+
+/** Walk `frame` up to the root of the tf tree at time `ts`, giving {transform, root}. */
+function chainToRoot(timeline, frame, ts, nearest) {
+    let out = IDENTITY
+    const seen = new Set()
+    while (timeline[frame] && !seen.has(frame)) {
+        seen.add(frame)
+        const edge = nearest(timeline[frame], ts)
+        out = compose(edge.transform, out)
+        frame = edge.parent
+    }
+    return { transform: out, root: frame }
+}
+
 /** PointCloud2 -> Float32Array of xyz triples, in whatever frame it was stored. */
-function cloudXyz(blob) {
-    const cloud = PointCloud2.decode(blob)
+function cloudXyz(cloud) {
     const offsets = {}
     for (const field of cloud.fields) {
         offsets[field.name] = field.offset
@@ -56,6 +321,69 @@ function cloudXyz(blob) {
         out[i * 3 + 2] = view.getFloat32(base + offsets.z, true)
     }
     return out
+}
+
+// --- alignment -------------------------------------------------------------
+
+/** Horn's absolute orientation: the rigid transform carrying `source` onto `target`. */
+function alignRigid(source, target) {
+    const mean = (points) => points.reduce(
+        (acc, p) => [acc[0] + p[0] / points.length, acc[1] + p[1] / points.length, acc[2] + p[2] / points.length],
+        [0, 0, 0],
+    )
+    const sourceCentre = mean(source)
+    const targetCentre = mean(target)
+    const s = Array.from({ length: 3 }, () => [0, 0, 0])
+    for (let i = 0; i < source.length; i++) {
+        for (let a = 0; a < 3; a++) {
+            for (let b = 0; b < 3; b++) {
+                s[a][b] += (source[i][a] - sourceCentre[a]) * (target[i][b] - targetCentre[b])
+            }
+        }
+    }
+    const [[xx, xy, xz], [yx, yy, yz], [zx, zy, zz]] = s
+    const n = [
+        [xx + yy + zz, yz - zy, zx - xz, xy - yx],
+        [yz - zy, xx - yy - zz, xy + yx, zx + xz],
+        [zx - xz, xy + yx, -xx + yy - zz, yz + zy],
+        [xy - yx, zx + xz, yz + zy, -xx - yy + zz],
+    ]
+    // Shifted power iteration: the shift makes the wanted (largest algebraic)
+    // eigenvalue also the largest in magnitude, which is what iteration finds.
+    const shift = 3 * Math.max(...n.flat().map(Math.abs), 1)
+    let vector = [1, 0, 0, 0]
+    for (let step = 0; step < 400; step++) {
+        const next = n.map((row, i) => row.reduce((acc, value, j) => acc + value * vector[j], 0) + shift * vector[i])
+        const norm = Math.hypot(...next)
+        vector = next.map((value) => value / norm)
+    }
+    const [qw, qx, qy, qz] = vector
+    const q = [qx, qy, qz, qw]
+    const rotated = rotate(q, sourceCentre[0], sourceCentre[1], sourceCentre[2])
+    return { t: targetCentre.map((value, i) => value - rotated[i]), q }
+}
+
+/** Nearest-in-time pairs, dropped when nothing lands within `tolerance` seconds. */
+function timeMatched(source, target, tolerance) {
+    const stamps = target.map((p) => p.ts)
+    const pairs = { source: [], target: [] }
+    for (const point of source) {
+        let lo = 0
+        let hi = stamps.length - 1
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1
+            if (stamps[mid] < point.ts) { lo = mid + 1 } else { hi = mid }
+        }
+        for (const index of [lo, lo - 1]) {
+            const other = target[index]
+            if (other && Math.abs(other.ts - point.ts) <= tolerance) {
+                pairs.source.push([point.x, point.y, point.z])
+                pairs.target.push([other.x, other.y, other.z])
+                break
+            }
+        }
+    }
+    return pairs
 }
 
 // --- PNG -------------------------------------------------------------------
@@ -153,58 +481,122 @@ function pathColour(t) {
 await new Command()
     .name("heatmap")
     .version("1.0.0")
-    .description("Top-down dark render of Point-LIO lidar + odometry path from a memory2 .db")
+    .description("Top-down dark render of a cloud stream + odometry path from a memory2 .db or an .mcap")
     .arguments("<recording:string> [output:string]")
     .option("-w, --width <px:integer>", "Image width in pixels", { default: 1600 })
+    .option("--cloud <stream:string>", "Point cloud stream", { default: "pointlio_lidar" })
+    .option("--odom <stream:string>", "Odometry stream", { default: "pointlio_odometry" })
+    .option("--tf <stream:string>", "Place clouds via this tf stream instead of the odometry pose")
+    .option("--align-to <stream:string>", "Rigidly align onto this odometry stream's frame")
+    .option("--extent <minX_minY_maxX_maxY:string>", "Force the world extent, for comparable renders (commas or underscores)")
     .option("--min-height <m:number>", "Drop points below this world z, in metres")
     .option("--max-height <m:number>", "Drop points above this world z, in metres")
     .option("--stride <n:integer>", "Use every Nth lidar scan", { default: 1 })
     .action(async (options, recording, output) => {
-        const target = output ?? recording.replace(/\.db$/, "") + "_heatmap.png"
-        const db = new Database(recording, { readonly: true })
+        const target = output ?? recording.replace(/\.(db|mcap)$/, "") + "_heatmap.png"
+        const source = recording.endsWith(".mcap") ? await mcapSource(recording) : sqliteSource(recording)
 
-        const odom = []
-        for (const row of db.prepare("SELECT o.ts, b.data FROM pointlio_odometry_blob b JOIN pointlio_odometry o ON o.id = b.id ORDER BY o.ts").values()) {
-            odom.push({ ts: row[0], ...odometryPose(new Uint8Array(row[1])) })
-        }
+        const readOdometry = async (stream) =>
+            (await source.read(stream, "Odometry")).map((row) => ({ ts: row.ts, ...odometryPose(row.message) }))
+
+        const odom = await readOdometry(options.odom)
         if (odom.length === 0) {
-            console.error(`heatmap: no pointlio_odometry in ${recording}`)
+            console.error(`heatmap: no ${options.odom} in ${recording}`)
             Deno.exit(1)
+        }
+
+        // The two SLAM systems have unrelated world origins, so nothing can be
+        // compared until one trajectory is carried onto the other's frame.
+        let alignment = IDENTITY
+        if (options.alignTo) {
+            const pairs = timeMatched(odom, await readOdometry(options.alignTo), 0.05)
+            if (pairs.source.length < 3) {
+                console.error(`heatmap: only ${pairs.source.length} poses matched ${options.alignTo} in time`)
+                Deno.exit(1)
+            }
+            alignment = alignRigid(pairs.source, pairs.target)
+            const residual = Math.sqrt(
+                pairs.source.reduce((acc, point, i) => {
+                    const moved = rotate(alignment.q, ...point).map((v, k) => v + alignment.t[k])
+                    return acc + moved.reduce((sum, v, k) => sum + (v - pairs.target[i][k]) ** 2, 0)
+                }, 0) / pairs.source.length,
+            )
+            console.log(
+                `heatmap: aligned ${pairs.source.length} poses onto ${options.alignTo}, ` +
+                    `fit rmse ${residual.toFixed(3)} m`,
+            )
+        }
+
+        for (const pose of odom) {
+            const moved = compose(alignment, { t: [pose.x, pose.y, pose.z], q: pose.q })
+            pose.x = moved.t[0]
+            pose.y = moved.t[1]
+            pose.z = moved.t[2]
+            pose.q = moved.q
         }
 
         // The scans are in the sensor frame, so each one has to be carried into the
         // world by the pose at its own timestamp. Stacking them raw just draws the
         // lidar's own field of view over and over on top of itself.
-        const stamps = odom.map((p) => p.ts)
-        const poseAt = (ts) => {
+        const nearest = (list, ts) => {
             let lo = 0
-            let hi = stamps.length - 1
+            let hi = list.length - 1
             while (lo < hi) {
                 const mid = (lo + hi) >> 1
-                if (stamps[mid] < ts) { lo = mid + 1 } else { hi = mid }
+                if (list[mid].ts < ts) { lo = mid + 1 } else { hi = mid }
             }
-            return odom[lo]
+            const previous = list[lo - 1]
+            return previous && Math.abs(previous.ts - ts) < Math.abs(list[lo].ts - ts) ? previous : list[lo]
         }
+
+        // A cloud whose frame is not the odometry body frame (an RTAB-Map keyframe
+        // cloud sits in the camera optical frame) needs the whole tf chain, not a pose.
+        const transforms = options.tf
+            ? (await source.read(options.tf, "TFMessage")).map((row) => ({ ts: row.ts, edges: tfEdges(row.message) }))
+            : []
+        if (options.tf && transforms.length === 0) {
+            console.error(`heatmap: no ${options.tf} in ${recording}`)
+            Deno.exit(1)
+        }
+        const timeline = tfTimeline(transforms)
+        const rootCounts = {}
 
         const clouds = []
         let index = 0
         let scanCount = 0
-        for (const row of db.prepare("SELECT l.ts, b.data FROM pointlio_lidar_blob b JOIN pointlio_lidar l ON l.id = b.id ORDER BY l.ts").values()) {
+        for (const row of await source.read(options.cloud, "PointCloud2")) {
             scanCount++
             if (index++ % options.stride !== 0) {
                 continue
             }
-            const pose = poseAt(row[0])
-            const cloud = cloudXyz(new Uint8Array(row[1]))
+            let placement
+            if (options.tf) {
+                const chain = chainToRoot(timeline, row.message.header.frame_id, row.ts, nearest)
+                rootCounts[chain.root] = (rootCounts[chain.root] ?? 0) + 1
+                placement = compose(alignment, chain.transform)
+            } else {
+                placement = (({ x, y, z, q }) => ({ t: [x, y, z], q }))(nearest(odom, row.ts))
+            }
+            const cloud = cloudXyz(row.message)
             for (let i = 0; i < cloud.length; i += 3) {
-                const [wx, wy, wz] = rotate(pose.q, cloud[i], cloud[i + 1], cloud[i + 2])
-                cloud[i] = wx + pose.x
-                cloud[i + 1] = wy + pose.y
-                cloud[i + 2] = wz + pose.z
+                const [wx, wy, wz] = rotate(placement.q, cloud[i], cloud[i + 1], cloud[i + 2])
+                cloud[i] = wx + placement.t[0]
+                cloud[i + 1] = wy + placement.t[1]
+                cloud[i + 2] = wz + placement.t[2]
             }
             clouds.push(cloud)
         }
-        db.close()
+        source.close()
+
+        // Every scan should reach the same root. More than one means the tf tree is
+        // broken somewhere, and those scans are drawn short of the world frame.
+        const roots = Object.entries(rootCounts).sort((a, b) => b[1] - a[1])
+        if (roots.length > 0) {
+            console.error(`heatmap: tf roots ${roots.map(([f, n]) => `${f} x${n}`).join(", ")}`)
+        }
+        if (roots.length > 1) {
+            console.error(`heatmap: tf tree is disconnected — scans under ${roots.slice(1).map(([f]) => f).join(", ")} are misplaced`)
+        }
 
         // Report the z distribution, because "chop above 2 m" is unanswerable
         // without knowing where this recording's floor actually sits.
@@ -249,6 +641,10 @@ await new Command()
 
         const margin = 1.0
         minX -= margin; maxX += margin; minY -= margin; maxY += margin
+        if (options.extent) {
+            [minX, minY, maxX, maxY] = options.extent.split(/[,_]/).map(Number)
+        }
+        console.log(`heatmap: extent ${[minX, minY, maxX, maxY].map((v) => v.toFixed(2)).join(",")}`)
         const width = options.width
         const scale = width / (maxX - minX)
         const height = Math.max(1, Math.round((maxY - minY) * scale))
