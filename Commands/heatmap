@@ -139,11 +139,18 @@ const LCM_DECODERS = {
 function sqliteSource(path) {
     const db = new Database(path, { readonly: true })
     return {
-        read(stream, kind) {
+        count(stream) {
+            return db.prepare(`SELECT COUNT(*) FROM ${stream}`).values()[0][0]
+        },
+        read(stream, kind, stride = 1) {
             const rows = db.prepare(
                 `SELECT o.ts, b.data FROM ${stream}_blob b JOIN ${stream} o ON o.id = b.id ORDER BY o.ts`,
             ).values()
-            return rows.map((row) => ({ ts: row[0], message: LCM_DECODERS[kind](new Uint8Array(row[1])) }))
+            const out = []
+            for (let index = 0; index < rows.length; index += stride) {
+                out.push({ ts: rows[index][0], message: LCM_DECODERS[kind](new Uint8Array(rows[index][1])) })
+            }
+            return out
         },
         close: () => db.close(),
     }
@@ -179,18 +186,32 @@ async function mcapSource(path) {
     for (const channel of reader.channelsById.values()) {
         topics.set(channel.topic.replace(/^\//, ""), channel)
     }
+    const channelFor = (stream) => {
+        const channel = topics.get(stream.replace(/^\//, ""))
+        if (channel === undefined) {
+            throw new Error(`no topic ${stream}; have ${[...topics.keys()].sort().join(", ")}`)
+        }
+        return channel
+    }
     return {
-        async read(stream, kind) {
-            const channel = topics.get(stream.replace(/^\//, ""))
-            if (channel === undefined) {
-                throw new Error(`no topic ${stream}; have ${[...topics.keys()].sort().join(", ")}`)
-            }
+        count(stream) {
+            return Number(reader.statistics?.channelMessageCounts.get(channelFor(stream).id) ?? 0)
+        },
+        async read(stream, kind, stride = 1) {
+            const channel = channelFor(stream)
             const decode = channel.messageEncoding === "cdr" ? CDR_DECODERS[kind] : LCM_DECODERS[kind]
             if (channel.messageEncoding !== "cdr" && channel.messageEncoding !== "lcm") {
                 throw new Error(`topic ${stream} is ${channel.messageEncoding}, which heatmap cannot decode`)
             }
             const out = []
+            let index = 0
             for await (const message of reader.readMessages({ topics: [channel.topic] })) {
+                // Skipping before decoding is what makes an hour-long recording fit:
+                // a decoded scan keeps its bytes alive until the whole stream is read,
+                // so dropping them afterwards is too late.
+                if (index++ % stride !== 0) {
+                    continue
+                }
                 out.push({ ts: Number(message.logTime) / 1e9, message: decode(message.data) })
             }
             out.sort((a, b) => a.ts - b.ts)
@@ -562,13 +583,8 @@ await new Command()
         const rootCounts = {}
 
         const clouds = []
-        let index = 0
-        let scanCount = 0
-        for (const row of await source.read(options.cloud, "PointCloud2")) {
-            scanCount++
-            if (index++ % options.stride !== 0) {
-                continue
-            }
+        const scanCount = source.count(options.cloud)
+        for (const row of await source.read(options.cloud, "PointCloud2", options.stride)) {
             let placement
             if (options.tf) {
                 const chain = chainToRoot(timeline, row.message.header.frame_id, row.ts, nearest)
