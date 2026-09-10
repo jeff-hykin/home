@@ -45,14 +45,13 @@ fi
 stop_server
 cd "$repo"
 export PYTHONPATH="$repo"
+# No stream flags: the module names them from the recording's message types,
+# so this works on someone else's robot too. Pass extra flags to override.
 nohup dimos run memory-world-module \
     --g.rerun-open none \
     --memoryworldmodule.store-path "$recording" \
-    --memoryworldmodule.image-stream-name realsense_color_image \
-    --memoryworldmodule.lidar-stream-name pointlio_lidar \
-    --memoryworldmodule.depth-stream-name realsense_depth_image \
-    --memoryworldmodule.camera-info-stream-name realsense_color_image_camera_info \
     --memoryworldmodule.image-index-stride 5 \
+    "${@:2}" \
     > "$log" 2>&1 &
 
 printf 'memworld: starting on %s' "$(basename "$recording")"
