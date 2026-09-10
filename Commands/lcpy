@@ -1,0 +1,146 @@
+#!/usr/bin/env -S deno run --allow-env --allow-read --allow-write --allow-run
+// lcpy — copy a file down from CudaLaptop to the same home-relative path locally.
+// Usage: lcpy ~/datasets/d455/sf_office1_2/sf_office1_2_quality.rrd [-f]
+// No external deps (esm.sh-transpiled deps silently break under cbg — see lsd).
+
+const REMOTE = "dimos@10.0.0.218"
+const REMOTE_HOME = "/home/dimos"
+const localHome = Deno.env.get("HOME")
+
+const args = Deno.args.filter((arg) => arg !== "-f" && arg !== "--force")
+const force = Deno.args.length !== args.length
+
+if (args.length !== 1) {
+    console.error("usage: lcpy <path> [-f]")
+    console.error("  path is home-relative on CudaLaptop, e.g. ~/datasets/d455/run/x.rrd")
+    Deno.exit(2)
+}
+
+// Accept ~/x, x, /home/dimos/x, or /Users/<me>/x — all mean the same home-relative path.
+let relative = args[0]
+for (const prefix of ["~/", `${REMOTE_HOME}/`, `${localHome}/`]) {
+    if (relative.startsWith(prefix)) {
+        relative = relative.slice(prefix.length)
+        break
+    }
+}
+if (relative.startsWith("/")) {
+    console.error(`lcpy: ${args[0]} is not under a home directory`)
+    Deno.exit(2)
+}
+
+const remotePath = `${REMOTE_HOME}/${relative}`
+const localPath = `${localHome}/${relative}`
+const remoteDir = remotePath.slice(0, remotePath.lastIndexOf("/"))
+const name = relative.slice(relative.lastIndexOf("/") + 1)
+
+async function ssh(command) {
+    const process = new Deno.Command("ssh", {
+        args: ["-o", "ConnectTimeout=10", REMOTE, command],
+        stdout: "piped",
+        stderr: "piped",
+    })
+    const { code, stdout, stderr } = await process.output()
+    return {
+        code,
+        stdout: new TextDecoder().decode(stdout),
+        stderr: new TextDecoder().decode(stderr),
+    }
+}
+
+function editDistance(a, b) {
+    let previous = Array.from({ length: b.length + 1 }, (_, index) => index)
+    for (let i = 1; i <= a.length; i++) {
+        const current = [i]
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1
+            current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost)
+        }
+        previous = current
+    }
+    return previous[b.length]
+}
+
+function humanSize(bytes) {
+    const units = ["B", "K", "M", "G", "T"]
+    let value = bytes
+    let unit = 0
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024
+        unit++
+    }
+    return `${unit === 0 ? value : value.toFixed(1)}${units[unit]}`
+}
+
+const stat = await ssh(`stat -c '%s %Y' ${JSON.stringify(remotePath)}`)
+if (stat.code !== 0) {
+    console.error(`lcpy: not found on CudaLaptop: ${remotePath}\n`)
+    // Show what IS there, so a typo is obvious.
+    const listing = await ssh(`ls -1p ${JSON.stringify(remoteDir)}`)
+    if (listing.code !== 0) {
+        console.error(`lcpy: directory also missing: ${remoteDir}`)
+        console.error(listing.stderr.trim())
+        Deno.exit(1)
+    }
+    const entries = listing.stdout.split("\n").filter((line) => line.length > 0)
+    const details = await ssh(`ls -lah --time-style=long-iso ${JSON.stringify(remoteDir)}`)
+    console.error(`contents of ${remoteDir}:`)
+    console.error(details.stdout.trimEnd())
+
+    const ranked = entries
+        .map((entry) => ({ entry, distance: editDistance(name.toLowerCase(), entry.replace(/\/$/, "").toLowerCase()) }))
+        .sort((a, b) => a.distance - b.distance)
+        .filter(({ entry, distance }) => distance <= Math.max(3, Math.ceil(entry.length * 0.4)))
+        .slice(0, 3)
+    if (ranked.length > 0) {
+        console.error(`\ndid you mean:`)
+        for (const { entry } of ranked) {
+            console.error(`  lcpy ~/${remoteDir.slice(REMOTE_HOME.length + 1)}/${entry.replace(/\/$/, "")}`)
+        }
+    }
+    Deno.exit(1)
+}
+
+const [remoteSize, remoteMtime] = stat.stdout.trim().split(/\s+/).map(Number)
+
+let existing = null
+try {
+    existing = await Deno.stat(localPath)
+} catch {
+    // no local copy yet
+}
+
+if (existing && !force) {
+    const localMtime = Math.floor((existing.mtime?.getTime() ?? 0) / 1000)
+    console.log(`${localPath} already exists:`)
+    console.log(`  local : ${humanSize(existing.size)} (${existing.size})  ${new Date(localMtime * 1000).toISOString()}`)
+    console.log(`  remote: ${humanSize(remoteSize)} (${remoteSize})  ${new Date(remoteMtime * 1000).toISOString()}`)
+    if (existing.size === remoteSize && localMtime === remoteMtime) {
+        console.log("  (identical size and mtime)")
+    }
+    if (!Deno.stdin.isTerminal()) {
+        console.error("\nlcpy: refusing to overwrite without a terminal — rerun with -f")
+        Deno.exit(1)
+    }
+    if (!confirm("overwrite?")) {
+        console.log("aborted")
+        Deno.exit(1)
+    }
+}
+
+await Deno.mkdir(localPath.slice(0, localPath.lastIndexOf("/")), { recursive: true })
+
+const rsync = new Deno.Command("rsync", {
+    args: ["-a", "--partial", "--progress", `${REMOTE}:${remotePath}`, localPath],
+}).spawn()
+const { code } = await rsync.status
+if (code !== 0) {
+    Deno.exit(code)
+}
+
+const copied = await Deno.stat(localPath)
+console.log(`${localPath}  ${humanSize(copied.size)} (${copied.size})`)
+if (copied.size !== remoteSize) {
+    console.error(`lcpy: size mismatch — remote was ${remoteSize}`)
+    Deno.exit(1)
+}

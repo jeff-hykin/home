@@ -1,0 +1,354 @@
+#!/usr/bin/env -S deno run --allow-all --no-lock --unstable-net
+import { $ } from "https://esm.sh/dax-sh@0.42.0"
+import { Command } from "https://esm.sh/jsr/@cliffy/command@1.0.0-rc.7"
+
+// A Livox Mid-360 streams its point cloud + IMU as UDP to the multicast group
+// 224.1.1.x (ports 563xx), always FROM its own unicast source IP — that source
+// IP is what we want. We can hear that multicast with an ordinary (non-root) UDP
+// socket by joining the group on each candidate interface, so the default mode
+// needs no sudo. A --tcpdump fallback (needs root) also catches unicast setups.
+//
+// Hearing the lidar is only half the story: Point-LIO / the Livox SDK also need
+// a host IP *on the lidar's subnet and on the same interface* to handshake with
+// the device and receive its stream. A NIC can see the multicast while having no
+// routable address on that subnet (e.g. a self-assigned 169.254.x on the adapter
+// the lidar is plugged into) — so we also report reachability and, when it's
+// missing, print the exact `ifconfig`/`route` fix.
+const LIVOX_MULTICAST_GROUPS = ["224.1.1.5", "224.1.1.6", "224.1.1.7"]
+const LIVOX_DATA_PORTS = [56301, 56401] // host point-cloud + IMU receive ports
+const LIVOX_FILTER = "udp and (net 224.1.1.0/24 or portrange 56100-56500)"
+const MULTICAST_PREFIXES = ["224.", "239."]
+const SELF_ASSIGNED_PREFIX = "169.254."
+const LIDAR_SUBNET_BITS = 24 // Livox Mid-360 uses a /24 (255.255.255.0)
+const DEFAULT_TIMEOUT_S = 6
+const DEFAULT_PACKET_COUNT = 40
+
+async function activeEthernetInterfaces() {
+    const text = await $`ifconfig`.text()
+    const active = []
+    let current = null
+    for (const line of text.split("\n")) {
+        const header = line.match(/^(\w+):\s/)
+        if (header) {
+            current = header[1]
+            continue
+        }
+        if (current && current.startsWith("en") && line.includes("status: active")) {
+            active.push(current)
+        }
+    }
+    return active
+}
+
+async function defaultRouteInterface() {
+    const text = await $`route -n get default`.noThrow().stderr("null").text()
+    const match = text.match(/interface:\s*(\w+)/)
+    return match ? match[1] : ""
+}
+
+async function candidateInterfaces(override) {
+    if (override) {
+        return [override]
+    }
+    const active = await activeEthernetInterfaces()
+    const primary = await defaultRouteInterface()
+    // The lidar sits on a directly-attached adapter, never the interface that
+    // carries the default route (wifi/main LAN). Prefer the others, fall back
+    // to everything active if that leaves nothing.
+    const preferred = active.filter((iface) => iface !== primary)
+    return preferred.length > 0 ? preferred : active
+}
+
+async function interfaceIpv4s(iface) {
+    const text = await $`ifconfig ${iface}`.noThrow().stderr("null").text()
+    const addresses = []
+    for (const line of text.split("\n")) {
+        const match = line.match(/^\s*inet (\d+\.\d+\.\d+\.\d+) netmask (0x[0-9a-fA-F]+)/)
+        if (!match) {
+            continue
+        }
+        const addr = match[1]
+        if (addr.startsWith("127.")) {
+            continue
+        }
+        addresses.push({ addr, maskBits: maskBitsFromHex(match[2]) })
+    }
+    return addresses
+}
+
+function maskBitsFromHex(hex) {
+    const value = Number.parseInt(hex, 16) >>> 0
+    let bits = 0
+    for (let i = 31; i >= 0; i--) {
+        if ((value & (1 << i)) === 0) {
+            break
+        }
+        bits++
+    }
+    return bits
+}
+
+function ipToInt(ip) {
+    return ip.split(".").reduce((acc, octet) => (acc << 8) + Number(octet), 0) >>> 0
+}
+
+function sameSubnet(first, second, bits) {
+    const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0
+    return (ipToInt(first) & mask) === (ipToInt(second) & mask)
+}
+
+function subnetPrefix(ip) {
+    return ip.split(".").slice(0, 3).join(".")
+}
+
+async function listenInterface(iface, addresses, durationMs) {
+    const counts = new Map()
+    if (addresses.length === 0) {
+        return counts // can't join multicast without a local address on this NIC
+    }
+    const sockets = []
+    for (const port of LIVOX_DATA_PORTS) {
+        let socket = null
+        try {
+            socket = Deno.listenDatagram({
+                port,
+                transport: "udp",
+                hostname: "0.0.0.0",
+                reuseAddress: true,
+            })
+        } catch (_error) {
+            continue // port already held (e.g. a running recorder) — skip it
+        }
+        for (const address of addresses) {
+            for (const group of LIVOX_MULTICAST_GROUPS) {
+                try {
+                    await socket.joinMulticastV4(group, address.addr)
+                } catch (_error) {
+                    // group not joinable on this address — ignore and keep going
+                }
+            }
+        }
+        sockets.push(socket)
+    }
+    if (sockets.length === 0) {
+        return counts
+    }
+    // A timer closes the sockets after the listen window; the pending receive()
+    // then rejects, which is how each drain loop exits.
+    const timer = setTimeout(() => {
+        for (const socket of sockets) {
+            try {
+                socket.close()
+            } catch (_error) {
+                // already closed
+            }
+        }
+    }, durationMs)
+    await Promise.all(sockets.map((socket) => drainSocket(socket, counts)))
+    clearTimeout(timer)
+    return counts
+}
+
+async function drainSocket(socket, counts) {
+    while (true) {
+        let received = null
+        try {
+            received = await socket.receive()
+        } catch (_error) {
+            break // socket closed by the listen-window timer
+        }
+        const source = received[1].hostname
+        if (MULTICAST_PREFIXES.some((prefix) => source.startsWith(prefix))) {
+            continue
+        }
+        if (source.startsWith(SELF_ASSIGNED_PREFIX)) {
+            continue
+        }
+        counts.set(source, (counts.get(source) ?? 0) + 1)
+    }
+}
+
+function sourceCountsFromDump(dumpText) {
+    const counts = new Map()
+    for (const line of dumpText.split("\n")) {
+        const match = line.match(/ IP (\d+\.\d+\.\d+\.\d+)\.\d+ > (\d+\.\d+\.\d+\.\d+)\.\d+/)
+        if (!match) {
+            continue
+        }
+        const source = match[1]
+        if (MULTICAST_PREFIXES.some((prefix) => source.startsWith(prefix))) {
+            continue
+        }
+        if (source.startsWith(SELF_ASSIGNED_PREFIX)) {
+            continue
+        }
+        counts.set(source, (counts.get(source) ?? 0) + 1)
+    }
+    return counts
+}
+
+async function sniffInterface(iface, filter, timeoutMs, count) {
+    let result = null
+    try {
+        result = await $`tcpdump -i ${iface} -n -c ${count} ${filter}`
+            .timeout(timeoutMs)
+            .stdout("piped")
+            .stderr("piped")
+            .noThrow()
+    } catch (_timeout) {
+        // No matching packets arrived before the timeout — nothing on this iface.
+        return { counts: new Map(), denied: false }
+    }
+    const denied = /permission|bpf|operation not permitted/i.test(result.stderr)
+    return { counts: sourceCountsFromDump(result.stdout), denied }
+}
+
+function bestSource(counts) {
+    let winner = null
+    let best = 0
+    for (const [source, hits] of counts) {
+        if (hits > best) {
+            winner = source
+            best = hits
+        }
+    }
+    return winner ? { ip: winner, packets: best } : null
+}
+
+async function reachability(iface, lidarIp) {
+    const addresses = await interfaceIpv4s(iface)
+    const hostOnIface = addresses.find((address) => sameSubnet(address.addr, lidarIp, LIDAR_SUBNET_BITS))
+    // A route conflict only exists if some *other* interface also owns the subnet.
+    let subnetSharedElsewhere = false
+    for (const other of await activeEthernetInterfaces()) {
+        if (other === iface) {
+            continue
+        }
+        const otherAddresses = await interfaceIpv4s(other)
+        if (otherAddresses.some((address) => sameSubnet(address.addr, lidarIp, LIDAR_SUBNET_BITS))) {
+            subnetSharedElsewhere = true
+            break
+        }
+    }
+    return {
+        hostIp: hostOnIface ? hostOnIface.addr : null,
+        suggestedHostIp: `${subnetPrefix(lidarIp)}.2`,
+        subnetSharedElsewhere,
+    }
+}
+
+function printReachablePlan(lidarIp, iface, report) {
+    console.log("")
+    $.logStep(`Host is on the lidar's subnet via ${iface} (${report.hostIp}).`)
+    console.log("Run the recorder with:")
+    console.log(
+        `  dimos run zed-mid360-record` +
+            ` -o pointlio.lidar_ip=${lidarIp} -o pointlio.host_ip=${report.hostIp}`,
+    )
+}
+
+function printUnreachableFix(lidarIp, iface, report) {
+    console.log("")
+    $.logError(`Host has NO address on the lidar's subnet (${subnetPrefix(lidarIp)}.0/24) on ${iface}.`)
+    console.log(
+        "  The Livox SDK / Point-LIO need a same-subnet address on this interface to",
+    )
+    console.log("  handshake with the lidar and receive its stream. Fix it with:")
+    console.log("")
+    console.log(`    sudo ifconfig ${iface} alias ${report.suggestedHostIp} 255.255.255.0`)
+    if (report.subnetSharedElsewhere) {
+        console.log(
+            `    sudo route add -host ${lidarIp} -interface ${iface}` +
+                `   # another NIC shares this subnet — pin lidar traffic to ${iface}`,
+        )
+    }
+    console.log("")
+    console.log("  (Any free address on the subnet works, not just .2.) Then run:")
+    console.log(
+        `    dimos run zed-mid360-record` +
+            ` -o pointlio.lidar_ip=${lidarIp} -o pointlio.host_ip=${report.suggestedHostIp}`,
+    )
+}
+
+await new Command()
+    .name("mid360_find_ip")
+    .version("2.0.0")
+    .description(
+        "Find a Livox Mid-360 lidar, print its IP, and check the host can reach it.\n" +
+            "Default mode joins the lidar's multicast group with a plain UDP socket —\n" +
+            "no sudo needed. Use --tcpdump (needs root) to also catch unicast setups.",
+    )
+    .option("-i, --interface <iface:string>", "Network interface to check (default: auto-detect)")
+    .option("-t, --timeout <seconds:number>", "Seconds to listen per interface", {
+        default: DEFAULT_TIMEOUT_S,
+    })
+    .option("-c, --count <count:integer>", "Packets to capture before deciding (--tcpdump only)", {
+        default: DEFAULT_PACKET_COUNT,
+    })
+    .option("--tcpdump", "Sniff with tcpdump (needs sudo) instead of a rootless multicast listen")
+    .option("--filter <expr:string>", "Override the tcpdump filter expression", {
+        default: LIVOX_FILTER,
+    })
+    .option("--json", "Emit the result as JSON")
+    .action(async (options) => {
+        if (options.tcpdump && !(await $.commandExists("tcpdump"))) {
+            $.logError("tcpdump not found on PATH.")
+            Deno.exit(1)
+        }
+        const interfaces = await candidateInterfaces(options.interface)
+        if (interfaces.length === 0) {
+            $.logError("No active ethernet interfaces found (is the lidar plugged in?).")
+            Deno.exit(1)
+        }
+        const timeoutMs = Math.round(options.timeout * 1000)
+        for (const iface of interfaces) {
+            if (!options.json) {
+                const how = options.tcpdump ? "sniffing" : "listening on"
+                $.logLight(`${how} ${iface} (up to ${options.timeout}s)...`)
+            }
+            let counts = new Map()
+            if (options.tcpdump) {
+                const sniffed = await sniffInterface(iface, options.filter, timeoutMs, options.count)
+                if (sniffed.denied) {
+                    $.logError("Permission denied opening the capture device — run with sudo.")
+                    Deno.exit(1)
+                }
+                counts = sniffed.counts
+            } else {
+                counts = await listenInterface(iface, await interfaceIpv4s(iface), timeoutMs)
+            }
+            const found = bestSource(counts)
+            if (!found) {
+                continue
+            }
+            const report = await reachability(iface, found.ip)
+            if (options.json) {
+                console.log(JSON.stringify({
+                    ip: found.ip,
+                    interface: iface,
+                    packets: found.packets,
+                    hostIp: report.hostIp,
+                    hostOnSubnet: report.hostIp !== null,
+                    suggestedHostIp: report.suggestedHostIp,
+                    subnetSharedElsewhere: report.subnetSharedElsewhere,
+                }))
+                Deno.exit(0)
+            }
+            $.logStep(`Mid-360 found at ${found.ip}`)
+            console.log(`  interface: ${iface}`)
+            console.log(`  packets:   ${found.packets}`)
+            if (report.hostIp) {
+                printReachablePlan(found.ip, iface, report)
+            } else {
+                printUnreachableFix(found.ip, iface, report)
+            }
+            Deno.exit(0)
+        }
+        const hint = options.tcpdump
+            ? "Check power + ethernet, or pass --interface / --timeout."
+            : "The lidar may be unicast-configured — retry with --tcpdump (needs sudo), " +
+                "or pass --interface / --timeout."
+        $.logError(`No Mid-360 traffic seen on ${interfaces.join(", ")}. ${hint}`)
+        Deno.exit(1)
+    })
+    .parse(Deno.args)

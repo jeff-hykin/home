@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# gcom — short for: git commit -m "$args"
+git commit -m "$*"

@@ -1,0 +1,242 @@
+#!/usr/bin/env -S deno run --allow-all --no-lock --unstable-net
+import { $ } from "https://esm.sh/dax-sh@0.42.0"
+import { Command } from "https://esm.sh/jsr/@cliffy/command@1.0.0-rc.7"
+
+// One-shot bring-up for a directly-attached Livox Mid-360:
+//   1. discover the lidar (IP + interface) with the rootless multicast listener
+//      in `find_mid360_ip` (no sudo for this part),
+//   2. give that interface an address on the lidar's /24 so the host can unicast
+//      control packets to the device (the lidar streams data via multicast, but
+//      the Livox SDK still has to handshake with it over unicast),
+//   3. pin lidar traffic to that interface when another NIC shares the subnet,
+//   4. verify reachability (ping) and print the ready-to-run recorder command.
+//
+// Only steps 2-3 need root; they run via sudo, so invoke this as `mid360_connect`
+// (not `sudo mid360_connect`) and you'll be prompted only for the network edits.
+const LIDAR_NETMASK = "255.255.255.0"
+const LIDAR_PREFIX_LEN = 24
+const DEFAULT_TIMEOUT_S = 6
+const RUN_COMMAND_BASE = "dimos run zed-mid360-record"
+
+const isDarwin = Deno.build.os === "darwin"
+const isRoot = (Deno.uid?.() ?? -1) === 0
+
+function findMid360IpPath() {
+    return new URL("./mid360_find_ip", import.meta.url).pathname
+}
+
+async function discover(options) {
+    const args = ["--json", "--timeout", String(options.timeout)]
+    if (options.interface) {
+        args.push("--interface", options.interface)
+    }
+    if (options.tcpdump) {
+        args.push("--tcpdump")
+    }
+    const result = await $`${findMid360IpPath()} ${args}`.stdout("piped").stderr("inherit").noThrow()
+    if (result.code !== 0) {
+        return null
+    }
+    const line = result.stdout.trim().split("\n").filter(Boolean).pop()
+    try {
+        return JSON.parse(line)
+    } catch (_error) {
+        return null
+    }
+}
+
+async function privileged(parts, { dryRun }) {
+    const command = isRoot ? parts : ["sudo", ...parts]
+    if (dryRun) {
+        console.log(`  would run: ${command.join(" ")}`)
+        return { code: 0, dryRun: true }
+    }
+    console.log(`  running:   ${command.join(" ")}`)
+    return await $`${command}`.noThrow()
+}
+
+async function routeInterfaceFor(ip) {
+    if (isDarwin) {
+        const text = await $`route -n get ${ip}`.noThrow().stderr("null").text()
+        const match = text.match(/interface:\s*(\w+)/)
+        return match ? match[1] : ""
+    }
+    const text = await $`ip route get ${ip}`.noThrow().stderr("null").text()
+    const match = text.match(/\bdev\s+(\S+)/)
+    return match ? match[1] : ""
+}
+
+async function aliasPresent(iface, hostIp) {
+    if (isDarwin) {
+        const text = await $`ifconfig ${iface}`.noThrow().stderr("null").text()
+        return text.includes(`inet ${hostIp} `)
+    }
+    const text = await $`ip -4 addr show dev ${iface}`.noThrow().stderr("null").text()
+    return text.includes(`inet ${hostIp}/`)
+}
+
+async function addAlias(iface, hostIp, options) {
+    if (isDarwin) {
+        return await privileged(["ifconfig", iface, "alias", hostIp, LIDAR_NETMASK], options)
+    }
+    return await privileged(["ip", "addr", "add", `${hostIp}/${LIDAR_PREFIX_LEN}`, "dev", iface], options)
+}
+
+async function removeAlias(iface, hostIp, options) {
+    if (isDarwin) {
+        return await privileged(["ifconfig", iface, "-alias", hostIp], options)
+    }
+    return await privileged(["ip", "addr", "del", `${hostIp}/${LIDAR_PREFIX_LEN}`, "dev", iface], options)
+}
+
+async function pingLidar(lidarIp) {
+    // -t on macOS is a timeout in seconds; on Linux it's TTL, so use -W there.
+    const pingCommand = isDarwin
+        ? ["ping", "-c", "2", "-t", "2", lidarIp]
+        : ["ping", "-c", "2", "-W", "2", lidarIp]
+    const result = await $`${pingCommand}`.noThrow().stdout("piped").stderr("null")
+    return /(\b0(?:\.0)?% packet loss)|2 packets received|2 received|1 packets received|1 received/.test(result.stdout)
+}
+
+function printRunCommand(lidarIp, hostIp) {
+    // Native modules (pointlio) speak raw LCM; on macOS the default transport is
+    // zenoh, so the recorder would never hear them without TRANSPORT=lcm.
+    const environmentPrefix = isDarwin ? "TRANSPORT=lcm " : ""
+    console.log("")
+    console.log("Run the recorder with:")
+    console.log(
+        `  ${environmentPrefix}${RUN_COMMAND_BASE} -o pointlio.lidar_ip=${lidarIp} -o pointlio.host_ip=${hostIp}`,
+    )
+}
+
+// macOS only: a neighbor's ARP entry should never be "permanent" — that means an
+// old `route add -host <ip> -interface <iface>` pinned the lidar's MAC to the
+// adapter's OWN address, so every unicast frame is addressed to ourselves
+// and silently blackholed (multicast still flows, which makes it confusing).
+async function arpBlackholed(lidarIp) {
+    if (isDarwin) {
+        const text = await $`arp -an`.noThrow().stderr("null").text()
+        const entry = text.split("\n").find((line) => line.includes(`(${lidarIp})`))
+        return entry ? entry.includes("permanent") : false
+    }
+    const text = await $`ip neigh show ${lidarIp}`.noThrow().stderr("null").text()
+    return text.includes("PERMANENT")
+}
+
+// Re-pin the host route so the kernel ARPs for the lidar's real MAC. On macOS a
+// gateway-form route (via our own address on the lidar's interface) is required;
+// a plain `dev` route works on Linux.
+async function repairUnicastPath(lidarIp, hostIp, iface, options) {
+    if (isDarwin) {
+        await privileged(["route", "delete", "-host", lidarIp], options)
+        await privileged(["arp", "-d", lidarIp], options)
+        await privileged(["route", "add", "-host", lidarIp, hostIp], options)
+        return
+    }
+    await privileged(["ip", "route", "del", `${lidarIp}/32`], options)
+    await privileged(["ip", "neigh", "del", lidarIp, "dev", iface], options)
+    await privileged(["ip", "route", "add", `${lidarIp}/32`, "dev", iface, "src", hostIp], options)
+}
+
+async function deleteHostRoute(lidarIp, options) {
+    if (isDarwin) {
+        return await privileged(["route", "delete", "-host", lidarIp], options)
+    }
+    return await privileged(["ip", "route", "del", `${lidarIp}/32`], options)
+}
+
+async function connect(info, options) {
+    const hostIp = options.hostIp ?? info.hostIp ?? info.suggestedHostIp
+    const iface = info.interface
+    const lidarIp = info.ip
+
+    $.logStep(`Configuring ${iface} to reach the lidar at ${lidarIp}`)
+    if (!(await aliasPresent(iface, hostIp))) {
+        await addAlias(iface, hostIp, options)
+    } else {
+        console.log(`  ${hostIp} already assigned to ${iface}`)
+    }
+
+    const blackholed = await arpBlackholed(lidarIp)
+    const wrongIface = (await routeInterfaceFor(lidarIp)) !== iface
+    let reachable = !blackholed && !wrongIface && (await pingLidar(lidarIp))
+    if (reachable) {
+        console.log(`  ping ${lidarIp}: OK — no route changes needed`)
+    } else {
+        if (blackholed) {
+            $.logWarn(`  ${lidarIp} has a permanent ARP entry (unicast blackhole) — repairing`)
+        }
+        await repairUnicastPath(lidarIp, hostIp, iface, options)
+    }
+
+    if (options.dryRun) {
+        console.log("")
+        $.logLight("dry run — no changes made.")
+        printRunCommand(lidarIp, hostIp)
+        return
+    }
+
+    console.log("")
+    if (!reachable) {
+        reachable = await pingLidar(lidarIp)
+    }
+    if (reachable) {
+        $.logStep(`Connected — ${lidarIp} responds via ${iface}.`)
+    } else {
+        $.logError(
+            `${lidarIp} still not responding. Double-check the cable/power, or that ` +
+                `no other interface is hijacking the ${hostIp.split(".").slice(0, 3).join(".")}.0/24 subnet.`,
+        )
+    }
+    printRunCommand(lidarIp, hostIp)
+}
+
+async function remove(info, options) {
+    const iface = info.interface
+    const lidarIp = info.ip
+    const hostIp = options.hostIp ?? info.hostIp ?? info.suggestedHostIp
+    $.logStep(`Tearing down lidar network config on ${iface}`)
+    if (info.subnetSharedElsewhere || (await routeInterfaceFor(lidarIp)) === iface) {
+        await deleteHostRoute(lidarIp, options)
+    }
+    if (await aliasPresent(iface, hostIp)) {
+        await removeAlias(iface, hostIp, options)
+    } else {
+        console.log(`  ${hostIp} not assigned to ${iface} — nothing to remove`)
+    }
+}
+
+await new Command()
+    .name("mid360_connect")
+    .version("1.0.0")
+    .description(
+        "Discover a directly-attached Livox Mid-360 and set up host networking so\n" +
+            "Point-LIO can reach it: assigns a same-subnet address to the lidar's\n" +
+            "interface, pins its route, verifies with ping, and prints the run command.",
+    )
+    .option("-i, --interface <iface:string>", "Force the lidar interface (default: auto-detect)")
+    .option("-t, --timeout <seconds:number>", "Seconds to listen while discovering", {
+        default: DEFAULT_TIMEOUT_S,
+    })
+    .option("--host-ip <ip:string>", "Address to assign to the interface (default: <lidar>/24 .2)")
+    .option("--tcpdump", "Discover with tcpdump (needs sudo) — catches unicast-configured lidars")
+    .option("--dry-run", "Print the network changes without applying them")
+    .option("--remove", "Undo: remove the assigned alias and host route")
+    .action(async (options) => {
+        $.logLight("discovering the Mid-360...")
+        const info = await discover(options)
+        if (!info) {
+            $.logError(
+                "No Mid-360 found. Is it powered and plugged in? " +
+                    "Try a longer --timeout, force --interface, or --tcpdump for unicast setups.",
+            )
+            Deno.exit(1)
+        }
+        $.logStep(`Found Mid-360 at ${info.ip} on ${info.interface} (${info.packets} packets).`)
+        if (options.remove) {
+            await remove(info, options)
+        } else {
+            await connect(info, options)
+        }
+    })
+    .parse(Deno.args)

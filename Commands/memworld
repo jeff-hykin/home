@@ -1,0 +1,73 @@
+#!/bin/bash
+# Serve a recording as the VR/phone memory world: walk the map, scrub the
+# timeline, ask "where did I see a traffic cone".
+#
+#   memworld                     # the sf_office1_2 recording
+#   memworld path/to/other.db    # or .mcap
+#   memworld --stop              # shut the server down
+#
+# The first run on a new recording builds a SigLIP image index and the voxel
+# replay streams into it (into <name>.derived.db for a read-only .mcap), which
+# takes a few minutes; after that it starts in seconds.
+set -euo pipefail
+
+repo="${MEMWORLD_REPO:-$HOME/repos/_memworld_wt}"
+venv="${MEMWORLD_VENV:-$HOME/repos/dimos/.venv}"
+recording="${1:-$HOME/datasets/d455/sf_office1_2/main.db}"
+log=/tmp/memworld.log
+
+if [ ! -d "$repo/dimos" ]; then
+    echo "memworld: no dimos checkout at $repo. Set MEMWORLD_REPO." >&2
+    exit 1
+fi
+# Worktrees have no venv of their own, so the main clone's is used with a
+# PYTHONPATH override that puts this branch's dimos/ first.
+source "$venv/bin/activate"
+
+stop_server() {
+    pkill -f 'dimos run memory-world-module' 2>/dev/null || true
+    sleep 2
+    # A killed module leaves its coordinator on the zenoh bus and the next
+    # start dies with "another Coordinator service is already running".
+    dimos stop >/dev/null 2>&1 || true
+}
+
+if [ "$recording" = "--stop" ]; then
+    stop_server
+    echo "memworld: stopped"
+    exit 0
+fi
+if [ ! -f "$recording" ]; then
+    echo "memworld: no recording at $recording" >&2
+    exit 1
+fi
+
+stop_server
+cd "$repo"
+export PYTHONPATH="$repo"
+nohup dimos run memory-world-module \
+    --g.rerun-open none \
+    --memoryworldmodule.store-path "$recording" \
+    --memoryworldmodule.image-stream-name realsense_color_image \
+    --memoryworldmodule.lidar-stream-name pointlio_lidar \
+    --memoryworldmodule.depth-stream-name realsense_depth_image \
+    --memoryworldmodule.camera-info-stream-name realsense_color_image_camera_info \
+    --memoryworldmodule.image-index-stride 5 \
+    > "$log" 2>&1 &
+
+printf 'memworld: starting on %s' "$(basename "$recording")"
+for _ in $(seq 1 120); do
+    if curl -sk -o /dev/null --max-time 2 "https://127.0.0.1:8443/memory_world"; then
+        lan=$(ipconfig getifaddr en0 2>/dev/null || echo 127.0.0.1)
+        echo
+        echo "  this machine  https://127.0.0.1:8443/memory_world?flat"
+        echo "  phone / Quest https://$lan:8443/memory_world       (self-signed cert: Advanced -> proceed)"
+        echo "  ?flat skips WebXR, log $log, 'memworld --stop' to quit"
+        exit 0
+    fi
+    printf .
+    sleep 2
+done
+echo
+echo "memworld: server did not answer in 4 minutes, see $log" >&2
+exit 1

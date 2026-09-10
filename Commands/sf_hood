@@ -1,0 +1,225 @@
+#!/usr/bin/env -S deno run --allow-net --allow-read --allow-write --allow-env
+// sf_hood — which San Francisco neighborhood is an address (or lat/lon) in?
+//
+//   sf_hood "115 Farnum St, San Francisco, CA 94131"   → Glen Park
+//   sf_hood 37.7392 -122.4341                          → Glen Park
+//   sf_hood --csv listings.csv --column address        → adds a neighborhood column
+//   sf_hood --list                                     → print all 117 neighborhood names
+//
+// Polygons are SF's official "SF Find Neighborhoods" set (117 of them, so
+// Mission / Mission Bay / Pacific Heights are distinct rather than lumped).
+// Cached on first run; --refresh re-downloads. SF proper only — an Oakland
+// address geocodes fine but lands outside every polygon and reports "(none)".
+
+const GEOJSON_URL = "https://data.sfgov.org/resource/gfpk-269f.geojson?$limit=500"
+const CACHE_DIR = `${Deno.env.get("HOME")}/.cache/sf_hood`
+const CACHE_FILE = `${CACHE_DIR}/neighborhoods.geojson`
+const USER_AGENT = "sf_hood/1.0 (jeff.hykin@gmail.com)"
+
+async function loadNeighborhoods({ refresh = false } = {}) {
+    if (!refresh) {
+        try {
+            return JSON.parse(await Deno.readTextFile(CACHE_FILE))
+        } catch { /* fall through to download */ }
+    }
+    const response = await fetch(GEOJSON_URL, { headers: { "User-Agent": USER_AGENT } })
+    if (!response.ok) {
+        throw new Error(`DataSF returned ${response.status}`)
+    }
+    const text = await response.text()
+    await Deno.mkdir(CACHE_DIR, { recursive: true })
+    await Deno.writeTextFile(CACHE_FILE, text)
+    return JSON.parse(text)
+}
+
+/** Ray casting. `ring` is GeoJSON [lon, lat] pairs. */
+function pointInRing(lon, lat, ring) {
+    let inside = false
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i]
+        const [xj, yj] = ring[j]
+        if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) {
+            inside = !inside
+        }
+    }
+    return inside
+}
+
+/** A polygon is [outerRing, ...holes]. */
+function pointInPolygon(lon, lat, polygon) {
+    if (!pointInRing(lon, lat, polygon[0])) {
+        return false
+    }
+    for (const hole of polygon.slice(1)) {
+        if (pointInRing(lon, lat, hole)) {
+            return false
+        }
+    }
+    return true
+}
+
+export function neighborhoodAt(lat, lon, geojson) {
+    const matches = []
+    for (const feature of geojson.features) {
+        const { type, coordinates } = feature.geometry
+        const polygons = type === "Polygon" ? [coordinates] : coordinates
+        for (const polygon of polygons) {
+            if (pointInPolygon(lon, lat, polygon)) {
+                matches.push(feature.properties.name)
+                break
+            }
+        }
+    }
+    return matches
+}
+
+/** Nominatim returns nothing for "1994 45th Ave #Top" but resolves the street address fine. */
+function stripUnit(address) {
+    return address
+        .replace(/\s*#\s*\S+/g, "")
+        .replace(/\s+(?:apt|apartment|unit|ste|suite|fl|floor)\.?\s+\S+/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .trim()
+}
+
+export async function geocode(address) {
+    const params = new URLSearchParams({ q: stripUnit(address), format: "json", addressdetails: "1", limit: "1" })
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        headers: { "User-Agent": USER_AGENT },
+    })
+    const results = await response.json()
+    if (!results.length) {
+        return null
+    }
+    return { lat: Number(results[0].lat), lon: Number(results[0].lon), display: results[0].display_name }
+}
+
+function splitCsvLine(line) {
+    const cells = []
+    let cell = ""
+    let quoted = false
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i]
+        if (quoted) {
+            if (char === '"' && line[i + 1] === '"') {
+                cell += '"'
+                i++
+            } else if (char === '"') {
+                quoted = false
+            } else {
+                cell += char
+            }
+        } else if (char === '"') {
+            quoted = true
+        } else if (char === ",") {
+            cells.push(cell)
+            cell = ""
+        } else {
+            cell += char
+        }
+    }
+    cells.push(cell)
+    return cells
+}
+
+function toCsvLine(cells) {
+    return cells.map((cell) => /[",\n]/.test(cell) ? `"${cell.replaceAll('"', '""')}"` : cell).join(",")
+}
+
+if (import.meta.main) {
+    const args = [...Deno.args]
+    const takeFlag = (name) => {
+        const index = args.indexOf(name)
+        if (index === -1) {
+            return null
+        }
+        return args.splice(index, 2)[1] ?? ""
+    }
+    const hasFlag = (name) => {
+        const index = args.indexOf(name)
+        if (index === -1) {
+            return false
+        }
+        args.splice(index, 1)
+        return true
+    }
+
+    const refresh = hasFlag("--refresh")
+    const list = hasFlag("--list")
+    const csvPath = takeFlag("--csv")
+    const column = takeFlag("--column") ?? "address"
+
+    const geojson = await loadNeighborhoods({ refresh })
+
+    if (list) {
+        for (const name of geojson.features.map((f) => f.properties.name).sort()) {
+            console.log(name)
+        }
+        Deno.exit(0)
+    }
+
+    if (csvPath) {
+        const lines = (await Deno.readTextFile(csvPath)).trimEnd().split("\n")
+        const header = splitCsvLine(lines[0])
+        const addressIndex = header.indexOf(column)
+        if (addressIndex === -1) {
+            console.error(`no "${column}" column in ${csvPath} (have: ${header.join(", ")})`)
+            Deno.exit(1)
+        }
+        const cityIndex = header.indexOf("city")
+        const zipIndex = header.indexOf("zip")
+        let hoodIndex = header.indexOf("neighborhood")
+        if (hoodIndex === -1) {
+            hoodIndex = header.length
+            header.push("neighborhood")
+        }
+        const out = [toCsvLine(header)]
+        for (const line of lines.slice(1)) {
+            const cells = splitCsvLine(line)
+            while (cells.length < header.length) {
+                cells.push("")
+            }
+            const query = [cells[addressIndex], cityIndex === -1 ? "San Francisco" : cells[cityIndex], "CA", zipIndex === -1 ? "" : cells[zipIndex]]
+                .filter(Boolean).join(", ")
+            const location = await geocode(query)
+            cells[hoodIndex] = location ? (neighborhoodAt(location.lat, location.lon, geojson)[0] ?? "(none)") : "(not found)"
+            console.error(`${query} → ${cells[hoodIndex]}`)
+            out.push(toCsvLine(cells))
+            await new Promise((resolve) => setTimeout(resolve, 1100)) // Nominatim asks for <=1 req/sec
+        }
+        await Deno.writeTextFile(csvPath, out.join("\n") + "\n")
+        console.error(`wrote ${csvPath}`)
+        Deno.exit(0)
+    }
+
+    if (args.length === 0) {
+        console.error(`usage: sf_hood "<address>" | sf_hood <lat> <lon> | sf_hood --csv <file> [--column address] | sf_hood --list`)
+        Deno.exit(1)
+    }
+
+    let lat
+    let lon
+    let label
+    if (args.length === 2 && args.every((a) => !isNaN(Number(a)))) {
+        lat = Number(args[0])
+        lon = Number(args[1])
+        label = `${lat}, ${lon}`
+    } else {
+        const location = await geocode(args.join(" "))
+        if (!location) {
+            console.error("could not geocode that")
+            Deno.exit(1)
+        }
+        lat = location.lat
+        lon = location.lon
+        label = location.display
+    }
+
+    const matches = neighborhoodAt(lat, lon, geojson)
+    console.log(`${matches[0] ?? "(none — outside SF's neighborhood polygons)"}`)
+    console.log(`  ${lat.toFixed(5)}, ${lon.toFixed(5)}`)
+    console.log(`  ${label}`)
+    if (matches.length > 1) {
+        console.log(`  also overlaps: ${matches.slice(1).join(", ")}`)
+    }
+}

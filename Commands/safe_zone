@@ -1,0 +1,387 @@
+#!/usr/bin/env -S uv run --python /Users/jeffhykin/repos/dimos/.venv/bin/python --no-project python
+"""Derive a movement boundary from a memory2 recording's lidar sweep.
+
+usage: safe_zone <recording.db> [--out-image PNG] [--out-json JSON] ...
+
+The robot spins in place, so one recording already contains a full 360 degree
+view of what is around it. This collapses that sweep into a star-shaped polygon
+of free space centred on the robot: for every heading bin, how far can it go
+before something is in the way, minus a safety margin.
+
+Only points inside an obstacle height band count. Floor returns and the ceiling
+are not obstacles, and including them would collapse the boundary to nothing.
+Heights are given relative to the floor, which is estimated from the cloud.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import pathlib
+import sqlite3
+
+import cv2
+import numpy as np
+
+from dimos.msgs.nav_msgs.Odometry import Odometry
+from dimos.msgs.sensor_msgs.PointCloud2 import PointCloud2
+
+UNSEEN_RANGE = 0.0
+FLOOR_BIN_METRES = 0.05
+FLOOR_SEARCH_METRES = 2.0
+
+
+def estimate_floor(points: np.ndarray) -> float:
+    """Height of the densest horizontal plane near the bottom of the cloud.
+
+    A low percentile is not good enough here: a couple of thousand stray returns
+    below the floor drag it down by ~0.4 m, and the real floor then lands inside
+    the obstacle band and swallows the whole free space.
+    """
+    z = points[:, 2]
+    bottom = float(np.percentile(z, 1))
+    counts, edges = np.histogram(
+        z,
+        bins=int(FLOOR_SEARCH_METRES / FLOOR_BIN_METRES),
+        range=(bottom, bottom + FLOOR_SEARCH_METRES),
+    )
+    fullest = int(np.argmax(counts))
+    return float((edges[fullest] + edges[fullest + 1]) / 2)
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("recording")
+    parser.add_argument("--cloud", default="lidar")
+    parser.add_argument("--odom", default="odometry")
+    parser.add_argument("--out-image", default="safe_zone.png")
+    parser.add_argument("--out-json", default="safe_zone.json")
+    parser.add_argument("--bins", type=int, default=360, help="heading bins around the robot")
+    parser.add_argument(
+        "--min-obstacle-height",
+        type=float,
+        default=0.15,
+        help="metres above the floor; below this is floor return, not an obstacle",
+    )
+    parser.add_argument(
+        "--max-obstacle-height",
+        type=float,
+        default=1.20,
+        help="metres above the floor; above this the robot passes underneath",
+    )
+    parser.add_argument(
+        "--margin", type=float, default=0.45, help="metres pulled back from each obstacle"
+    )
+    parser.add_argument(
+        "--range-percentile",
+        type=float,
+        default=2.0,
+        help="per-bin percentile of obstacle range; low is conservative",
+    )
+    parser.add_argument("--max-range", type=float, default=8.0)
+    parser.add_argument(
+        "--min-range",
+        type=float,
+        default=0.6,
+        help="metres; returns closer than this are the robot's own body, not obstacles",
+    )
+    parser.add_argument("--image-width", type=int, default=1200)
+    parser.add_argument(
+        "--view-range", type=float, default=3.0, help="metres shown either side of the robot"
+    )
+    parser.add_argument(
+        "--turn-rate",
+        type=float,
+        default=0.15,
+        help="rad/s for in-place turns; at 0.4 rad/s the colour frames motion-blurred badly enough "
+        "that no fiducial survived the rotation, so this stays slow on purpose",
+    )
+    parser.add_argument("--drive-speed", type=float, default=0.25, help="m/s on the straights")
+    return parser.parse_args()
+
+
+def pose_track(connection: sqlite3.Connection, stream: str) -> tuple[np.ndarray, np.ndarray]:
+    timestamps = []
+    poses = []
+    for timestamp, blob in connection.execute(
+        f'SELECT s.ts, b.data FROM "{stream}" s JOIN "{stream}_blob" b ON b.id = s.id ORDER BY s.ts'
+    ):
+        odometry = Odometry.lcm_decode(blob)
+        timestamps.append(timestamp)
+        poses.append((odometry.x, odometry.y, odometry.z, odometry.yaw))
+    return np.array(timestamps), np.array(poses)
+
+
+def gather_points(
+    connection: sqlite3.Connection,
+    cloud_stream: str,
+    pose_timestamps: np.ndarray,
+    poses: np.ndarray,
+) -> np.ndarray:
+    collected = []
+    for timestamp, blob in connection.execute(
+        f'SELECT s.ts, b.data FROM "{cloud_stream}" s JOIN "{cloud_stream}_blob" b ON b.id = s.id '
+        "ORDER BY s.ts"
+    ):
+        points = PointCloud2.lcm_decode(blob).points_f32().reshape(-1, 3).astype(np.float64)
+        if points.size == 0:
+            continue
+        index = int(np.argmin(np.abs(pose_timestamps - timestamp)))
+        x, y, z, yaw = poses[index]
+        cosine, sine = np.cos(yaw), np.sin(yaw)
+        rotated = np.empty_like(points)
+        rotated[:, 0] = points[:, 0] * cosine - points[:, 1] * sine + x
+        rotated[:, 1] = points[:, 0] * sine + points[:, 1] * cosine + y
+        rotated[:, 2] = points[:, 2] + z
+        collected.append(rotated)
+    return np.vstack(collected)
+
+
+def bin_ranges(
+    points: np.ndarray, bins: int, percentile: float, min_range: float, max_range: float
+) -> np.ndarray:
+    distance = np.hypot(points[:, 0], points[:, 1])
+    keep = (distance > min_range) & (distance < max_range)
+    print(f"{int((~keep).sum())} returns outside {min_range}-{max_range} m ignored")
+    distance = distance[keep]
+    angle = np.arctan2(points[keep, 1], points[keep, 0])
+    index = ((angle + np.pi) / (2 * np.pi) * bins).astype(int) % bins
+
+    ranges = np.full(bins, UNSEEN_RANGE)
+    order = np.argsort(index, kind="stable")
+    sorted_index, sorted_distance = index[order], distance[order]
+    boundaries = np.searchsorted(sorted_index, np.arange(bins + 1))
+    for bin_number in range(bins):
+        segment = sorted_distance[boundaries[bin_number] : boundaries[bin_number + 1]]
+        if segment.size:
+            ranges[bin_number] = np.percentile(segment, percentile)
+    return ranges
+
+
+SQUARE_PERIMETER_SAMPLES = 200
+
+
+def inside_zone(safe_range: np.ndarray, xy: np.ndarray) -> bool:
+    """The zone is star-shaped about the origin, so a radius lookup decides this."""
+    bins = len(safe_range)
+    radius = np.hypot(xy[:, 0], xy[:, 1])
+    angle = np.arctan2(xy[:, 1], xy[:, 0])
+    index = ((angle + np.pi) / (2 * np.pi) * bins).astype(int) % bins
+    return bool(np.all(radius <= safe_range[index]))
+
+
+def largest_square(safe_range: np.ndarray) -> tuple[float, float, np.ndarray] | None:
+    """Biggest square the robot can drive starting from where it already is.
+
+    The robot's current pose is one corner, so the route needs no approach leg.
+    Orientation is free because the robot can turn in place before setting off.
+    """
+    best: tuple[float, float, np.ndarray] | None = None
+    for orientation in np.radians(np.arange(0, 90, 1.0)):
+        forward = np.array([np.cos(orientation), np.sin(orientation)])
+        left = np.array([-np.sin(orientation), np.cos(orientation)])
+        for side in np.arange(0.3, 4.0, 0.05):
+            corners = np.array(
+                [[0.0, 0.0], side * forward, side * forward + side * left, side * left]
+            )
+            perimeter = np.concatenate(
+                [
+                    np.linspace(corners[i], corners[(i + 1) % 4], SQUARE_PERIMETER_SAMPLES // 4)
+                    for i in range(4)
+                ]
+            )
+            if not inside_zone(safe_range, perimeter):
+                break
+            if best is None or side > best[0]:
+                best = (float(side), float(orientation), corners)
+    return best
+
+
+def main() -> None:
+    arguments = parse_arguments()
+    connection = sqlite3.connect(f"file:{arguments.recording}?mode=ro", uri=True)
+    pose_timestamps, poses = pose_track(connection, arguments.odom)
+    points = gather_points(connection, arguments.cloud, pose_timestamps, poses)
+
+    floor = estimate_floor(points)
+    height = points[:, 2] - floor
+    obstacles = points[
+        (height >= arguments.min_obstacle_height) & (height <= arguments.max_obstacle_height)
+    ]
+    print(f"floor estimated at z {floor:+.2f} m")
+    print(f"{len(points)} points, {len(obstacles)} in the obstacle band")
+
+    obstacle_range = bin_ranges(
+        obstacles,
+        arguments.bins,
+        arguments.range_percentile,
+        arguments.min_range,
+        arguments.max_range,
+    )
+    seen = obstacle_range > UNSEEN_RANGE
+    safe_range = np.where(seen, np.maximum(obstacle_range - arguments.margin, 0.0), 0.0)
+
+    angles = (np.arange(arguments.bins) + 0.5) / arguments.bins * 2 * np.pi - np.pi
+    polygon = np.stack([safe_range * np.cos(angles), safe_range * np.sin(angles)], axis=1)
+    area = 0.5 * abs(
+        np.dot(polygon[:, 0], np.roll(polygon[:, 1], -1))
+        - np.dot(polygon[:, 1], np.roll(polygon[:, 0], -1))
+    )
+    print(f"{int(seen.sum())} of {arguments.bins} headings observed")
+    print(
+        f"safe radius min {safe_range[seen].min():.2f} median "
+        f"{np.median(safe_range[seen]):.2f} max {safe_range[seen].max():.2f} m"
+    )
+    print(f"free area {area:.1f} m^2")
+
+    square = largest_square(safe_range)
+    route: list[dict[str, float | str]] = []
+    if square is None:
+        print("no square fits inside the zone")
+    else:
+        side, orientation, corners = square
+        print(f"largest drivable square: {side:.2f} m side, heading {np.degrees(orientation):.0f} deg")
+        quarter_turn_seconds = (np.pi / 2) / arguments.turn_rate
+        leg_seconds = side / arguments.drive_speed
+
+        def turn_step(to_heading: float) -> dict[str, float | str]:
+            return {
+                "action": "rotate",
+                "to_heading_deg": round(np.degrees(to_heading) % 360, 1),
+                "wz_rad_s": arguments.turn_rate,
+                "duration_s": round(quarter_turn_seconds, 1),
+            }
+
+        heading = orientation
+        route.append(turn_step(heading))
+        for leg in range(4):
+            target = corners[(leg + 1) % 4]
+            route.append(
+                {
+                    "action": "drive",
+                    "distance_m": round(side, 3),
+                    "to_x": round(float(target[0]), 3),
+                    "to_y": round(float(target[1]), 3),
+                    "vx_m_s": arguments.drive_speed,
+                    "duration_s": round(leg_seconds, 1),
+                }
+            )
+            heading += np.pi / 2
+            route.append(turn_step(heading))
+        total_seconds = 5 * quarter_turn_seconds + 4 * leg_seconds
+        print(
+            f"route: {len(route)} steps, {4 * side:.2f} m driven at {arguments.drive_speed} m/s, "
+            f"5 turns at {arguments.turn_rate} rad/s ({quarter_turn_seconds:.1f} s each), "
+            f"{total_seconds:.0f} s total"
+        )
+
+    pathlib.Path(arguments.out_json).write_text(
+        json.dumps(
+            {
+                "frame": "odom",
+                "floor_z": floor,
+                "margin_m": arguments.margin,
+                "obstacle_band_m": [
+                    arguments.min_obstacle_height,
+                    arguments.max_obstacle_height,
+                ],
+                "free_area_m2": area,
+                "polygon_xy": [[round(x, 3), round(y, 3)] for x, y in polygon],
+                "square_side_m": round(square[0], 3) if square else None,
+                "square_corners_xy": (
+                    [[round(float(x), 3), round(float(y), 3)] for x, y in square[2]]
+                    if square
+                    else None
+                ),
+                "route": route,
+            },
+            indent=2,
+        )
+    )
+    print(f"wrote {arguments.out_json}")
+
+    span = arguments.view_range
+    size = arguments.image_width
+    scale = size / (2 * span)
+    canvas = np.zeros((size, size, 3), dtype=np.uint8)
+
+    def to_pixel(x: float, y: float) -> tuple[int, int]:
+        return int((x + span) * scale), int(size - (y + span) * scale)
+
+    for x, y in obstacles[:, :2]:
+        if abs(x) < span and abs(y) < span:
+            column, row = to_pixel(x, y)
+            canvas[row, column] = np.maximum(canvas[row, column], (90, 90, 90))
+
+    outline = np.array([to_pixel(x, y) for x, y in polygon], dtype=np.int32)
+    overlay = canvas.copy()
+    cv2.fillPoly(overlay, [outline], (30, 90, 30))
+    canvas = cv2.addWeighted(overlay, 0.45, canvas, 0.55, 0)
+    cv2.polylines(canvas, [outline], True, (60, 230, 60), 2)
+    centre = to_pixel(0.0, 0.0)
+    cv2.circle(canvas, centre, 6, (60, 120, 255), -1)
+    for radius in range(1, int(span) + 1):
+        cv2.circle(canvas, centre, int(radius * scale), (45, 45, 45), 1)
+        cv2.putText(
+            canvas,
+            f"{radius}m",
+            (centre[0] + int(radius * scale) - 26, centre[1] - 6),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.4,
+            (110, 110, 110),
+            1,
+        )
+    if square is not None:
+        side, orientation, corners = square
+        loop = np.array([to_pixel(x, y) for x, y in corners], dtype=np.int32)
+        cv2.polylines(canvas, [loop], True, (80, 200, 255), 3)
+        for index, (x, y) in enumerate(corners):
+            corner_pixel = to_pixel(float(x), float(y))
+            cv2.circle(canvas, corner_pixel, 7, (80, 200, 255), -1)
+            cv2.putText(
+                canvas,
+                f"{index + 1}",
+                (corner_pixel[0] + 10, corner_pixel[1] - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (80, 200, 255),
+                2,
+            )
+            turn_radius = 0.22
+            turn_centre = np.array([float(x), float(y)])
+            arc_start = orientation + index * np.pi / 2
+            arc = np.linspace(arc_start, arc_start + np.pi / 2, 16)
+            arc_points = np.array(
+                [
+                    to_pixel(*(turn_centre + turn_radius * np.array([np.cos(a), np.sin(a)])))
+                    for a in arc
+                ],
+                dtype=np.int32,
+            )
+            cv2.polylines(canvas, [arc_points], False, (255, 170, 60), 2)
+        cv2.putText(
+            canvas,
+            f"square {side:.2f} m side, {4 * side:.1f} m at {arguments.drive_speed} m/s"
+            f" + 90 deg turns at {arguments.turn_rate} rad/s",
+            (12, size - 18),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (80, 200, 255),
+            2,
+        )
+
+    cv2.putText(
+        canvas,
+        f"free {area:.1f} m2, margin {arguments.margin} m, band "
+        f"{arguments.min_obstacle_height}-{arguments.max_obstacle_height} m",
+        (12, 26),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (60, 230, 60),
+        1,
+    )
+    cv2.imwrite(arguments.out_image, canvas)
+    print(f"wrote {arguments.out_image}")
+
+
+main()
