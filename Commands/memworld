@@ -25,11 +25,10 @@ fi
 source "$venv/bin/activate"
 
 stop_server() {
+    # Only this module. `dimos stop` is global — it kills every dimos module on
+    # the machine, including other people's and other sessions' blueprints.
     pkill -f 'dimos run memory-world-module' 2>/dev/null || true
     sleep 2
-    # A killed module leaves its coordinator on the zenoh bus and the next
-    # start dies with "another Coordinator service is already running".
-    dimos stop >/dev/null 2>&1 || true
 }
 
 if [ "$recording" = "--stop" ]; then
@@ -47,8 +46,11 @@ cd "$repo"
 export PYTHONPATH="$repo"
 # No stream flags: the module names them from the recording's message types,
 # so this works on someone else's robot too. Pass extra flags to override.
+# --transport lcm keeps this off the zenoh bus, so it starts even when another
+# session's blueprint holds the Coordinator there, and never disturbs it.
 nohup dimos run memory-world-module \
     --g.rerun-open none \
+    --transport lcm \
     --memoryworldmodule.store-path "$recording" \
     --memoryworldmodule.image-index-stride 5 \
     "${@:2}" \
