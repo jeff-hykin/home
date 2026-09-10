@@ -139,6 +139,13 @@ const LCM_DECODERS = {
 function sqliteSource(path) {
     const db = new Database(path, { readonly: true })
     return {
+        kinds() {
+            const kinds = new Map()
+            for (const [name, config] of db.prepare("SELECT name, config FROM _streams").values()) {
+                kinds.set(name, JSON.parse(config).payload_module.split(".").pop())
+            }
+            return kinds
+        },
         count(stream) {
             return db.prepare(`SELECT COUNT(*) FROM ${stream}`).values()[0][0]
         },
@@ -194,6 +201,13 @@ async function mcapSource(path) {
         return channel
     }
     return {
+        kinds() {
+            const kinds = new Map()
+            for (const [name, channel] of topics) {
+                kinds.set(name, reader.schemasById.get(channel.schemaId)?.name.split("/").pop())
+            }
+            return kinds
+        },
         count(stream) {
             return Number(reader.statistics?.channelMessageCounts.get(channelFor(stream).id) ?? 0)
         },
@@ -497,6 +511,35 @@ function pathColour(t) {
     return stops[stops.length - 1][1]
 }
 
+// --- stream selection ------------------------------------------------------
+// Recordings name their streams differently (pointlio_lidar vs lidar vs
+// livox/points), so a stream is picked by message kind: the requested name
+// if given, else the first preferred name present, else the only stream of
+// that kind.
+
+function pickStream(source, kind, requested, preferred = []) {
+    const kinds = source.kinds()
+    const candidates = [...kinds.keys()].filter((name) => kinds.get(name) === kind).sort()
+    const have = candidates.length ? candidates.join(", ") : "none"
+    if (requested !== undefined) {
+        if (!kinds.has(requested)) {
+            console.error(`heatmap: no stream ${requested}; ${kind} streams here: ${have}`)
+            Deno.exit(1)
+        }
+        return requested
+    }
+    const found = preferred.find((name) => kinds.has(name))
+    if (found !== undefined) {
+        return found
+    }
+    if (candidates.length !== 1) {
+        console.error(`heatmap: no ${preferred.join("/")}; ${kind} streams here: ${have}; pick one with the flag`)
+        Deno.exit(1)
+    }
+    console.error(`heatmap: no ${preferred.join("/")}, using ${candidates[0]}`)
+    return candidates[0]
+}
+
 // --- main ------------------------------------------------------------------
 
 await new Command()
@@ -505,8 +548,8 @@ await new Command()
     .description("Top-down dark render of a cloud stream + odometry path from a memory2 .db or an .mcap")
     .arguments("<recording:string> [output:string]")
     .option("-w, --width <px:integer>", "Image width in pixels", { default: 1600 })
-    .option("--cloud <stream:string>", "Point cloud stream", { default: "pointlio_lidar" })
-    .option("--odom <stream:string>", "Odometry stream", { default: "pointlio_odometry" })
+    .option("--cloud <stream:string>", "Point cloud stream (default pointlio_lidar, then lidar, then the only PointCloud2 stream)")
+    .option("--odom <stream:string>", "Odometry stream (default pointlio_odometry, then odometry, then the only Odometry stream)")
     .option("--tf <stream:string>", "Place clouds via this tf stream instead of the odometry pose")
     .option("--align-to <stream:string>", "Rigidly align onto this odometry stream's frame")
     .option("--extent <minX_minY_maxX_maxY:string>", "Force the world extent, for comparable renders (commas or underscores)")
@@ -516,6 +559,14 @@ await new Command()
     .action(async (options, recording, output) => {
         const target = output ?? recording.replace(/\.(db|mcap)$/, "") + "_heatmap.png"
         const source = recording.endsWith(".mcap") ? await mcapSource(recording) : sqliteSource(recording)
+        options.cloud = pickStream(source, "PointCloud2", options.cloud, ["pointlio_lidar", "lidar"])
+        options.odom = pickStream(source, "Odometry", options.odom, ["pointlio_odometry", "odometry"])
+        if (options.alignTo) {
+            options.alignTo = pickStream(source, "Odometry", options.alignTo)
+        }
+        if (options.tf) {
+            options.tf = pickStream(source, "TFMessage", options.tf)
+        }
 
         const readOdometry = async (stream) =>
             (await source.read(stream, "Odometry")).map((row) => ({ ts: row.ts, ...odometryPose(row.message) }))
