@@ -335,8 +335,9 @@ class Mcap:
             body = blob[at + RECORD_OVERHEAD:at + RECORD_OVERHEAD + length]
             if opcode == OP_SCHEMA:
                 r = Reader(body)
-                self.schemas[r.u16()] = body
-                self.schema_records[struct.unpack_from("<H", body, 0)[0]] = record(OP_SCHEMA, body)
+                schema_id = r.u16()
+                self.schemas[schema_id] = r.text()
+                self.schema_records[schema_id] = record(OP_SCHEMA, body)
             elif opcode == OP_CHANNEL:
                 channel = Channel.parse(body)
                 self.channels[channel.id] = channel
@@ -376,6 +377,25 @@ def walk_chunk(blob):
 BLOCK = 4096
 
 
+def other_readers(path):
+    """Processes holding this file open, ourselves excluded. An edit here moves
+    chunks and rebuilds the summary with no lock and no way for a reader to
+    notice, so a viewer that is up while this runs can read a torn file."""
+    import subprocess
+    try:
+        listing = subprocess.run(["lsof", "--", str(path)], capture_output=True, text=True,
+                                 timeout=20).stdout.splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return []
+    mine = str(os.getpid())
+    holders = []
+    for line in listing[1:]:
+        fields = line.split()
+        if len(fields) >= 2 and fields[1] != mine:
+            holders.append(f"{fields[0]} (pid {fields[1]})")
+    return sorted(set(holders))
+
+
 def punch_hole(file, offset, length):
     """Give the blocks back to the filesystem. Only whole blocks can be released,
     so the range is trimmed inwards to block boundaries and a region smaller than a
@@ -404,9 +424,108 @@ def punch_hole(file, offset, length):
     return 0
 
 
+# ------------------------------------------------- moving a pose to a new frame
+
+def compose(left, right):
+    """left * right, both (x, y, z, qx, qy, qz, qw)."""
+    lx, ly, lz, a, b, c, d = left
+    rx, ry, rz, e, f, g, h = right
+    tx, ty, tz = rotate((a, b, c, d), (rx, ry, rz))
+    return (lx + tx, ly + ty, lz + tz,
+            d * e + a * h + b * g - c * f,
+            d * f - a * g + b * h + c * e,
+            d * g + a * f - b * e + c * h,
+            d * h - a * e - b * f - c * g)
+
+
+def rotate(quaternion, vector):
+    a, b, c, d = quaternion
+    x, y, z = vector
+    return ((1 - 2 * (b * b + c * c)) * x + 2 * (a * b - c * d) * y + 2 * (a * c + b * d) * z,
+            2 * (a * b + c * d) * x + (1 - 2 * (a * a + c * c)) * y + 2 * (b * c - a * d) * z,
+            2 * (a * c - b * d) * x + 2 * (b * c + a * d) * y + (1 - 2 * (a * a + b * b)) * z)
+
+
+def unrotate(quaternion, vector):
+    a, b, c, d = quaternion
+    return rotate((-a, -b, -c, d), vector)
+
+
+class CdrCursor:
+    """Walks a ROS 2 CDR body far enough to find the fields worth changing.
+    Alignment is counted from the start of the body, after the 4-byte
+    encapsulation header -- counting it from byte 0 makes every float past the
+    first string decode as a denormal, which reads exactly like a corrupt writer."""
+
+    def __init__(self, data):
+        self.data = data
+        self.at = 4
+
+    def align(self, width):
+        self.at += (-(self.at - 4)) % width
+
+    def skip(self, count):
+        self.at += count
+
+    def text(self):
+        self.align(4)
+        length = struct.unpack_from("<I", self.data, self.at)[0]
+        start = self.at + 4
+        self.at = start + length
+        return bytes(self.data[start:start + max(0, length - 1)]).decode("utf-8")
+
+    def doubles(self, count):
+        self.align(8)
+        at = self.at
+        self.at += 8 * count
+        return at, struct.unpack_from("<" + "d" * count, self.data, at)
+
+    def u32(self):
+        self.align(4)
+        value = struct.unpack_from("<I", self.data, self.at)[0]
+        self.at += 4
+        return value
+
+
+def repose_tf_message(data, corrections):
+    """Right-multiply named edges of a tf2_msgs/TFMessage. Same length out as in:
+    only float64s change, so the message can go straight back where it came from."""
+    out = bytearray(data)
+    cursor = CdrCursor(out)
+    for _ in range(cursor.u32()):
+        cursor.align(4)
+        cursor.skip(8)  # stamp
+        parent = cursor.text()
+        child = cursor.text()
+        at, values = cursor.doubles(7)
+        correction = corrections.get((parent, child))
+        if correction is not None:
+            struct.pack_into("<7d", out, at, *compose(values, correction))
+    return bytes(out)
+
+
+def repose_odometry(data, correction):
+    """Right-multiply a nav_msgs/Odometry pose. The twist is expressed in the
+    child frame, so moving that frame rotates the velocities as well -- leaving
+    them alone would put the rig's speed along the old axes."""
+    out = bytearray(data)
+    cursor = CdrCursor(out)
+    cursor.skip(8)   # header.stamp
+    cursor.text()    # header.frame_id
+    cursor.text()    # child_frame_id
+    at, pose = cursor.doubles(7)
+    struct.pack_into("<7d", out, at, *compose(pose, correction))
+    cursor.doubles(36)                      # pose covariance
+    twist_at, twist = cursor.doubles(6)
+    turn = correction[3:]
+    struct.pack_into("<6d", out, twist_at,
+                     *unrotate(turn, twist[:3]), *unrotate(turn, twist[3:]))
+    return bytes(out)
+
+
 # ---------------------------------------------------------------- the edit
 
-def rewrite_chunk(blob, renames, deleted_ids):
+def rewrite_chunk(blob, renames, deleted_ids, tf_corrections=None, odom_corrections=None):
     """Return the chunk's records with deleted channels and their messages gone
     and renamed channels renamed, plus the per-channel message index entries the
     new layout needs. Offsets in a message index are relative to the start of
@@ -427,8 +546,20 @@ def rewrite_chunk(blob, renames, deleted_ids):
             if channel_id in deleted_ids:
                 continue
             entries.setdefault(channel_id, []).append((log_time, len(out)))
+            if tf_corrections and channel_id in tf_corrections:
+                body = body[:22] + repose_tf_message(body[22:], tf_corrections[channel_id])
+            elif odom_corrections and channel_id in odom_corrections:
+                body = body[:22] + repose_odometry(body[22:], odom_corrections[channel_id])
         out.extend(record(opcode, body))
     return out, entries
+
+
+def pose_argument(text, what):
+    head, numbers = text.rsplit(":", 1)
+    values = tuple(float(v) for v in numbers.split(","))
+    if len(values) != 7:
+        sys.exit(f"--{what} wants 7 numbers (x,y,z,qx,qy,qz,qw), got {len(values)}")
+    return head, values
 
 
 def plan_edit(mcap, renames, deletes):
@@ -481,11 +612,24 @@ def main():
                         help="rename a topic (repeatable)")
     parser.add_argument("--delete", action="append", default=[], metavar="TOPIC",
                         help="remove a topic and every message on it (repeatable)")
+    parser.add_argument("--post-mul-tf-edge", action="append", default=[],
+                        metavar="PARENT:CHILD:X,Y,Z,QX,QY,QZ,QW",
+                        help="right-multiply this transform, wherever it appears on a "
+                             "tf2_msgs/TFMessage (repeatable). This is how a moving edge follows a "
+                             "corrected static one: a pose solved against a sensor stays true, but "
+                             "the frame it is reported in has moved")
+    parser.add_argument("--post-mul-odom", action="append", default=[],
+                        metavar="TOPIC:X,Y,Z,QX,QY,QZ,QW",
+                        help="right-multiply the pose on a nav_msgs/Odometry topic by the same "
+                             "correction, rotating its twist with it (repeatable)")
     parser.add_argument("--reclaim", action="store_true",
                         help="punch a hole through the space the old chunks occupied so the "
                              "filesystem gives it back. Without this the file keeps its size")
     parser.add_argument("--dry-run", action="store_true",
                         help="say what would change and touch nothing")
+    parser.add_argument("--force", action="store_true",
+                        help="edit even though another process has the file open. It will read a "
+                             "torn file while this runs")
     arguments = parser.parse_args()
 
     renames = {}
@@ -495,13 +639,38 @@ def main():
         old, new = pair.split("=", 1)
         renames[old] = new
     deletes = set(arguments.delete)
-    if not renames and not deletes:
-        sys.exit("nothing to do: pass --rename and/or --delete")
+    if not renames and not deletes and not arguments.post_mul_tf_edge and not arguments.post_mul_odom:
+        sys.exit("nothing to do: pass --rename, --delete, --post-mul-tf-edge or --post-mul-odom")
     if renames.keys() & deletes:
         sys.exit("a topic cannot be both renamed and deleted")
 
     mcap = Mcap(arguments.recording)
+
+    # A tf correction applies to an edge wherever it is published, so it is keyed by
+    # every TFMessage channel; an odometry correction names one topic.
+    tf_corrections = {}
+    for text in arguments.post_mul_tf_edge:
+        edge, pose = pose_argument(text, "post-mul-tf-edge")
+        if edge.count(":") != 1:
+            sys.exit(f"--post-mul-tf-edge wants PARENT:CHILD:..., got {text!r}")
+        parent, child = edge.split(":")
+        for channel in mcap.channels.values():
+            if mcap.schemas.get(channel.schema_id) == "tf2_msgs/msg/TFMessage":
+                tf_corrections.setdefault(channel.id, {})[(parent, child)] = pose
+    odom_corrections = {}
+    for text in arguments.post_mul_odom:
+        topic, pose = pose_argument(text, "post-mul-odom")
+        matches = [c for c in mcap.channels.values() if c.topic == topic]
+        if not matches:
+            sys.exit(f"no topic named {topic!r} in this file")
+        odom_corrections[matches[0].id] = pose
+
     deleted_ids, touched = plan_edit(mcap, renames, deletes)
+    reposed = set(tf_corrections) | set(odom_corrections)
+    if reposed:
+        touched = sorted(set(touched) | {
+            position for position, index in enumerate(mcap.chunk_indexes)
+            if {channel_id for channel_id, _ in index["message_index_offsets"]} & reposed})
 
     print(f"{arguments.recording.name}: {mcap.size:,} bytes, {len(mcap.chunk_indexes)} chunks, "
           f"{len(mcap.channels)} channels")
@@ -511,10 +680,18 @@ def main():
         channel = next(c for c in mcap.channels.values() if c.topic == topic)
         count = (mcap.statistics or {}).get("channel_message_counts", {}).get(channel.id, 0)
         print(f"  delete {topic} ({count:,} messages)")
+    for text in arguments.post_mul_tf_edge:
+        print(f"  move tf edge {text.rsplit(':', 1)[0]}")
+    for text in arguments.post_mul_odom:
+        print(f"  move odometry on {text.rsplit(':', 1)[0]}")
     print(f"  {len(touched)} of {len(mcap.chunk_indexes)} chunks have to be rewritten")
     if arguments.dry_run:
         print("dry run: nothing written")
         return
+    holders = other_readers(arguments.recording)
+    if holders and not arguments.force:
+        sys.exit(f"{', '.join(holders)} has this file open. Chunks move and the summary is rebuilt "
+                 f"with no lock, so that reader would see a torn file. Stop it, or pass --force")
 
     started = time.monotonic()
     write_at = mcap.data_end_offset  # the old DataEnd and summary are dead from here on
@@ -524,7 +701,7 @@ def main():
     for position in touched:
         index = mcap.chunk_indexes[position]
         start, end, compression, blob = mcap.read_chunk(index)
-        records, entries = rewrite_chunk(blob, renames, deleted_ids)
+        records, entries = rewrite_chunk(blob, renames, deleted_ids, tf_corrections, odom_corrections)
         chunk = encode_chunk(start, end, bytes(records), compression)
         message_indexes = bytearray()
         offsets = []
