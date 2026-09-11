@@ -1,0 +1,677 @@
+#!/usr/bin/env -S uv run --with zstandard --with lz4 python
+"""Rename or delete topics in an .mcap without copying it.
+
+A recording that is tens of gigabytes cannot be fixed by writing a corrected copy
+next to it -- there is no room, and the copy costs an hour. But an mcap is a list
+of self-contained chunks plus a summary at the end that says where they are, and
+nothing in the data section refers to an offset after itself. So a topic can be
+renamed or removed by rewriting only the chunks that mention it, putting the
+rewritten chunks where the old summary was, blanking the space the originals
+occupied, and writing a fresh summary that points at the new locations.
+
+The blanked space is filled with one record carrying a private opcode (0x80).
+Readers must skip opcodes they do not recognise, so a linear walk steps straight
+over it; an indexed reader never looks there at all. `--reclaim` then punches a
+hole through it so the filesystem gives the blocks back -- without that the file
+keeps its original size and the space is simply dead.
+
+Renaming touches only the chunk holding the channel record, so it is the same
+cost on a 60 GB file as on a small one. Deleting has to rewrite every chunk the
+topic appears in, and those chunks come back smaller by whatever the topic was
+costing.
+
+Nothing here trusts that the result is right: a verification pass reads every
+chunk back, checks the message count per channel against the new statistics, and
+refuses to leave a file whose summary disagrees with its data.
+"""
+
+import argparse
+import fcntl
+import os
+import struct
+import sys
+import time
+from pathlib import Path
+
+MAGIC = b"\x89MCAP0\r\n"
+
+OP_HEADER = 0x01
+OP_FOOTER = 0x02
+OP_SCHEMA = 0x03
+OP_CHANNEL = 0x04
+OP_MESSAGE = 0x05
+OP_CHUNK = 0x06
+OP_MESSAGE_INDEX = 0x07
+OP_CHUNK_INDEX = 0x08
+OP_ATTACHMENT = 0x09
+OP_ATTACHMENT_INDEX = 0x0A
+OP_STATISTICS = 0x0B
+OP_METADATA = 0x0C
+OP_METADATA_INDEX = 0x0D
+OP_SUMMARY_OFFSET = 0x0E
+OP_DATA_END = 0x0F
+OP_FILLER = 0x80  # private range; readers skip what they do not know
+
+# A record is an opcode and a length before anything else, so nothing shorter
+# than this can be written into a gap.
+RECORD_OVERHEAD = 9
+
+# macOS and Linux spell hole punching differently; both are optional.
+F_PUNCHHOLE = 99
+
+
+class Reader:
+    """Little-endian cursor over one record body."""
+
+    def __init__(self, data, at=0):
+        self.data = data
+        self.at = at
+
+    def u8(self):
+        value = self.data[self.at]
+        self.at += 1
+        return value
+
+    def u16(self):
+        value = struct.unpack_from("<H", self.data, self.at)[0]
+        self.at += 2
+        return value
+
+    def u32(self):
+        value = struct.unpack_from("<I", self.data, self.at)[0]
+        self.at += 4
+        return value
+
+    def u64(self):
+        value = struct.unpack_from("<Q", self.data, self.at)[0]
+        self.at += 8
+        return value
+
+    def text(self):
+        length = self.u32()
+        value = self.data[self.at:self.at + length].decode("utf-8")
+        self.at += length
+        return value
+
+    def blob(self):
+        length = self.u32()
+        value = bytes(self.data[self.at:self.at + length])
+        self.at += length
+        return value
+
+
+def put_text(out, value):
+    raw = value.encode("utf-8")
+    out.extend(struct.pack("<I", len(raw)))
+    out.extend(raw)
+
+
+def record(opcode, body):
+    return struct.pack("<BQ", opcode, len(body)) + bytes(body)
+
+
+def filler(length):
+    """A skippable record that occupies exactly `length` bytes."""
+    if length == 0:
+        return b""
+    if length < RECORD_OVERHEAD:
+        raise ValueError(f"cannot fill {length} bytes; a record needs {RECORD_OVERHEAD}")
+    return struct.pack("<BQ", OP_FILLER, length - RECORD_OVERHEAD) + b"\0" * (length - RECORD_OVERHEAD)
+
+
+# ---------------------------------------------------------------- codecs
+
+def decompress(compression, data, uncompressed_size):
+    if compression == "":
+        return data
+    if compression == "zstd":
+        import zstandard
+        return zstandard.ZstdDecompressor().decompress(data, max_output_size=uncompressed_size)
+    if compression == "lz4":
+        import lz4.frame
+        return lz4.frame.decompress(data)
+    raise SystemExit(f"unsupported chunk compression {compression!r}")
+
+
+def compress(compression, data):
+    if compression == "":
+        return data
+    if compression == "zstd":
+        import zstandard
+        return zstandard.ZstdCompressor(level=3).compress(data)
+    if compression == "lz4":
+        import lz4.frame
+        return lz4.frame.compress(data)
+    raise SystemExit(f"unsupported chunk compression {compression!r}")
+
+
+# ---------------------------------------------------------------- records
+
+class Channel:
+    __slots__ = ("id", "schema_id", "topic", "message_encoding", "metadata")
+
+    def __init__(self, id, schema_id, topic, message_encoding, metadata):
+        self.id = id
+        self.schema_id = schema_id
+        self.topic = topic
+        self.message_encoding = message_encoding
+        self.metadata = metadata
+
+    @staticmethod
+    def parse(body):
+        r = Reader(body)
+        id, schema_id = r.u16(), r.u16()
+        topic, encoding = r.text(), r.text()
+        pairs_length = r.u32()
+        stop = r.at + pairs_length
+        metadata = []
+        while r.at < stop:
+            metadata.append((r.text(), r.text()))
+        return Channel(id, schema_id, topic, encoding, metadata)
+
+    def encode(self):
+        out = bytearray(struct.pack("<HH", self.id, self.schema_id))
+        put_text(out, self.topic)
+        put_text(out, self.message_encoding)
+        pairs = bytearray()
+        for key, value in self.metadata:
+            put_text(pairs, key)
+            put_text(pairs, value)
+        out.extend(struct.pack("<I", len(pairs)))
+        out.extend(pairs)
+        return record(OP_CHANNEL, out)
+
+
+def parse_chunk(body):
+    r = Reader(body)
+    start, end, uncompressed_size = r.u64(), r.u64(), r.u64()
+    crc = r.u32()
+    compression = r.text()
+    records_length = r.u64()
+    payload = body[r.at:r.at + records_length]
+    return start, end, uncompressed_size, crc, compression, payload
+
+
+def encode_chunk(start, end, uncompressed, compression):
+    import zlib
+    payload = compress(compression, uncompressed)
+    out = bytearray(struct.pack("<QQQI", start, end, len(uncompressed), zlib.crc32(uncompressed)))
+    put_text(out, compression)
+    out.extend(struct.pack("<Q", len(payload)))
+    out.extend(payload)
+    return record(OP_CHUNK, out)
+
+
+def parse_chunk_index(body):
+    r = Reader(body)
+    index = {
+        "message_start_time": r.u64(),
+        "message_end_time": r.u64(),
+        "chunk_start_offset": r.u64(),
+        "chunk_length": r.u64(),
+    }
+    offsets_length = r.u32()
+    stop = r.at + offsets_length
+    channels = []
+    while r.at < stop:
+        channels.append((r.u16(), r.u64()))
+    index["message_index_offsets"] = channels
+    index["message_index_length"] = r.u64()
+    index["compression"] = r.text()
+    index["compressed_size"] = r.u64()
+    index["uncompressed_size"] = r.u64()
+    return index
+
+
+def encode_chunk_index(index):
+    out = bytearray(struct.pack(
+        "<QQQQ", index["message_start_time"], index["message_end_time"],
+        index["chunk_start_offset"], index["chunk_length"]))
+    offsets = bytearray()
+    for channel_id, offset in index["message_index_offsets"]:
+        offsets.extend(struct.pack("<HQ", channel_id, offset))
+    out.extend(struct.pack("<I", len(offsets)))
+    out.extend(offsets)
+    out.extend(struct.pack("<Q", index["message_index_length"]))
+    put_text(out, index["compression"])
+    out.extend(struct.pack("<QQ", index["compressed_size"], index["uncompressed_size"]))
+    return record(OP_CHUNK_INDEX, out)
+
+
+def encode_message_index(channel_id, entries):
+    body = bytearray(struct.pack("<H", channel_id))
+    packed = bytearray()
+    for log_time, offset in entries:
+        packed.extend(struct.pack("<QQ", log_time, offset))
+    body.extend(struct.pack("<I", len(packed)))
+    body.extend(packed)
+    return record(OP_MESSAGE_INDEX, body)
+
+
+def parse_statistics(body):
+    r = Reader(body)
+    stats = {
+        "message_count": r.u64(),
+        "schema_count": r.u16(),
+        "channel_count": r.u32(),
+        "attachment_count": r.u32(),
+        "metadata_count": r.u32(),
+        "chunk_count": r.u32(),
+        "message_start_time": r.u64(),
+        "message_end_time": r.u64(),
+    }
+    counts_length = r.u32()
+    stop = r.at + counts_length
+    counts = {}
+    while r.at < stop:
+        channel_id, count = r.u16(), r.u64()
+        counts[channel_id] = count
+    stats["channel_message_counts"] = counts
+    return stats
+
+
+def encode_statistics(stats):
+    out = bytearray(struct.pack(
+        "<QHIIIIQQ", stats["message_count"], stats["schema_count"], stats["channel_count"],
+        stats["attachment_count"], stats["metadata_count"], stats["chunk_count"],
+        stats["message_start_time"], stats["message_end_time"]))
+    counts = bytearray()
+    for channel_id, count in sorted(stats["channel_message_counts"].items()):
+        counts.extend(struct.pack("<HQ", channel_id, count))
+    out.extend(struct.pack("<I", len(counts)))
+    out.extend(counts)
+    return record(OP_STATISTICS, out)
+
+
+# ---------------------------------------------------------------- the file
+
+class Mcap:
+    """The parts of a finished mcap this tool needs: where every chunk sits and
+    what the summary says about it. Read from the index, so opening a 60 GB file
+    costs a few reads rather than a pass."""
+
+    def __init__(self, path):
+        self.path = path
+        self.file = open(path, "r+b")
+        self.size = self.file.seek(0, os.SEEK_END)
+        if self.size < 8 + 29 + 8 or self.read_at(0, 8) != MAGIC:
+            raise SystemExit(f"{path}: not an mcap")
+        if self.read_at(self.size - 8, 8) != MAGIC:
+            raise SystemExit(f"{path}: no closing magic -- run mcap_recover first")
+        footer = self.read_at(self.size - 8 - 29, 29)
+        if footer[0] != OP_FOOTER:
+            raise SystemExit(f"{path}: footer is not where the spec puts it")
+        self.summary_start, self.summary_offset_start, _ = struct.unpack("<QQI", footer[9:29])
+        if self.summary_start == 0:
+            raise SystemExit(f"{path}: has no summary section; nothing to edit against")
+        # New chunks go where the data section ended, which means over the top of
+        # its DataEnd record -- leaving that one in place would put records after
+        # the marker that says there are none.
+        self.data_end_offset = self.summary_start - (RECORD_OVERHEAD + 4)
+        if self.read_at(self.data_end_offset, 1)[0] != OP_DATA_END:
+            raise SystemExit(f"{path}: no DataEnd record before the summary")
+        self.header = self.read_at(8, 9)
+        header_length = struct.unpack("<Q", self.header[1:9])[0]
+        self.header_record = self.read_at(8, 9 + header_length)
+        self._read_summary()
+
+    def read_at(self, offset, length):
+        self.file.seek(offset)
+        return self.file.read(length)
+
+    def _read_summary(self):
+        end = self.summary_offset_start or (self.size - 8 - 29)
+        blob = self.read_at(self.summary_start, end - self.summary_start)
+        self.schemas = {}
+        self.schema_records = {}
+        self.channels = {}
+        self.chunk_indexes = []
+        self.statistics = None
+        self.other_summary = []
+        at = 0
+        while at + RECORD_OVERHEAD <= len(blob):
+            opcode = blob[at]
+            length = struct.unpack_from("<Q", blob, at + 1)[0]
+            body = blob[at + RECORD_OVERHEAD:at + RECORD_OVERHEAD + length]
+            if opcode == OP_SCHEMA:
+                r = Reader(body)
+                self.schemas[r.u16()] = body
+                self.schema_records[struct.unpack_from("<H", body, 0)[0]] = record(OP_SCHEMA, body)
+            elif opcode == OP_CHANNEL:
+                channel = Channel.parse(body)
+                self.channels[channel.id] = channel
+            elif opcode == OP_CHUNK_INDEX:
+                self.chunk_indexes.append(parse_chunk_index(body))
+            elif opcode == OP_STATISTICS:
+                self.statistics = parse_statistics(body)
+            elif opcode in (OP_ATTACHMENT_INDEX, OP_METADATA_INDEX):
+                self.other_summary.append(record(opcode, body))
+            at += RECORD_OVERHEAD + length
+        self.chunk_indexes.sort(key=lambda index: index["chunk_start_offset"])
+
+    def chunk_span(self, index):
+        """Bytes the chunk and the message indexes that belong to it occupy."""
+        return index["chunk_length"] + index["message_index_length"]
+
+    def read_chunk(self, index):
+        raw = self.read_at(index["chunk_start_offset"], index["chunk_length"])
+        opcode, length = struct.unpack_from("<BQ", raw, 0)
+        if opcode != OP_CHUNK:
+            raise SystemExit(f"chunk index points at a {hex(opcode)} record, not a chunk")
+        start, end, uncompressed_size, _, compression, payload = parse_chunk(
+            raw[RECORD_OVERHEAD:RECORD_OVERHEAD + length])
+        return start, end, compression, decompress(compression, payload, uncompressed_size)
+
+
+def walk_chunk(blob):
+    """Yield (opcode, body) for every record inside a decompressed chunk."""
+    at = 0
+    while at + RECORD_OVERHEAD <= len(blob):
+        opcode = blob[at]
+        length = struct.unpack_from("<Q", blob, at + 1)[0]
+        yield opcode, blob[at + RECORD_OVERHEAD:at + RECORD_OVERHEAD + length]
+        at += RECORD_OVERHEAD + length
+
+
+BLOCK = 4096
+
+
+def punch_hole(file, offset, length):
+    """Give the blocks back to the filesystem. Only whole blocks can be released,
+    so the range is trimmed inwards to block boundaries and a region smaller than a
+    block frees nothing. Best effort throughout: a filesystem that cannot do it
+    leaves the bytes in place, which costs space and nothing else."""
+    start = (offset + BLOCK - 1) // BLOCK * BLOCK
+    stop = (offset + length) // BLOCK * BLOCK
+    offset, length = start, stop - start
+    if length <= 0:
+        return 0
+    try:
+        if sys.platform == "darwin":
+            # struct fpunchhole_t { uint32 flags; uint32 reserved; off_t offset; off_t length; }
+            argument = struct.pack("<IIqq", 0, 0, offset, length)
+            fcntl.fcntl(file.fileno(), F_PUNCHHOLE, argument)
+            return length
+        if hasattr(os, "posix_fallocate"):
+            import ctypes
+            libc = ctypes.CDLL("libc.so.6", use_errno=True)
+            FALLOC_FL_PUNCH_HOLE, FALLOC_FL_KEEP_SIZE = 0x02, 0x01
+            if libc.fallocate(file.fileno(), FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+                              ctypes.c_long(offset), ctypes.c_long(length)) == 0:
+                return length
+    except OSError:
+        return 0
+    return 0
+
+
+# ---------------------------------------------------------------- the edit
+
+def rewrite_chunk(blob, renames, deleted_ids):
+    """Return the chunk's records with deleted channels and their messages gone
+    and renamed channels renamed, plus the per-channel message index entries the
+    new layout needs. Offsets in a message index are relative to the start of
+    the decompressed chunk, so they have to be recomputed here, not adjusted."""
+    out = bytearray()
+    entries = {}
+    for opcode, body in walk_chunk(blob):
+        if opcode == OP_CHANNEL:
+            channel = Channel.parse(body)
+            if channel.id in deleted_ids:
+                continue
+            if channel.topic in renames:
+                channel.topic = renames[channel.topic]
+                out.extend(channel.encode())
+                continue
+        elif opcode == OP_MESSAGE:
+            channel_id, _, log_time = struct.unpack_from("<HIQ", body, 0)
+            if channel_id in deleted_ids:
+                continue
+            entries.setdefault(channel_id, []).append((log_time, len(out)))
+        out.extend(record(opcode, body))
+    return out, entries
+
+
+def plan_edit(mcap, renames, deletes):
+    by_topic = {channel.topic: channel for channel in mcap.channels.values()}
+    for old in renames:
+        if old not in by_topic:
+            raise SystemExit(f"no topic named {old!r} in this file")
+    for new in renames.values():
+        if new in by_topic and by_topic[new].topic not in renames:
+            raise SystemExit(f"{new!r} is already a topic in this file")
+    for topic in deletes:
+        if topic not in by_topic:
+            raise SystemExit(f"no topic named {topic!r} in this file")
+    deleted_ids = {by_topic[topic].id for topic in deletes}
+    renamed_ids = {by_topic[topic].id for topic in renames}
+
+    # Deleting has to touch every chunk the topic has messages in; the chunk index
+    # says which those are without reading a byte of payload.
+    touched = {position for position, index in enumerate(mcap.chunk_indexes)
+               if {channel_id for channel_id, _ in index["message_index_offsets"]} & deleted_ids}
+
+    # Renaming only has to touch the chunk holding the channel record. A channel is
+    # declared immediately before its first message and not repeated, so the chunk
+    # to look in is the first one the index credits with a message on that channel --
+    # which is why a rename costs the same on a 60 GB file as on a small one.
+    looking_for = set(renamed_ids)
+    for position, index in enumerate(mcap.chunk_indexes):
+        if not looking_for:
+            break
+        present = {channel_id for channel_id, _ in index["message_index_offsets"]}
+        if not present & looking_for:
+            continue
+        _, _, _, blob = mcap.read_chunk(index)
+        declared = {Channel.parse(body).id for opcode, body in walk_chunk(blob)
+                    if opcode == OP_CHANNEL}
+        if declared & looking_for:
+            touched.add(position)
+            looking_for -= declared
+    if looking_for:
+        names = ", ".join(sorted(mcap.channels[cid].topic for cid in looking_for))
+        raise SystemExit(f"could not find the channel record for {names}; refusing to guess")
+    return deleted_ids, sorted(touched)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("recording", type=Path)
+    parser.add_argument("--rename", action="append", default=[], metavar="OLD=NEW",
+                        help="rename a topic (repeatable)")
+    parser.add_argument("--delete", action="append", default=[], metavar="TOPIC",
+                        help="remove a topic and every message on it (repeatable)")
+    parser.add_argument("--reclaim", action="store_true",
+                        help="punch a hole through the space the old chunks occupied so the "
+                             "filesystem gives it back. Without this the file keeps its size")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="say what would change and touch nothing")
+    arguments = parser.parse_args()
+
+    renames = {}
+    for pair in arguments.rename:
+        if "=" not in pair:
+            sys.exit(f"--rename wants OLD=NEW, got {pair!r}")
+        old, new = pair.split("=", 1)
+        renames[old] = new
+    deletes = set(arguments.delete)
+    if not renames and not deletes:
+        sys.exit("nothing to do: pass --rename and/or --delete")
+    if renames.keys() & deletes:
+        sys.exit("a topic cannot be both renamed and deleted")
+
+    mcap = Mcap(arguments.recording)
+    deleted_ids, touched = plan_edit(mcap, renames, deletes)
+
+    print(f"{arguments.recording.name}: {mcap.size:,} bytes, {len(mcap.chunk_indexes)} chunks, "
+          f"{len(mcap.channels)} channels")
+    for old, new in renames.items():
+        print(f"  rename {old} -> {new}")
+    for topic in sorted(deletes):
+        channel = next(c for c in mcap.channels.values() if c.topic == topic)
+        count = (mcap.statistics or {}).get("channel_message_counts", {}).get(channel.id, 0)
+        print(f"  delete {topic} ({count:,} messages)")
+    print(f"  {len(touched)} of {len(mcap.chunk_indexes)} chunks have to be rewritten")
+    if arguments.dry_run:
+        print("dry run: nothing written")
+        return
+
+    started = time.monotonic()
+    write_at = mcap.data_end_offset  # the old DataEnd and summary are dead from here on
+    new_indexes = {}
+    freed = []
+    rewritten_bytes = 0
+    for position in touched:
+        index = mcap.chunk_indexes[position]
+        start, end, compression, blob = mcap.read_chunk(index)
+        records, entries = rewrite_chunk(blob, renames, deleted_ids)
+        chunk = encode_chunk(start, end, bytes(records), compression)
+        message_indexes = bytearray()
+        offsets = []
+        for channel_id in sorted(entries):
+            offsets.append((channel_id, len(message_indexes)))
+            message_indexes.extend(encode_message_index(channel_id, entries[channel_id]))
+        fresh = dict(index)
+        fresh["chunk_start_offset"] = write_at
+        fresh["chunk_length"] = len(chunk)
+        fresh["message_index_offsets"] = [(cid, write_at + len(chunk) + at) for cid, at in offsets]
+        fresh["message_index_length"] = len(message_indexes)
+        fresh["uncompressed_size"] = len(records)
+        # compressed_size is the chunk's payload length: past the two times, the
+        # uncompressed size, the crc and the compression name.
+        fresh["compressed_size"] = struct.unpack_from(
+            "<Q", chunk, RECORD_OVERHEAD + 8 + 8 + 8 + 4 + 4 + len(compression))[0]
+        # read_chunk moved the cursor to wherever the source chunk lives, so the
+        # write position has to be re-established every time round.
+        mcap.file.seek(write_at)
+        mcap.file.write(chunk)
+        mcap.file.write(message_indexes)
+        write_at += len(chunk) + len(message_indexes)
+        rewritten_bytes += len(chunk)
+        new_indexes[position] = fresh
+        freed.append((index["chunk_start_offset"], mcap.chunk_span(index)))
+        print(f"  chunk {position}: {index['chunk_length']:,} -> {len(chunk):,} bytes", flush=True)
+
+    indexes = [new_indexes.get(position, index) for position, index in enumerate(mcap.chunk_indexes)]
+    _write_tail(mcap, write_at, indexes, renames, deleted_ids)
+
+    # Only now that the summary points somewhere else is it safe to blank the old
+    # chunks: until this moment the file was still readable through them.
+    reclaimed = 0
+    for offset, length in freed:
+        mcap.file.seek(offset)
+        mcap.file.write(filler(length))
+        if arguments.reclaim:
+            reclaimed += punch_hole(mcap.file, offset + RECORD_OVERHEAD, length - RECORD_OVERHEAD)
+    mcap.file.flush()
+    os.fsync(mcap.file.fileno())
+    mcap.file.close()
+
+    print(f"rewrote {len(touched)} chunk(s), {rewritten_bytes:,} bytes; "
+          f"{'reclaimed {:,} bytes'.format(reclaimed) if arguments.reclaim else 'old chunks blanked (pass --reclaim to free the space)'}; "
+          f"{time.monotonic() - started:.0f}s")
+    verify(arguments.recording)
+
+
+def _write_tail(mcap, write_at, indexes, renames, deleted_ids):
+    """DataEnd, a fresh summary describing the new layout, the summary offsets and
+    the footer. Written in one go at the end of the rewritten chunks."""
+    mcap.file.seek(write_at)
+    mcap.file.write(record(OP_DATA_END, struct.pack("<I", 0)))
+    summary_start = mcap.file.tell()
+
+    groups = []
+    blob = bytearray()
+
+    at = summary_start
+    schema_start = at
+    kept_schemas = {channel.schema_id for channel in mcap.channels.values()
+                    if channel.id not in deleted_ids and channel.schema_id}
+    for schema_id, raw in sorted(mcap.schema_records.items()):
+        if schema_id in kept_schemas:
+            blob.extend(raw)
+    if len(blob):
+        groups.append((OP_SCHEMA, schema_start, len(blob)))
+
+    channel_start = summary_start + len(blob)
+    channel_bytes = bytearray()
+    for channel_id, channel in sorted(mcap.channels.items()):
+        if channel_id in deleted_ids:
+            continue
+        if channel.topic in renames:
+            channel.topic = renames[channel.topic]
+        channel_bytes.extend(channel.encode())
+    blob.extend(channel_bytes)
+    if len(channel_bytes):
+        groups.append((OP_CHANNEL, channel_start, len(channel_bytes)))
+
+    index_start = summary_start + len(blob)
+    index_bytes = bytearray()
+    for index in indexes:
+        index_bytes.extend(encode_chunk_index(index))
+    blob.extend(index_bytes)
+    if len(index_bytes):
+        groups.append((OP_CHUNK_INDEX, index_start, len(index_bytes)))
+
+    for raw in mcap.other_summary:
+        blob.extend(raw)
+
+    if mcap.statistics is not None:
+        stats = dict(mcap.statistics)
+        counts = {cid: n for cid, n in stats["channel_message_counts"].items()
+                  if cid not in deleted_ids}
+        stats["channel_message_counts"] = counts
+        stats["message_count"] = sum(counts.values())
+        stats["channel_count"] = len(counts)
+        stats["schema_count"] = len(kept_schemas)
+        stats_start = summary_start + len(blob)
+        raw = encode_statistics(stats)
+        blob.extend(raw)
+        groups.append((OP_STATISTICS, stats_start, len(raw)))
+
+    mcap.file.write(blob)
+    summary_offset_start = mcap.file.tell()
+    offsets = bytearray()
+    for opcode, start, length in groups:
+        offsets.extend(record(OP_SUMMARY_OFFSET, struct.pack("<BQQ", opcode, start, length)))
+    mcap.file.write(offsets)
+    mcap.file.write(record(OP_FOOTER, struct.pack("<QQI", summary_start, summary_offset_start, 0)))
+    mcap.file.write(MAGIC)
+    mcap.file.truncate()
+
+
+def verify(path):
+    """Read the file back the way a consumer would and check it agrees with itself."""
+    from collections import Counter
+    mcap = Mcap(path)
+    seen = Counter()
+    topics = {channel.id: channel.topic for channel in mcap.channels.values()}
+    for index in mcap.chunk_indexes:
+        _, _, _, blob = mcap.read_chunk(index)
+        for opcode, body in walk_chunk(blob):
+            if opcode == OP_MESSAGE:
+                seen[struct.unpack_from("<H", body, 0)[0]] += 1
+            elif opcode == OP_CHANNEL:
+                channel = Channel.parse(body)
+                if topics.get(channel.id) != channel.topic:
+                    raise SystemExit(
+                        f"VERIFY FAILED: chunk says channel {channel.id} is {channel.topic!r}, "
+                        f"summary says {topics.get(channel.id)!r}")
+    stated = (mcap.statistics or {}).get("channel_message_counts", {})
+    for channel_id, count in seen.items():
+        if channel_id not in topics:
+            raise SystemExit(f"VERIFY FAILED: messages remain for deleted channel {channel_id}")
+        if stated.get(channel_id) != count:
+            raise SystemExit(
+                f"VERIFY FAILED: {topics[channel_id]} has {count} messages, statistics say "
+                f"{stated.get(channel_id)}")
+    for channel_id in stated:
+        if channel_id not in seen:
+            raise SystemExit(f"VERIFY FAILED: statistics count a channel with no messages left")
+    mcap.file.close()
+    print(f"verified: {sum(seen.values()):,} messages across {len(seen)} topics, "
+          f"summary and data agree")
+
+
+if __name__ == "__main__":
+    main()
