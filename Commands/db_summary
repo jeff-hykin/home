@@ -1,6 +1,9 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-ffi --unstable-ffi
 
 import { Database } from "jsr:@db/sqlite@0.12"
+import { McapIndexedReader } from "https://esm.sh/@mcap/core@2.1.7"
+import { decompress as zstdDecompress } from "https://esm.sh/fzstd@0.1.1"
+import lz4 from "https://esm.sh/lz4js@0.2.0"
 
 // piping into head/less closes stdout early, which is not an error worth a stack trace
 globalThis.addEventListener("unhandledrejection", (event) => {
@@ -37,9 +40,9 @@ for (let i = 0; i < args.length; i++) {
         treeStream = args[++i]
     } else if (args[i] === "-h" || args[i] === "--help") {
         console.log(`db_summary — Per-stream counts, rates and gaps, plus the tf frame tree,
-             for a dimos memory2 .db recording
+             for a dimos memory2 .db recording, or a ROS 2 / LCM .mcap
 
-Usage: db_summary <recording.db> [--no-empty] [--json] [--color|--no-color]
+Usage: db_summary <recording.db|recording.mcap> [--no-empty] [--json] [--color|--no-color]
                                  [--no-tree] [--seconds N] [--stream NAME]
 
 Options:
@@ -67,7 +70,9 @@ p99 and gap are shaded by their multiple of the stream's own average
 interval, independent of the other streams.
 
 Counts rows in each stream's table (no payload decoding), so it works even when
-a recording references a renamed/missing payload module.`)
+a recording references a renamed/missing payload module. For an .mcap the streams
+are its channels (leading slash dropped), payload is the schema name, and the
+timestamps are log times.`)
         Deno.exit(0)
     } else if (!dbPath) {
         dbPath = args[i]
@@ -146,48 +151,41 @@ const logFraction = (value, max) => {
 // 1.0x is perfectly even spacing, 20x or worse is saturated red
 const gapFraction = (ratio) => Math.log10(Math.max(1, ratio)) / Math.log10(20)
 
-const db = new Database(dbPath, { readonly: true })
+const isMcap = dbPath.toLowerCase().endsWith(".mcap")
 
-// Pull each stream's registered payload module (a string; not imported).
-const streams = db.prepare("SELECT name, config FROM _streams ORDER BY name").all()
-
+// Both sources produce the same rows; the tf tree needs a way to fetch the first
+// few seconds of a TFMessage stream and a decoder for its bytes.
 const rows = []
-for (const { name, config } of streams) {
-    let payload = ""
-    try {
-        payload = JSON.parse(config)?.payload_module ?? ""
-    } catch (_e) {
-        payload = ""
-    }
-    const count = db.prepare(`SELECT COUNT(*) AS c FROM "${name}"`).get().c
+let db = null
+let mcap = null
+let mcapFile = null
+
+const summarise = (name, payload, count, times) => {
+    // times: ascending seconds; only needed when count > 1
     let lo = null
     let hi = null
     let maxGap = 0
     let p99Gap = 0
-    if (count > 0) {
-        const r = db.prepare(`SELECT MIN(ts) AS lo, MAX(ts) AS hi FROM "${name}"`).get()
-        lo = r.lo
-        hi = r.hi
+    if (count > 0 && times.length > 0) {
+        lo = times[0]
+        hi = times[times.length - 1]
     }
-    if (count > 1) {
-        const gaps = `SELECT ts - LAG(ts) OVER (ORDER BY ts) AS d FROM "${name}"`
-        maxGap = db.prepare(`SELECT MAX(d) AS g FROM (${gaps})`).get()?.g ?? 0
-        // max is one stall; p99 says whether the stream stutters routinely or
-        // just hiccupped once, which is the difference between a bad recording
-        // and a fine one that hit a single scheduling blip
-        const gapCount = count - 1
-        const index = Math.min(gapCount - 1, Math.max(0, Math.ceil(gapCount * 0.99) - 1))
-        p99Gap = db.prepare(
-            `SELECT d AS g FROM (${gaps}) WHERE d IS NOT NULL ORDER BY d LIMIT 1 OFFSET ${index}`,
-        ).get()?.g ?? 0
+    if (times.length > 1) {
+        const gaps = new Float64Array(times.length - 1)
+        for (let i = 1; i < times.length; i++) {
+            gaps[i - 1] = times[i] - times[i - 1]
+        }
+        gaps.sort()
+        maxGap = gaps[gaps.length - 1]
+        const index = Math.min(gaps.length - 1, Math.max(0, Math.ceil(gaps.length * 0.99) - 1))
+        p99Gap = gaps[index]
     }
     const dur = (lo !== null && hi !== null) ? (hi - lo) : 0
     const hz = (dur > 0) ? (count / dur) : 0
-    // how uneven the worst gap is compared to this stream's own average spacing
     const meanGap = (count > 1 && dur > 0) ? (dur / (count - 1)) : 0
     const gapRatio = (meanGap > 0 && maxGap > 0) ? (maxGap / meanGap) : 0
     const p99Ratio = (meanGap > 0 && p99Gap > 0) ? (p99Gap / meanGap) : 0
-    rows.push({
+    return {
         name,
         count,
         start: lo,
@@ -199,7 +197,68 @@ for (const { name, config } of streams) {
         max_gap_s: maxGap,
         gap_ratio: gapRatio,
         payload,
-    })
+    }
+}
+
+let streams = []
+if (isMcap) {
+    mcapFile = await Deno.open(dbPath, { read: true })
+    const size = (await mcapFile.stat()).size
+    const readable = {
+        size: async () => BigInt(size),
+        read: async (offset, length) => {
+            const buffer = new Uint8Array(Number(length))
+            await mcapFile.seek(Number(offset), Deno.SeekMode.Start)
+            let filled = 0
+            while (filled < buffer.length) {
+                const read = await mcapFile.read(buffer.subarray(filled))
+                if (read === null) {
+                    break
+                }
+                filled += read
+            }
+            return buffer
+        },
+    }
+    const decompressHandlers = {
+        zstd: (bytes, size) => zstdDecompress(bytes, new Uint8Array(Number(size))),
+        lz4: (bytes) => new Uint8Array(lz4.decompress(bytes)),
+    }
+    mcap = await McapIndexedReader.Initialize({ readable, decompressHandlers })
+    const channels = [...mcap.channelsById.values()].sort((a, b) => a.topic.localeCompare(b.topic))
+    // One pass over the whole file: every chunk is decompressed exactly once and
+    // only the log times are kept, so a 60 GB recording costs one sequential read.
+    const timesById = new Map(channels.map((channel) => [channel.id, []]))
+    for await (const message of mcap.readMessages()) {
+        timesById.get(message.channelId)?.push(Number(message.logTime) / 1e9)
+    }
+    for (const channel of channels) {
+        const name = channel.topic.replace(/^\//, "")
+        const schema = mcap.schemasById.get(channel.schemaId)
+        const payload = schema ? `${schema.name} (${channel.messageEncoding})` : channel.messageEncoding
+        const times = timesById.get(channel.id)
+        times.sort((a, b) => a - b)
+        const count = Number(mcap.statistics?.channelMessageCounts.get(channel.id) ?? times.length)
+        rows.push(summarise(name, payload, count, times))
+        streams.push({ name, config: JSON.stringify({ payload_module: schema?.name ?? "" }), channel })
+    }
+} else {
+    db = new Database(dbPath, { readonly: true })
+    // Pull each stream's registered payload module (a string; not imported).
+    streams = db.prepare("SELECT name, config FROM _streams ORDER BY name").all()
+    for (const { name, config } of streams) {
+        let payload = ""
+        try {
+            payload = JSON.parse(config)?.payload_module ?? ""
+        } catch (_e) {
+            payload = ""
+        }
+        const count = db.prepare(`SELECT COUNT(*) AS c FROM "${name}"`).get().c
+        const times = count > 0
+            ? db.prepare(`SELECT ts FROM "${name}" ORDER BY ts`).all().map((r) => r.ts)
+            : []
+        rows.push(summarise(name, payload, count, times))
+    }
 }
 
 // --- tf frame tree ---
@@ -230,17 +289,56 @@ const decodeFrames = (data) => {
     return { parent, child }
 }
 
+// ROS 2 CDR TFMessage: 4-byte encapsulation, then a sequence of TransformStamped
+// (header{stamp sec/nanosec, frame_id}, child_frame_id, translation, rotation).
+// Alignment is measured from the body start; only the frame names are read.
+const decodeCdrFrames = (data) => {
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+    const little = (view.getUint8(1) & 1) === 1
+    let at = 4
+    const align = (width) => {
+        at += (width - ((at - 4) % width)) % width
+    }
+    const uint32 = () => {
+        align(4)
+        const value = view.getUint32(at, little)
+        at += 4
+        return value
+    }
+    const string = () => {
+        const length = uint32()
+        const bytes = new Uint8Array(view.buffer, view.byteOffset + at, Math.max(0, length - 1))
+        at += length
+        return new TextDecoder().decode(bytes)
+    }
+    const edges = []
+    for (let i = uint32(); i > 0; i--) {
+        uint32() // stamp.sec
+        uint32() // stamp.nanosec
+        const parent = string()
+        const child = string()
+        align(8)
+        at += 7 * 8 // translation xyz + rotation xyzw
+        edges.push({ parent, child })
+    }
+    return edges
+}
+
 let treeRows = []
+let treeDecode = (data) => {
+    const frames = decodeFrames(data)
+    return frames ? [frames] : []
+}
 if (showTree && !asJson) {
     if (!treeStream) {
         for (const { name, config } of streams) {
             let type = ""
             try {
-                type = JSON.parse(config)?.payload_module?.split(".").pop() ?? ""
+                type = JSON.parse(config)?.payload_module?.split(/[./]/).pop() ?? ""
             } catch (_e) {
                 type = ""
             }
-            if (type === "TFMessage" || name === "tf") {
+            if (type === "TFMessage" || name === "tf" || name === "tf_static") {
                 treeStream = name
                 break
             }
@@ -248,17 +346,33 @@ if (showTree && !asJson) {
     }
     const known = rows.find((r) => r.name === treeStream)
     if (treeStream && known && known.count > 0) {
-        treeRows = db.prepare(
-            `SELECT b.data AS data FROM "${treeStream}" AS s
-             JOIN "${treeStream}_blob" AS b ON b.id = s.id
-             WHERE s.ts >= ? AND s.ts <= ?`,
-        ).all(known.start, known.start + treeSeconds)
+        if (isMcap) {
+            const { channel } = streams.find((s) => s.name === treeStream)
+            const endNs = BigInt(Math.round((known.start + treeSeconds) * 1e9))
+            for await (const message of mcap.readMessages({ topics: [channel.topic], endTime: endNs })) {
+                treeRows.push({ data: message.data })
+            }
+            if (channel.messageEncoding === "cdr") {
+                treeDecode = decodeCdrFrames
+            }
+        } else {
+            treeRows = db.prepare(
+                `SELECT b.data AS data FROM "${treeStream}" AS s
+                 JOIN "${treeStream}_blob" AS b ON b.id = s.id
+                 WHERE s.ts >= ? AND s.ts <= ?`,
+            ).all(known.start, known.start + treeSeconds)
+        }
     } else {
         treeStream = null
     }
 }
 
-db.close()
+if (db) {
+    db.close()
+}
+if (mcapFile) {
+    mcapFile.close()
+}
 
 const visible = showEmpty ? rows : rows.filter((r) => r.count > 0)
 
@@ -307,7 +421,7 @@ for (const r of visible) {
     const hzStr = r.hz > 0 ? r.hz.toFixed(1) : "-"
     const gapStr = r.max_gap_s > 0 ? `${fmtGap(r.max_gap_s)} ${r.gap_ratio.toFixed(1)}x` : "-"
     // keep the tail of the payload module, the long dimos.msgs prefix is noise
-    const shortPayload = r.payload.split(".").slice(-2).join(".")
+    const shortPayload = r.payload.includes("/") ? r.payload : r.payload.split(".").slice(-2).join(".")
     const countCell = r.count > 0
         ? paintBg(String(r.count).padStart(9), logFraction(r.count, maxCount))
         : String(r.count).padStart(9)
@@ -343,10 +457,7 @@ const parentsOf = new Map()
 const allFrames = new Set()
 const childFrames = new Set()
 for (const row of treeRows) {
-    const frames = decodeFrames(row.data)
-    if (!frames) {
-        continue
-    }
+    for (const frames of treeDecode(row.data)) {
     if (!childrenOf.has(frames.parent)) {
         childrenOf.set(frames.parent, new Set())
     }
@@ -359,6 +470,7 @@ for (const row of treeRows) {
     allFrames.add(frames.parent)
     allFrames.add(frames.child)
     childFrames.add(frames.child)
+    }
 }
 
 // a frame with two parents means two publishers are fighting over it, which tf does not allow
