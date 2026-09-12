@@ -81,15 +81,20 @@ server_pids() {
 port_of_pid() {
     args=$(ps -o args= -p "$1" 2>/dev/null) || return 1
     previous=""
+    found=""
     for word in $args; do
+        # The LAST one, because that is the one dimos uses, and only a word that starts
+        # with `--`: matching `server-port=` anywhere in a word made
+        # `--store-path /data/server-port=abc/main.db` answer "abc/main.db".
         case "$word" in
-            *server[-_]port=*) printf '%s' "${word#*=}"; return 0 ;;
+            --*server[-_]port=*) found=${word#*=} ;;
         esac
         case "$previous" in
-            *--*server[-_]port) printf '%s' "$word"; return 0 ;;
+            --*server[-_]port) found=$word ;;
         esac
         previous=$word
     done
+    if [ -n "$found" ]; then printf '%s' "$found"; return 0; fi
     return 1
 }
 
@@ -298,9 +303,15 @@ if [ "$recording" = "--stop" ]; then
     # reported as its orphaned worker -- naming, on this machine, the live demo's pid,
     # under a message that tells the operator to kill it.
     running=$(server_pids 2>/dev/null) || true
+    port_known=""
+    if [ -n "${MEMORYWORLDMODULE__SERVER_PORT:-}" ]; then port_known=env; fi
+    for i in $(seq 2 $#); do
+        case "${!i}" in --*server[-_]port*) port_known=flag ;; esac
+    done
     for pid in $running; do
         if found=$(port_of_pid "$pid"); then
             port=$found
+            port_known=argv
             break
         fi
     done
@@ -310,9 +321,13 @@ if [ "$recording" = "--stop" ]; then
     # process pattern, which cannot see the forkserver worker that holds the socket, so
     # `--stop` said "stopped" over a port that was still serving. Measured: supervisor
     # killed with -9, worker still listening, exit 0 and "stopped".
-    # Only when there was one of OURS to stop. Something unrelated listening on the
-    # default port is not a stop that failed, it is somebody else's program.
-    if [ -n "$running" ] && port_is_taken; then
+    # Only when there was one of ours to stop AND we know which port it was on. dimos
+    # also takes the port from the environment and from --config, neither of which
+    # reaches argv, and this script reads MEMORYWORLDMODULE__SERVER_PORT itself; launches
+    # from here now forward the resolved port explicitly so argv always carries it, but a
+    # server started another way may still not say. Guessing the default is how this
+    # printed "kill those pids" at the live demo's listener.
+    if [ -n "$running" ] && [ -n "$port_known" ] && port_is_taken; then
         echo "memworld: the supervisor is gone but port $port is still being served:" >&2
         if command -v lsof >/dev/null 2>&1; then lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2; fi
         echo "memworld: an orphaned worker outlives a supervisor killed with -9." >&2
@@ -405,6 +420,7 @@ nohup dimos run memory-world-module \
     --transport lcm \
     --memoryworldmodule.store-path "$recording" \
     --memoryworldmodule.image-index-stride 5 \
+    --memoryworldmodule.server-port "$port" \
     ${extra[@]+"${extra[@]}"} \
     "${@:2}" \
     > "$log" 2>&1 &
