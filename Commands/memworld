@@ -38,7 +38,11 @@ source "$venv/bin/activate"
 # serving, and the next launch then binds nothing, gets 200 from the OLD server -- the
 # probe below cannot tell them apart -- and prints its URLs over the previous recording's
 # world. That failure is already written down in module.py's `start()`, seen in a live log.
-pattern='bin/dimos( [^ ]+)* run memory-world-(module|agent)'
+# ...and ENDING there: without the trailing anchor this also matched
+# `memory-world-agent-backup`, and it matched the quoted pattern inside a
+# `watch pgrep -f '.../dimos run memory-world-module'` left in another pane -- the
+# diagnostic command about memworld being the likeliest thing to carry these words.
+pattern='bin/dimos( [^ ]+)* run memory-world-(module|agent)( |$)'
 
 # 0 = gone, 1 = still there, 2 = cannot tell. `pgrep` exits 1 for "no match" and
 # >1 for its own failures, and the difference matters: treating "cannot tell" as
@@ -125,7 +129,14 @@ steal_lock() {
     mv "$lock" "$dead" 2>/dev/null || return 1
     owner=$(cat "$dead/pid" 2>/dev/null || true)
     if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
-        mv "$dead" "$lock" 2>/dev/null || rm -rf "$dead"
+        # Alive after all, so give it back -- but NEVER with `mv "$dead" "$lock"`.
+        # Moving a directory onto a name another launcher has since created does not
+        # fail, it NESTS the old lock inside the new one, and then both of them believe
+        # they hold it. Claim the name atomically or drop our copy and lose the race.
+        if mkdir "$lock" 2>/dev/null; then
+            mv "$dead/pid" "$lock/pid" 2>/dev/null || true
+        fi
+        rm -rf "$dead"
         return 1
     fi
     rm -rf "$dead"
@@ -174,7 +185,9 @@ stop_server_or_die() {
     case $? in
         2) echo "memworld: cannot tell whether a server is running (pgrep failed)" >&2 ;;
         *) echo "memworld: a server is still running after 135s, so $log is being left alone." >&2
-           echo "memworld: if you are sure it is wedged: kill -9 $(pgrep -f "$pattern" | tr '\n' ' ')" >&2 ;;
+           echo "memworld: if you are sure it is wedged, kill its whole process GROUP --" >&2
+           echo "memworld:   kill -TERM -\$(ps -o pgid= -p $(pgrep -f "$pattern" | head -1) | tr -d ' ')" >&2
+           echo "memworld: a plain kill -9 of the supervisor orphans the worker holding the port." >&2 ;;
     esac
     exit 1
 }
@@ -260,6 +273,20 @@ extra=()
 if [ -d "$hyperspace_model" ]; then
     extra+=(--memoryworldmodule.hyperspace-model-name "$hyperspace_model")
 fi
+# The stop above can only see the SUPERVISOR. Measured with lsof on the live demo, the
+# process holding the port is a forkserver GRANDCHILD whose argv this pattern cannot
+# match. A clean SIGTERM sweeps it by DIMOS_RUN_ID, but a `kill -9` -- which this script
+# itself used to suggest -- orphans it, and then the stop looks clean, the new server
+# fails to bind, and the probe below is answered by the OLD one. So ask the port itself,
+# which is the only thing that knows.
+if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "memworld: the stop looked clean but something still holds port $port:" >&2
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2
+    echo "memworld: usually an orphaned worker of a server killed with -9. Kill those pids" >&2
+    echo "memworld: and run this again; $log has been left alone." >&2
+    exit 1
+fi
+
 # Rotate rather than truncate. The process whose argv says `dimos run memory-world-module`
 # is a SUPERVISOR: measured with lsof on the live demo, the `:8443` listener and four of the
 # five holders of this log were forkserver workers the pattern cannot see, all sharing one
@@ -299,7 +326,9 @@ release_lock
 
 printf 'memworld: starting on %s' "$(basename "$recording")"
 for _ in $(seq 1 120); do
-    if curl -sk -o /dev/null --max-time 2 "https://127.0.0.1:$port/memory_world"; then
+    # -f: without it curl calls a 404 a success, so ANY listener on the port -- an old
+    # server, something else entirely -- ends this loop and prints the banner and URLs.
+    if curl -fsk -o /dev/null --max-time 2 "https://127.0.0.1:$port/memory_world"; then
         lan=$(ipconfig getifaddr en0 2>/dev/null || echo 127.0.0.1)
         echo
         echo "  this machine  https://127.0.0.1:$port/memory_world?flat"
