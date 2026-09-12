@@ -28,7 +28,17 @@ stop_server() {
     # Only this module. `dimos stop` is global — it kills every dimos module on
     # the machine, including other people's and other sessions' blueprints.
     pkill -f 'dimos run memory-world-module' 2>/dev/null || true
-    sleep 2
+    # Wait for it to GO, rather than sleeping a guess. A flat `sleep 2` expires while
+    # the dying process still holds block-buffered stdout, and the `> "$log"` below
+    # truncates the file while that process keeps its old offset -- so its buffered tail
+    # lands past the new run's output and leaves a megabyte of NULs in between. `tail`
+    # then shows a dead run's traceback, `tail -f` shows nothing at all because the live
+    # process writes far below the end of the file, and the script tells the operator to
+    # read that log twice, including when the server never answered.
+    for _ in $(seq 1 50); do
+        pgrep -f 'dimos run memory-world-module' >/dev/null 2>&1 || break
+        sleep 0.2
+    done
 }
 
 if [ "$recording" = "--stop" ]; then
