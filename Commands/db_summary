@@ -442,17 +442,17 @@ if (isMcap) {
 }
 
 // --- tf frame tree ---
-// One transform per blob, LCM-encoded:
-//   fingerprint(8) + transforms_len i32(4) + seq i32(4) + stamp i64(8)
-//   then frame_id string, then child_frame_id string (each: i32 length incl null + bytes)
+// LCM-encoded TFMessage, which carries a *sequence* of transforms:
+//   fingerprint(8) + transforms_len i32(4), then per transform:
+//   seq i32(4) + stamp i64(8) + frame_id string + child_frame_id string
+//   + translation 3xf64 + rotation 4xf64  (each string: i32 length incl null + bytes)
+const TRANSFORM_STAMP_BYTES = 12
+const TRANSFORM_POSE_BYTES = 7 * 8
 const decodeFrames = (data) => {
     const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
     // empty TFMessages are only 12 bytes: fingerprint(8) + count(4)
     const transformsLength = data.length >= 12 ? view.getInt32(8, false) : 0
-    if (transformsLength < 1) {
-        return null
-    }
-    let offset = 24
+    let offset = 12
     const readString = () => {
         const length = view.getInt32(offset, false)
         offset += 4
@@ -464,9 +464,21 @@ const decodeFrames = (data) => {
         }
         return new TextDecoder().decode(bytes.slice(0, end))
     }
-    const parent = readString()
-    const child = readString()
-    return { parent, child }
+    const edges = []
+    for (let index = 0; index < transformsLength; index++) {
+        offset += TRANSFORM_STAMP_BYTES
+        if (offset > data.length) {
+            break
+        }
+        const parent = readString()
+        const child = readString()
+        offset += TRANSFORM_POSE_BYTES
+        if (offset > data.length) {
+            break
+        }
+        edges.push({ parent, child })
+    }
+    return edges
 }
 
 // ROS 2 CDR TFMessage: 4-byte encapsulation, then a sequence of TransformStamped
@@ -505,10 +517,7 @@ const decodeCdrFrames = (data) => {
 }
 
 let treeRows = []
-let treeDecode = (data) => {
-    const frames = decodeFrames(data)
-    return frames ? [frames] : []
-}
+let treeDecode = decodeFrames
 if (showTree && !asJson) {
     if (!treeStream) {
         for (const { name, config } of streams) {
