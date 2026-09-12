@@ -24,10 +24,24 @@ fi
 # PYTHONPATH override that puts this branch's dimos/ first.
 source "$venv/bin/activate"
 
+pattern='dimos run memory-world-module'
+
+# 0 = gone, 1 = still there, 2 = cannot tell. `pgrep` exits 1 for "no match" and
+# >1 for its own failures, and the difference matters: treating "cannot tell" as
+# "gone" is how a stop that did nothing reports success.
+server_state() {
+    if pgrep -f "$pattern" >/dev/null 2>&1; then
+        return 1
+    elif [ $? -eq 1 ]; then
+        return 0
+    fi
+    return 2
+}
+
 stop_server() {
     # Only this module. `dimos stop` is global — it kills every dimos module on
     # the machine, including other people's and other sessions' blueprints.
-    pkill -f 'dimos run memory-world-module' 2>/dev/null || true
+    pkill -f "$pattern" 2>/dev/null || true
     # Wait for it to GO, rather than sleeping a guess. A flat `sleep 2` expires while
     # the dying process still holds block-buffered stdout, and the `> "$log"` below
     # truncates the file while that process keeps its old offset -- so its buffered tail
@@ -36,13 +50,54 @@ stop_server() {
     # process writes far below the end of the file, and the script tells the operator to
     # read that log twice, including when the server never answered.
     for _ in $(seq 1 50); do
-        pgrep -f 'dimos run memory-world-module' >/dev/null 2>&1 || break
+        server_state && return 0
+        [ $? -eq 2 ] && return 2   # cannot tell: say so rather than guess
         sleep 0.2
     done
+    return 1
+}
+
+lock=/tmp/memworld.lock
+
+# One launcher at a time. Two invocations can otherwise both finish stop_server
+# before either reaches `nohup`, and then both open $log with O_TRUNC at their own
+# offsets -- the same NUL-hole the stop wait was added to prevent, except no wait
+# can fix it because the second writer is not dying, it is starting.
+take_lock() {
+    holder=""
+    for _ in $(seq 1 5); do
+        if mkdir "$lock" 2>/dev/null; then
+            echo $$ > "$lock/pid"
+            trap 'rm -f "$lock/pid"; rmdir "$lock" 2>/dev/null || true' EXIT
+            return 0
+        fi
+        holder=$(cat "$lock/pid" 2>/dev/null || true)
+        if [ -z "$holder" ]; then
+            sleep 0.2            # holder is mid-mkdir, has not written its pid yet
+        elif kill -0 "$holder" 2>/dev/null; then
+            break                # a live launcher owns it
+        else
+            rm -rf "$lock"       # it died without cleaning up
+        fi
+    done
+    echo "memworld: another memworld is starting or stopping (pid ${holder:-?}, lock $lock)" >&2
+    exit 1
+}
+
+# Refuse to report a stop that did not happen, and never truncate the log or launch
+# beside a server that is still up.
+stop_server_or_die() {
+    stop_server && return 0
+    case $? in
+        2) echo "memworld: cannot tell whether a server is running (pgrep failed)" >&2 ;;
+        *) echo "memworld: a server is still running after 10s; not touching $log" >&2 ;;
+    esac
+    exit 1
 }
 
 if [ "$recording" = "--stop" ]; then
-    stop_server
+    take_lock
+    stop_server_or_die
     echo "memworld: stopped"
     exit 0
 fi
@@ -51,7 +106,35 @@ if [ ! -f "$recording" ]; then
     exit 1
 fi
 
-stop_server
+# The port the module will actually serve on: "${@:2}" can override it, and probing
+# 8443 then waits on whatever is already there -- or on nothing, for two minutes.
+# Parsed BEFORE anything destructive: a bad flag must not cost the operator the
+# server that is currently up, and `--server-port` with no value would abort on
+# ${!next} after the running demo had already been killed and replaced.
+port=8443
+for i in $(seq 2 $#); do
+    case "${!i}" in
+        --memoryworldmodule.server-port=*|--server-port=*) port="${!i#*=}" ;;
+        --memoryworldmodule.server-port|--server-port)
+            next=$((i + 1))
+            if [ "$next" -gt "$#" ]; then
+                echo "memworld: ${!i} needs a port number" >&2
+                exit 1
+            fi
+            port="${!next}"
+            ;;
+    esac
+done
+case "$port" in
+    ''|*[!0-9]*) echo "memworld: server port must be a number, got '$port'" >&2; exit 1 ;;
+esac
+if [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+    echo "memworld: server port out of range: $port" >&2
+    exit 1
+fi
+
+take_lock
+stop_server_or_die
 cd "$repo"
 export PYTHONPATH="$repo"
 # No stream flags: the module names them from the recording's message types,
@@ -73,16 +156,6 @@ nohup dimos run memory-world-module \
     "${@:2}" \
     > "$log" 2>&1 &
 
-# The port the module will actually serve on: "${@:2}" above can override it, and
-# probing 8443 then waits on whatever is already there -- or on nothing, for two minutes.
-port=8443
-for i in $(seq 2 $#); do
-    case "${!i}" in
-        --memoryworldmodule.server-port=*) port="${!i#*=}" ;;
-        --memoryworldmodule.server-port|--server-port) next=$((i + 1)); port="${!next}" ;;
-        --server-port=*) port="${!i#*=}" ;;
-    esac
-done
 
 printf 'memworld: starting on %s' "$(basename "$recording")"
 for _ in $(seq 1 120); do
