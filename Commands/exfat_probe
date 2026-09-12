@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""Read everything worth knowing about an exFAT volume's boot region, in one pass.
+
+exFAT keeps its geometry in a 12-sector boot region at the start of the volume and a
+byte-for-byte backup of it at sector 12. When a volume stops mounting, the question is
+almost always which of the two survived -- and if the backup did, the repair is a copy
+rather than a rebuild, and no file data is touched. This prints both, decoded and
+compared, verifies the checksum the spec puts in sector 11, and says what to do.
+
+Read-only. Point it at the raw partition device:
+
+    sudo exfat_probe /dev/rdisk5s1
+"""
+
+import struct
+import sys
+
+SECTOR = 512
+BACKUP_AT = 12
+FIELDS = [
+    ("PartitionOffset", 64, 8),
+    ("VolumeLength", 72, 8),
+    ("FatOffset", 80, 4),
+    ("FatLength", 84, 4),
+    ("ClusterHeapOffset", 88, 4),
+    ("ClusterCount", 92, 4),
+    ("FirstClusterOfRootDirectory", 96, 4),
+    ("VolumeSerialNumber", 100, 4),
+    ("FileSystemRevision", 104, 2),
+    ("VolumeFlags", 106, 2),
+    ("BytesPerSectorShift", 108, 1),
+    ("SectorsPerClusterShift", 109, 1),
+    ("NumberOfFats", 110, 1),
+    ("DriveSelect", 111, 1),
+    ("PercentInUse", 112, 1),
+]
+
+
+def value(block, at, width):
+    raw = block[at:at + width]
+    return int.from_bytes(raw, "little"), raw
+
+
+def decode(block):
+    out = {}
+    for name, at, width in FIELDS:
+        out[name] = value(block, at, width)[0]
+    return out
+
+
+def looks_like_vbr(block):
+    """The three things the spec fixes, so a sector can be judged without its geometry."""
+    return {
+        "jump": block[0:3] == b"\xeb\x76\x90",
+        "name": block[3:11] == b"EXFAT   ",
+        "zeros": block[11:64] == b"\0" * 53,
+        "signature": block[510:512] == b"\x55\xaa",
+    }
+
+
+def boot_checksum(region):
+    """The spec's checksum over sectors 0-10, skipping VolumeFlags and PercentInUse,
+    which are allowed to change without invalidating it."""
+    total = 0
+    for index in range(11 * SECTOR):
+        if index in (106, 107, 112):
+            continue
+        total = (((total << 31) | (total >> 1)) + region[index]) & 0xFFFFFFFF
+    return total
+
+
+def report(label, block):
+    marks = looks_like_vbr(block)
+    ok = all(marks.values())
+    print(f"\n  {label}")
+    print(f"    header   {'OK' if ok else 'DAMAGED'}  "
+          + "  ".join(f"{k}={'y' if v else 'NO'}" for k, v in marks.items()))
+    print(f"    bytes 0-15    {block[0:16].hex(' ', 1)}")
+    print(f"    bytes 64-95   {block[64:96].hex(' ', 1)}")
+    if block[64:96] == b"\0" * 32:
+        print("    geometry      ALL ZERO -- this copy carries no volume geometry")
+        return None
+    numbers = decode(block)
+    sector_size = 1 << numbers["BytesPerSectorShift"] if numbers["BytesPerSectorShift"] else 0
+    cluster = sector_size * (1 << numbers["SectorsPerClusterShift"]) if sector_size else 0
+    print(f"    volume        {numbers['VolumeLength']:,} sectors"
+          f"  ({numbers['VolumeLength'] * SECTOR / 1e12:.2f} TB at 512 B)")
+    print(f"    partition at  {numbers['PartitionOffset']:,} sectors")
+    print(f"    fat           offset {numbers['FatOffset']:,}  length {numbers['FatLength']:,}"
+          f"  count {numbers['NumberOfFats']}")
+    print(f"    clusters      heap at {numbers['ClusterHeapOffset']:,}"
+          f"  count {numbers['ClusterCount']:,}  root at {numbers['FirstClusterOfRootDirectory']:,}")
+    print(f"    sector {sector_size} B, cluster {cluster / 1024:.0f} KiB,"
+          f"  revision {numbers['FileSystemRevision'] >> 8}.{numbers['FileSystemRevision'] & 0xFF},"
+          f"  flags 0x{numbers['VolumeFlags']:04x},  {numbers['PercentInUse']}% in use")
+    print(f"    serial        {numbers['VolumeSerialNumber']:08X}")
+    return numbers
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit(__doc__)
+    path = sys.argv[1]
+    try:
+        with open(path, "rb") as device:
+            head = device.read(SECTOR * 24)
+    except PermissionError:
+        sys.exit(f"{path}: permission denied -- run this under sudo")
+    except OSError as error:
+        sys.exit(f"{path}: {error}")
+    if len(head) < SECTOR * 24:
+        sys.exit(f"{path}: could only read {len(head)} bytes")
+
+    print(f"{path}: first 24 sectors read")
+    main_block = head[0:SECTOR]
+    backup_block = head[BACKUP_AT * SECTOR:(BACKUP_AT + 1) * SECTOR]
+    main_numbers = report("main boot region, sector 0", main_block)
+    backup_numbers = report(f"backup boot region, sector {BACKUP_AT}", backup_block)
+
+    print("\n  checksums (spec puts one in sector 11 of each region, repeated to fill it)")
+    for label, base in (("main", 0), ("backup", BACKUP_AT)):
+        region = head[base * SECTOR:(base + 11) * SECTOR]
+        stored = struct.unpack_from("<I", head, (base + 11) * SECTOR)[0]
+        computed = boot_checksum(region)
+        print(f"    {label:7} stored {stored:08X}  computed {computed:08X}  "
+              + ("match" if stored == computed else "MISMATCH"))
+
+    print("\n  verdict")
+    if main_numbers is not None and backup_numbers is not None:
+        differences = [k for k in main_numbers if main_numbers[k] != backup_numbers[k]]
+        if not differences:
+            print("    both copies present and identical; the boot region is not the problem")
+        else:
+            print(f"    both present but disagree on: {', '.join(differences)}")
+    elif backup_numbers is not None:
+        print("    the main region is empty and the BACKUP IS INTACT.")
+        print("    The repair is to copy the backup's 12 sectors over the main's, which")
+        print("    touches no file data:")
+        print(f"        sudo dd if={path} bs=512 skip=0 count=24 of=~/exfat_bootregion_backup.bin")
+        print(f"        sudo dd if=~/exfat_bootregion_backup.bin bs=512 skip=12 count=12 \\")
+        print(f"            of={path} seek=0 conv=notrunc")
+        print("    Take the first copy before the second; it is the undo.")
+    elif main_numbers is not None:
+        print("    the main region is intact and the backup is empty; mounting should work,")
+        print("    so whatever is stopping it is not the geometry")
+    else:
+        print("    neither copy carries geometry -- this is a rebuild, not a repair.")
+        print("    Image the whole partition before anything else touches it.")
+
+
+if __name__ == "__main__":
+    main()
