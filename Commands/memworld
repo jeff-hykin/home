@@ -272,7 +272,12 @@ field_of() {   # the canonical field this argument sets, or nothing
         server-port|client-route) printf '%s' "$name" ;;
     esac
 }
-port=${MEMORYWORLDMODULE__SERVER_PORT:-8443}          # the environment sets these too
+port=8443
+port_explicit=""      # did anyone actually SAY a port, or is 8443 just the default?
+if [ -n "${MEMORYWORLDMODULE__SERVER_PORT:-}" ]; then
+    port=$MEMORYWORLDMODULE__SERVER_PORT
+    port_explicit=env
+fi
 route=${MEMORYWORLDMODULE__CLIENT_ROUTE:-/memory_world}
 for i in $(seq 2 $#); do
     arg="${!i}"
@@ -290,9 +295,17 @@ for i in $(seq 2 $#); do
             ;;
     esac
     case "$field" in
-        server-port) port="$value" ;;
+        server-port) port="$value"; port_explicit=flag ;;
         client-route) route="$value" ;;
     esac
+done
+# A --config can set the port too, and it never reaches argv. Injecting the DEFAULT over
+# it would silently move the server off the port the file asked for, so when a config is
+# in play and nobody has named a port, say nothing and probe the default -- which fails
+# loudly if the config chose otherwise, rather than quietly serving the wrong one.
+config_given=""
+for i in $(seq 2 $#); do
+    case "${!i}" in --config|--config=*) config_given=yes ;; esac
 done
 case "$route" in /*) ;; *) route="/$route" ;; esac
 
@@ -420,7 +433,7 @@ nohup dimos run memory-world-module \
     --transport lcm \
     --memoryworldmodule.store-path "$recording" \
     --memoryworldmodule.image-index-stride 5 \
-    --memoryworldmodule.server-port "$port" \
+    ${port_explicit:+--memoryworldmodule.server-port "$port"} \
     ${extra[@]+"${extra[@]}"} \
     "${@:2}" \
     > "$log" 2>&1 &
@@ -442,6 +455,9 @@ done
 release_lock
 
 
+if [ -n "$config_given" ] && [ -z "$port_explicit" ]; then
+    echo "memworld: --config may set its own port; probing the default $port." >&2
+fi
 printf 'memworld: starting on %s' "$(basename "$recording")"
 for _ in $(seq 1 120); do
     # Our child, not just the port. The lock is released before this loop, so another
@@ -458,6 +474,22 @@ for _ in $(seq 1 120); do
     # -f: without it curl calls a 404 a success, so ANY listener on the port -- an old
     # server, something else entirely -- ends this loop and prints the banner and URLs.
     if curl -fsk -o /dev/null --max-time 2 "https://127.0.0.1:$port$route"; then
+        # ...and it is OURS. `kill -0 "$launched"` above catches a loser that was killed,
+        # but a loser that merely failed to BIND is still alive -- start() only logs a
+        # warning on Errno 48 -- and would otherwise print this banner over the winner's
+        # world. The listener is a forkserver child sharing the supervisor's process
+        # group, which is the same fact the `kill -TERM -PGID` advice above relies on.
+        listener=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null | head -1)
+        if [ -n "$listener" ]; then
+            ours=$(ps -o pgid= -p "$launched" 2>/dev/null | tr -d ' ')
+            theirs=$(ps -o pgid= -p "$listener" 2>/dev/null | tr -d ' ')
+            if [ -n "$ours" ] && [ -n "$theirs" ] && [ "$ours" != "$theirs" ]; then
+                echo
+                echo "memworld: port $port is served by another launch (pid $listener), not this one." >&2
+                echo "memworld: this run's log is $log; it did not get the port." >&2
+                exit 1
+            fi
+        fi
         lan=$(ipconfig getifaddr en0 2>/dev/null || echo 127.0.0.1)
         echo
         echo "  this machine  https://127.0.0.1:$port$route?flat"
