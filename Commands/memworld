@@ -48,11 +48,18 @@ export PYTHONPATH="$repo"
 # so this works on someone else's robot too. Pass extra flags to override.
 # --transport lcm keeps this off the zenoh bus, so it starts even when another
 # session's blueprint holds the Coordinator there, and never disturbs it.
+# Hyperspace answers need SigLIP2 so400m; a local snapshot avoids the HF download.
+hyperspace_model="${MEMWORLD_SIGLIP2:-$HOME/models/siglip2-so400m-patch16-384}"
+extra=()
+if [ -d "$hyperspace_model" ]; then
+    extra+=(--memoryworldmodule.hyperspace-model-name "$hyperspace_model")
+fi
 nohup dimos run memory-world-module \
     --g.rerun-open none \
     --transport lcm \
     --memoryworldmodule.store-path "$recording" \
     --memoryworldmodule.image-index-stride 5 \
+    ${extra[@]+"${extra[@]}"} \
     "${@:2}" \
     > "$log" 2>&1 &
 
