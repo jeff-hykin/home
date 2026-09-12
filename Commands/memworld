@@ -317,6 +317,13 @@ i=1
 while [ $((i += 1)) -le $# ]; do
     case "${!i}" in --config|--config=*) config_given=yes ;; esac
 done
+# With no config in play, forward the resolved port even when it is the bare default.
+# `--stop` can only recognise an orphaned worker on a port it knows, and it learns the
+# port from argv; for a plain `memworld` argv carried none, so `port_known` was empty and
+# the whole orphan check was skipped -- `--stop` printed "stopped" over a port that was
+# still being served, which is the exact failure that check was added for.
+forward_port=""
+if [ -n "$port_explicit" ] || [ -z "$config_given" ]; then forward_port=yes; fi
 case "$route" in /*) ;; *) route="/$route" ;; esac
 
 if [ "$recording" = "--stop" ]; then
@@ -347,10 +354,11 @@ while [ $((i += 1)) -le $# ]; do
     # killed with -9, worker still listening, exit 0 and "stopped".
     # Only when there was one of ours to stop AND we know which port it was on. dimos
     # also takes the port from the environment and from --config, neither of which
-    # reaches argv, and this script reads MEMORYWORLDMODULE__SERVER_PORT itself; launches
-    # from here now forward the resolved port explicitly so argv always carries it, but a
-    # server started another way may still not say. Guessing the default is how this
-    # printed "kill those pids" at the live demo's listener.
+    # reaches argv, and this script reads MEMORYWORLDMODULE__SERVER_PORT itself. Launches
+    # from here forward the resolved port unless a --config is in play, so argv usually
+    # carries it; a server started another way, or from a config, may still not say.
+    # Guessing the default is how this printed "kill those pids" at the live demo's
+    # listener, so an unknown port skips the check rather than assuming 8443.
     if [ -n "$running" ] && [ -n "$port_known" ] && port_is_taken; then
         echo "memworld: the supervisor is gone but port $port is still being served:" >&2
         if command -v lsof >/dev/null 2>&1; then lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2; fi
@@ -444,7 +452,7 @@ nohup dimos run memory-world-module \
     --transport lcm \
     --memoryworldmodule.store-path "$recording" \
     --memoryworldmodule.image-index-stride 5 \
-    ${port_explicit:+--memoryworldmodule.server-port "$port"} \
+    ${forward_port:+--memoryworldmodule.server-port "$port"} \
     ${extra[@]+"${extra[@]}"} \
     "${@:2}" \
     > "$log" 2>&1 &
