@@ -1,0 +1,298 @@
+#!/usr/bin/env python3
+"""Everything about every attached disk, in one read-only pass.
+
+Written because diagnosing one drive turned into six rounds of "now run this".
+It enumerates the disks itself, reads the partition table off the device rather
+than trusting what the OS says about it, identifies each filesystem from its own
+bytes, lists the root directory of the ones it can read, and then says why
+anything that should mount does not.
+
+The case it exists for: macOS picks a filesystem driver from the GPT partition
+TYPE, so a perfectly good exFAT volume on a partition still typed "Linux
+filesystem" is unreadable here and mounts fine on Linux, which probes content.
+That looks exactly like a corrupt drive and is not one.
+
+    sudo drive_report            every disk
+    sudo drive_report disk5      just that one
+
+Nothing here writes. Run it under sudo or the raw devices stay shut.
+"""
+
+import plistlib
+import struct
+import subprocess
+import sys
+
+SECTOR = 512
+
+# The type a partition must carry for macOS to try exFAT, NTFS or FAT on it.
+BASIC_DATA = "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"
+PARTITION_TYPES = {
+    BASIC_DATA: "Microsoft basic data (what macOS needs for exFAT/NTFS/FAT)",
+    "0FC63DAF-8483-4772-8E79-3D69D8477DE4": "Linux filesystem",
+    "0657FD6D-A4AB-43C4-84E5-0933C84B4F4F": "Linux swap",
+    "E6D6D379-F507-44C2-A23C-238F2A3DF928": "Linux LVM",
+    "48465300-0000-11AA-AA11-00306543ECAC": "Apple HFS+",
+    "7C3457EF-0000-11AA-AA11-00306543ECAC": "Apple APFS",
+    "426F6F74-0000-11AA-AA11-00306543ECAC": "Apple boot (recovery)",
+    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B": "EFI system",
+    "21686148-6449-6E6F-744E-656564454649": "BIOS boot",
+    "E3C9E316-0B5C-4DB8-817D-F92DF00215AE": "Microsoft reserved",
+}
+
+
+def run(*command):
+    try:
+        return subprocess.run(command, capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def guid(raw):
+    """GPT stores the first three fields little-endian and the rest big-endian."""
+    a, b, c = struct.unpack_from("<IHH", raw, 0)
+    d = raw[8:10]
+    e = raw[10:16]
+    return f"{a:08X}-{b:04X}-{c:04X}-{d.hex().upper()}-{e.hex().upper()}"
+
+
+def read(path, offset, length):
+    """Raw devices demand sector-aligned reads, so widen and trim."""
+    start = (offset // SECTOR) * SECTOR
+    end = -(-(offset + length) // SECTOR) * SECTOR
+    with open(path, "rb") as device:
+        device.seek(start)
+        block = device.read(end - start)
+    return block[offset - start:offset - start + length]
+
+
+def partitions(disk):
+    """Read the GPT off the disk itself; what the OS reports can be a cached lie."""
+    path = f"/dev/r{disk}"
+    try:
+        header = read(path, SECTOR, SECTOR)
+    except OSError as error:
+        return None, str(error)
+    if header[0:8] != b"EFI PART":
+        return None, "no GPT (MBR or unpartitioned)"
+    entry_lba, count, size = struct.unpack_from("<QII", header, 72)
+    table = read(path, entry_lba * SECTOR, count * size)
+    found = []
+    for index in range(count):
+        entry = table[index * size:(index + 1) * size]
+        type_guid = guid(entry[0:16])
+        if type_guid == "00000000-0000-0000-0000-000000000000":
+            continue
+        first, last = struct.unpack_from("<QQ", entry, 32)
+        name = entry[56:128].decode("utf-16-le", "replace").rstrip("\x00")
+        found.append({
+            "index": index + 1, "type": type_guid, "first": first, "last": last, "name": name,
+        })
+    return found, None
+
+
+def filesystem_of(block):
+    """Name the filesystem from its own bytes, the way Linux does."""
+    if block[3:11] == b"EXFAT   ":
+        return "exFAT"
+    if block[3:11] == b"NTFS    ":
+        return "NTFS"
+    if block[82:87] == b"FAT32":
+        return "FAT32"
+    if block[54:59] in (b"FAT16", b"FAT12"):
+        return block[54:59].decode()
+    if len(block) > 1082 and block[1080:1082] == b"\x53\xef":
+        return "ext2/3/4"
+    if block[32:36] == b"NXSB":
+        return "APFS"
+    if len(block) > 1026 and block[1024:1026] in (b"H+", b"HX"):
+        return "HFS+"
+    if block[:8] == b"\0" * 8:
+        return "none (zeroed)"
+    return "unrecognised"
+
+
+EXFAT_FIELDS = [
+    ("PartitionOffset", 64, 8), ("VolumeLength", 72, 8), ("FatOffset", 80, 4),
+    ("FatLength", 84, 4), ("ClusterHeapOffset", 88, 4), ("ClusterCount", 92, 4),
+    ("FirstClusterOfRootDirectory", 96, 4), ("VolumeSerialNumber", 100, 4),
+    ("FileSystemRevision", 104, 2), ("VolumeFlags", 106, 2),
+    ("BytesPerSectorShift", 108, 1), ("SectorsPerClusterShift", 109, 1),
+    ("NumberOfFats", 110, 1), ("PercentInUse", 112, 1),
+]
+
+
+def exfat_numbers(block):
+    return {name: int.from_bytes(block[at:at + width], "little")
+            for name, at, width in EXFAT_FIELDS}
+
+
+def exfat_checksum(region):
+    total = 0
+    for index in range(11 * SECTOR):
+        if index in (106, 107, 112):
+            continue
+        total = (((total << 31) | (total >> 1)) + region[index]) & 0xFFFFFFFF
+    return total
+
+
+def exfat_root(path, base, numbers):
+    sector_size = 1 << numbers["BytesPerSectorShift"]
+    per_cluster = 1 << numbers["SectorsPerClusterShift"]
+    start = base + (numbers["ClusterHeapOffset"]
+                    + (numbers["FirstClusterOfRootDirectory"] - 2) * per_cluster) * sector_size
+    block = read(path, start, per_cluster * sector_size)
+    entries, pending, name = [], None, ""
+    for at in range(0, len(block), 32):
+        kind = block[at]
+        if kind == 0x00:
+            break
+        if not kind & 0x80:
+            continue
+        if kind == 0x85:
+            if pending is not None:
+                entries.append(pending)
+            pending = {"name": "", "size": 0, "directory": bool(block[at + 4] & 0x10)}
+            name = ""
+        elif kind == 0xC0 and pending is not None:
+            pending["size"] = int.from_bytes(block[at + 24:at + 32], "little")
+        elif kind == 0xC1 and pending is not None:
+            name += block[at + 2:at + 32].decode("utf-16-le", "replace")
+            pending["name"] = name.rstrip("\x00")
+    if pending is not None:
+        entries.append(pending)
+    return entries, start
+
+
+def describe_exfat(path, base, problems, label):
+    """Both boot regions, decoded and checked, then the root directory."""
+    head = read(path, base, SECTOR * 24)
+    main, backup = head[0:SECTOR], head[12 * SECTOR:13 * SECTOR]
+    numbers = None
+    for name, block, offset in (("main", main, 0), ("backup", backup, 12)):
+        valid = (block[0:3] == b"\xeb\x76\x90" and block[3:11] == b"EXFAT   "
+                 and block[510:512] == b"\x55\xaa")
+        geometry = block[64:96] != b"\0" * 32
+        stored = struct.unpack_from("<I", head, (offset + 11) * SECTOR)[0]
+        computed = exfat_checksum(head[offset * SECTOR:(offset + 11) * SECTOR])
+        print(f"      {name:6} header {'ok' if valid else 'DAMAGED'}, "
+              f"geometry {'present' if geometry else 'ALL ZERO'}, "
+              f"checksum {'ok' if stored == computed else 'MISMATCH'}")
+        if geometry and numbers is None:
+            numbers = exfat_numbers(block)
+    if numbers is None:
+        problems.append(f"{label}: exFAT boot region carries no geometry in either copy")
+        return
+    sector_size = 1 << numbers["BytesPerSectorShift"]
+    cluster = sector_size << numbers["SectorsPerClusterShift"]
+    print(f"      volume {numbers['VolumeLength']:,} sectors "
+          f"({numbers['VolumeLength'] * sector_size / 1e12:.2f} TB), cluster {cluster // 1024} KiB, "
+          f"serial {numbers['VolumeSerialNumber']:08X}, flags 0x{numbers['VolumeFlags']:04x}, "
+          f"{numbers['PercentInUse']}% in use")
+    if numbers["VolumeFlags"] & 0x0002:
+        problems.append(f"{label}: volume is flagged dirty (unclean unmount)")
+    try:
+        entries, start = exfat_root(path, base, numbers)
+    except OSError as error:
+        print(f"      root directory unreadable: {error}")
+        return
+    print(f"      root directory at byte {start:,}: {len(entries)} entries")
+    for entry in entries[:40]:
+        kind = "dir " if entry["directory"] else "file"
+        print(f"        {kind} {entry['size'] / 1e9:10.3f} GB  {entry['name']}")
+    if len(entries) > 40:
+        print(f"        ... and {len(entries) - 40} more")
+    if not entries:
+        problems.append(f"{label}: the volume is EMPTY -- nothing in the root directory")
+
+
+def mount_state():
+    """What the OS currently has mounted, so "not mounted" is a fact not a guess."""
+    raw = run("diskutil", "list", "-plist")
+    mounted = {}
+    try:
+        data = plistlib.loads(raw.encode()) if raw else {}
+    except Exception:
+        return mounted
+    for disk in data.get("AllDisksAndPartitions", []):
+        for partition in disk.get("Partitions", []):
+            mounted[partition["DeviceIdentifier"]] = partition.get("MountPoint")
+        if disk.get("DeviceIdentifier"):
+            mounted.setdefault(disk["DeviceIdentifier"], disk.get("MountPoint"))
+    return mounted
+
+
+def main():
+    wanted = sys.argv[1:] if len(sys.argv) > 1 else None
+    raw = run("diskutil", "list", "-plist")
+    try:
+        data = plistlib.loads(raw.encode()) if raw else {}
+    except Exception:
+        sys.exit("could not read diskutil's disk list")
+    disks = [d["DeviceIdentifier"] for d in data.get("AllDisksAndPartitions", [])]
+    if wanted:
+        disks = [d for d in disks if d in wanted or f"/dev/{d}" in wanted]
+    mounted = mount_state()
+    problems = []
+
+    for disk in disks:
+        info = run("diskutil", "info", "-plist", disk)
+        try:
+            facts = plistlib.loads(info.encode()) if info else {}
+        except Exception:
+            facts = {}
+        size = facts.get("TotalSize", 0)
+        print(f"\n{'=' * 78}\n{disk}  {facts.get('MediaName', '?')}  "
+              f"{size / 1e9:.1f} GB  "
+              f"{'external' if not facts.get('Internal', True) else 'internal'}"
+              f"{'  (read-only)' if facts.get('WritableMedia') is False else ''}")
+
+        table, error = partitions(disk)
+        if table is None:
+            print(f"  partition table: {error}")
+            continue
+        for part in table:
+            device = f"{disk}s{part['index']}"
+            path = f"/dev/r{disk}"
+            base = part["first"] * SECTOR
+            length = (part["last"] - part["first"] + 1) * SECTOR
+            type_name = PARTITION_TYPES.get(part["type"], "unknown type")
+            where = mounted.get(device)
+            print(f"\n  {device}  {length / 1e9:.1f} GB  \"{part['name']}\"")
+            print(f"    gpt type   {part['type']}  {type_name}")
+            print(f"    mounted    {where if where else 'no'}")
+            try:
+                block = read(path, base, 2048)
+            except OSError as problem:
+                print(f"    content    unreadable: {problem}")
+                continue
+            found = filesystem_of(block)
+            print(f"    content    {found}")
+
+            if found in ("exFAT", "NTFS", "FAT32", "FAT16", "FAT12") and part["type"] != BASIC_DATA:
+                problems.append(
+                    f"{device}: holds {found} but the partition is typed \"{type_name}\". "
+                    f"macOS chooses its driver from the type, so it will not mount this, "
+                    f"while Linux probes the content and mounts it fine. The filesystem is "
+                    f"not the problem.")
+            if found == "exFAT":
+                describe_exfat(path, base, problems, device)
+
+    print(f"\n{'=' * 78}\nverdict")
+    if not problems:
+        print("  nothing found that would stop a volume mounting")
+    for problem in problems:
+        print(f"  - {problem}")
+    if any("typed" in p for p in problems):
+        print("\n  To retype a partition as Microsoft basic data so macOS will mount it")
+        print("  (this edits the partition table only, and touches no file data):")
+        print("      on Linux:  sudo sfdisk --part-type /dev/sdX N "
+              f"{BASIC_DATA}")
+        print("      on macOS:  sudo gpt -r show diskN     then  sudo gpt remove/add,")
+        print("                 which is fiddly and easy to get wrong; prefer the Linux side.")
+        print("  Back the first 34 sectors up first: "
+              "sudo dd if=/dev/rdiskN bs=512 count=34 of=~/gpt_backup.bin")
+
+
+if __name__ == "__main__":
+    main()
