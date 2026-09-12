@@ -63,13 +63,24 @@ nohup dimos run memory-world-module \
     "${@:2}" \
     > "$log" 2>&1 &
 
+# The port the module will actually serve on: "${@:2}" above can override it, and
+# probing 8443 then waits on whatever is already there -- or on nothing, for two minutes.
+port=8443
+for i in $(seq 2 $#); do
+    case "${!i}" in
+        --memoryworldmodule.server-port=*) port="${!i#*=}" ;;
+        --memoryworldmodule.server-port|--server-port) next=$((i + 1)); port="${!next}" ;;
+        --server-port=*) port="${!i#*=}" ;;
+    esac
+done
+
 printf 'memworld: starting on %s' "$(basename "$recording")"
 for _ in $(seq 1 120); do
-    if curl -sk -o /dev/null --max-time 2 "https://127.0.0.1:8443/memory_world"; then
+    if curl -sk -o /dev/null --max-time 2 "https://127.0.0.1:$port/memory_world"; then
         lan=$(ipconfig getifaddr en0 2>/dev/null || echo 127.0.0.1)
         echo
-        echo "  this machine  https://127.0.0.1:8443/memory_world?flat"
-        echo "  phone / Quest https://$lan:8443/memory_world       (self-signed cert: Advanced -> proceed)"
+        echo "  this machine  https://127.0.0.1:$port/memory_world?flat"
+        echo "  phone / Quest https://$lan:$port/memory_world       (self-signed cert: Advanced -> proceed)"
         echo "  ?flat skips WebXR, log $log, 'memworld --stop' to quit"
         exit 0
     fi
