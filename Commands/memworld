@@ -59,11 +59,38 @@ server_pids() {
     out=$(pgrep -f "$pattern" 2>/dev/null)
     if [ $? -gt 1 ]; then return 2; fi   # pgrep itself failed: not "no match"
     for candidate in $out; do
-        case "$(ps -o comm= -p "$candidate" 2>/dev/null)" in
-            *[Pp]ython*) printf '%s ' "$candidate" ;;
+        comm=$(ps -o comm= -p "$candidate" 2>/dev/null)
+        rc=$?
+        # 1 is "no such process" -- the candidate died between pgrep and here, and dropping
+        # it is right. Anything higher is `ps` itself failing or missing, and then believing
+        # it would make a LIVE server invisible and let --stop report a stop that never was.
+        if [ "$rc" -gt 1 ]; then
+            printf '%s ' "$candidate"
+            continue
+        fi
+        case "$comm" in
+            *[Pp]ython*|*[Pp]ypy*) printf '%s ' "$candidate" ;;
         esac
     done
     return 0
+}
+
+# The port a running server was told to serve, read from its own argv rather than
+# assumed. `--stop` used to ask the DEFAULT port about a server started on another one,
+# which is how it announced an orphaned worker and named the live demo's pid.
+port_of_pid() {
+    args=$(ps -o args= -p "$1" 2>/dev/null) || return 1
+    previous=""
+    for word in $args; do
+        case "$word" in
+            *server[-_]port=*) printf '%s' "${word#*=}"; return 0 ;;
+        esac
+        case "$previous" in
+            *--*server[-_]port) printf '%s' "$word"; return 0 ;;
+        esac
+        previous=$word
+    done
+    return 1
 }
 
 # 0 = gone, 1 = still there, 2 = cannot tell. The difference matters: treating
@@ -133,11 +160,16 @@ lock=/tmp/memworld.lock
 # has to recover from an abandoned one cannot be made airtight in shell: a reviewer
 # walked three launchers through an interleaving where one moves another's fresh lock
 # aside and a third claims the vacated name, leaving two that believe they hold it.
-# That is survivable here because nothing downstream depends on the lock being perfect:
-# the log is ROTATED rather than truncated, so a second writer cannot hole the first's
-# file, and the port is checked before launching, so the loser of a race refuses instead
-# of binding beside the winner. The lock makes the ordinary case tidy; those two make
-# the bad case safe. Do not add a timing heuristic here to chase the last interleaving
+# That is survivable, but NOT for the reason first written here. The log being ROTATED
+# rather than truncated does hold: a second writer cannot hole the first's file. The
+# other half -- "the port is checked before launching, so the loser refuses" -- was
+# false, and a reviewer said so: stop_server_or_die runs BEFORE the port check, so the
+# loser does not refuse, it kills the winner and binds in its place. The port guard only
+# catches a holder the process pattern cannot SEE, which is the orphaned worker it was
+# added for; a second launcher's server is exactly what the pattern can see and kill.
+# What that race actually costs is a launcher reporting success over the other one's
+# server, and the probe below now checks `$launched` for precisely that.
+# Do not add a timing heuristic here to chase the last interleaving
 # -- it would break the common recovery, which is a lock left by a run killed seconds ago.
 lock_held=""
 
@@ -261,13 +293,26 @@ case "$route" in /*) ;; *) route="/$route" ;; esac
 
 if [ "$recording" = "--stop" ]; then
     take_lock
+    # Ask the server we are about to kill which port it was serving, instead of assuming
+    # the default. A server on 19443 was stopped correctly and then the DEFAULT 8443 was
+    # reported as its orphaned worker -- naming, on this machine, the live demo's pid,
+    # under a message that tells the operator to kill it.
+    running=$(server_pids 2>/dev/null) || true
+    for pid in $running; do
+        if found=$(port_of_pid "$pid"); then
+            port=$found
+            break
+        fi
+    done
     stop_server_or_die
     # The same question the launch path asks. `stop_server_or_die`'s own header says it
     # refuses to report a stop that did not happen -- but it only ever consulted the
     # process pattern, which cannot see the forkserver worker that holds the socket, so
     # `--stop` said "stopped" over a port that was still serving. Measured: supervisor
     # killed with -9, worker still listening, exit 0 and "stopped".
-    if port_is_taken; then
+    # Only when there was one of OURS to stop. Something unrelated listening on the
+    # default port is not a stop that failed, it is somebody else's program.
+    if [ -n "$running" ] && port_is_taken; then
         echo "memworld: the supervisor is gone but port $port is still being served:" >&2
         if command -v lsof >/dev/null 2>&1; then lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2; fi
         echo "memworld: an orphaned worker outlives a supervisor killed with -9." >&2
@@ -383,6 +428,17 @@ release_lock
 
 printf 'memworld: starting on %s' "$(basename "$recording")"
 for _ in $(seq 1 120); do
+    # Our child, not just the port. The lock is released before this loop, so another
+    # `memworld` can legitimately take it, stop this server and bind in its place -- and
+    # then THIS launcher's curl gets a 200 from THAT one and prints a success banner
+    # naming this recording, with URLs into the other one's world. The wait loop above
+    # already asks `kill -0`; the loop that decides success did not.
+    if ! kill -0 "$launched" 2>/dev/null; then
+        echo
+        echo "memworld: the server exited before it answered. Last lines of $log:" >&2
+        tail -5 "$log" >&2
+        exit 1
+    fi
     # -f: without it curl calls a 404 a success, so ANY listener on the port -- an old
     # server, something else entirely -- ends this loop and prints the banner and URLs.
     if curl -fsk -o /dev/null --max-time 2 "https://127.0.0.1:$port$route"; then
