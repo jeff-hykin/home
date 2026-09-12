@@ -284,7 +284,7 @@ port=8443
 port_explicit=""      # did anyone actually SAY a port, or is 8443 just the default?
 if [ -n "${MEMORYWORLDMODULE__SERVER_PORT:-}" ]; then
     port=$MEMORYWORLDMODULE__SERVER_PORT
-    port_explicit=env
+    port_explicit="env"
 fi
 route=${MEMORYWORLDMODULE__CLIENT_ROUTE:-/memory_world}
 i=1
@@ -304,7 +304,7 @@ while [ $((i += 1)) -le $# ]; do
             ;;
     esac
     case "$field" in
-        server-port) port="$value"; port_explicit=flag ;;
+        server-port) port="$value"; port_explicit="flag" ;;
         client-route) route="$value" ;;
     esac
 done
@@ -334,15 +334,15 @@ if [ "$recording" = "--stop" ]; then
     # under a message that tells the operator to kill it.
     running=$(server_pids 2>/dev/null) || true
     port_known=""
-    if [ -n "${MEMORYWORLDMODULE__SERVER_PORT:-}" ]; then port_known=env; fi
+    if [ -n "${MEMORYWORLDMODULE__SERVER_PORT:-}" ]; then port_known="env"; fi
     i=1
 while [ $((i += 1)) -le $# ]; do
-        case "${!i}" in --*server[-_]port*) port_known=flag ;; esac
+        case "${!i}" in --*server[-_]port*) port_known="flag" ;; esac
     done
     for pid in $running; do
         if found=$(port_of_pid "$pid"); then
             port=$found
-            port_known=argv
+            port_known="argv"
             break
         fi
     done
