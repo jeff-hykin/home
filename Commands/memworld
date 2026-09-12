@@ -24,7 +24,12 @@ fi
 # PYTHONPATH override that puts this branch's dimos/ first.
 source "$venv/bin/activate"
 
-pattern='dimos run memory-world-module'
+# `bin/dimos`, not just the words: `pkill -f` kills anything whose argv CONTAINS the
+# pattern, and the thing most likely to have these words in its argv is a command
+# someone is running ABOUT memworld -- a `watch pgrep -f 'dimos run memory-world-module'`
+# left in another pane would otherwise be killed by every stop, and would wedge every
+# start. The real server always runs .venv/bin/dimos; only `python -m dimos` would miss.
+pattern='bin/dimos run memory-world-module'
 
 # 0 = gone, 1 = still there, 2 = cannot tell. `pgrep` exits 1 for "no match" and
 # >1 for its own failures, and the difference matters: treating "cannot tell" as
@@ -49,11 +54,28 @@ stop_server() {
     # then shows a dead run's traceback, `tail -f` shows nothing at all because the live
     # process writes far below the end of the file, and the script tells the operator to
     # read that log twice, including when the server never answered.
-    for _ in $(seq 1 50); do
-        server_state && return 0
-        [ $? -eq 2 ] && return 2   # cannot tell: say so rather than guess
+    # Budget 135 s, because that is what the module can legitimately need: stop() spends
+    # join(3) + two join(60) + a 5 s store-lock acquire, and the world-cache builds it is
+    # waiting on (_build_image_poses, _build_trail) walk the whole image stream without
+    # checking _stopping. A restart issued while the previous one is still building is an
+    # ordinary thing to do, and a 10 s budget refused it. Measured on the 59 GB recording
+    # with the server idle: gone in 3.34 s, so this is a ceiling, not a wait.
+    told=""
+    for i in $(seq 1 675); do
+        st=0; server_state || st=$?
+        if [ "$st" -eq 0 ]; then
+            if [ -n "$told" ]; then echo; fi
+            return 0
+        fi
+        if [ "$st" -eq 2 ]; then return 2; fi   # cannot tell: say so rather than guess
+        if [ -z "$told" ] && [ "$i" -gt 25 ]; then
+            told=1
+            printf 'memworld: waiting for the old server to finish shutting down'
+        fi
+        if [ -n "$told" ] && [ $((i % 10)) -eq 0 ]; then printf .; fi
         sleep 0.2
     done
+    if [ -n "$told" ]; then echo; fi
     return 1
 }
 
@@ -63,15 +85,29 @@ lock=/tmp/memworld.lock
 # before either reaches `nohup`, and then both open $log with O_TRUNC at their own
 # offsets -- the same NUL-hole the stop wait was added to prevent, except no wait
 # can fix it because the second writer is not dying, it is starting.
+lock_held=""
+
+release_lock() {
+    if [ -z "$lock_held" ]; then return 0; fi
+    lock_held=""            # never delete a lock a later launcher now owns
+    rm -f "$lock/pid"
+    rmdir "$lock" 2>/dev/null || true
+}
+
 take_lock() {
     holder=""
     for attempt in $(seq 1 8); do
         if mkdir "$lock" 2>/dev/null; then
             echo $$ > "$lock/pid"
-            # INT and TERM as well as EXIT: Ctrl-C during the four-minute wait below,
-            # or a `timeout`, kills the shell without running a bare EXIT trap, and a
-            # lock nobody holds is worse than no lock at all.
-            trap 'rm -f "$lock/pid"; rmdir "$lock" 2>/dev/null || true' EXIT INT TERM
+            lock_held=1
+            # A handler that does not exit RESUMES the interrupted loop, so trapping INT
+            # here is what stops Ctrl-C from working: the launcher would free its lock and
+            # carry on, letting a second one truncate the log beside it. The cleanup goes
+            # on EXIT alone -- which a signal reaches through these two, each of which
+            # actually exits, with the shell's own status for that signal.
+            trap release_lock EXIT
+            trap 'exit 130' INT
+            trap 'exit 143' TERM
             return 0
         fi
         holder=$(cat "$lock/pid" 2>/dev/null || true)
@@ -100,7 +136,8 @@ stop_server_or_die() {
     stop_server && return 0
     case $? in
         2) echo "memworld: cannot tell whether a server is running (pgrep failed)" >&2 ;;
-        *) echo "memworld: a server is still running after 10s; not touching $log" >&2 ;;
+        *) echo "memworld: a server is still running after 135s, so $log is being left alone." >&2
+           echo "memworld: if you are sure it is wedged: kill -9 $(pgrep -f "$pattern" | tr '\n' ' ')" >&2 ;;
     esac
     exit 1
 }
@@ -165,6 +202,17 @@ nohup dimos run memory-world-module \
     ${extra[@]+"${extra[@]}"} \
     "${@:2}" \
     > "$log" 2>&1 &
+
+# Hold the lock just long enough for that child to become visible to pgrep -- `nohup ... &`
+# returns before the exec, and a launcher that stopped at that instant would be told "no
+# server" and truncate $log underneath this one. Then release: holding it through the
+# readiness probe below would lock the operator out of `memworld --stop`, the very command
+# this script prints on success, for up to four minutes.
+for _ in $(seq 1 50); do
+    if pgrep -f "$pattern" >/dev/null 2>&1; then break; fi
+    sleep 0.1
+done
+release_lock
 
 
 printf 'memworld: starting on %s' "$(basename "$recording")"
