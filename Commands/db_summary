@@ -518,42 +518,66 @@ const decodeCdrFrames = (data) => {
 
 let treeRows = []
 let treeDecode = decodeFrames
+// Every tf stream, not just the first one found: the moving edges and the
+// latched static edges live in separate streams, and a tree built from only
+// one of them is a forest of fragments. --stream still pins it to just one.
+let treeStreams = []
 if (showTree && !asJson) {
-    if (!treeStream) {
-        for (const { name, config } of streams) {
-            let type = ""
-            try {
-                type = JSON.parse(config)?.payload_module?.split(/[./]/).pop() ?? ""
-            } catch (_e) {
-                type = ""
-            }
-            if (type === "TFMessage" || name === "tf" || name === "tf_static") {
-                treeStream = name
-                break
+    if (treeStream) {
+        treeStreams = [treeStream]
+    } else {
+        // Only the canonical pair is merged. Another TFMessage stream (rtab_tf,
+        // say) is a rival estimate of the same frames, not more of this tree --
+        // merging it would hand a frame two parents.
+        treeStreams = ["tf", "tf_static"].filter((name) => streams.some((s) => s.name === name))
+        if (treeStreams.length === 0) {
+            for (const { name, config } of streams) {
+                let type = ""
+                try {
+                    type = JSON.parse(config)?.payload_module?.split(/[./]/).pop() ?? ""
+                } catch (_e) {
+                    type = ""
+                }
+                if (type === "TFMessage") {
+                    treeStreams = [name]
+                    break
+                }
             }
         }
     }
-    const known = rows.find((r) => r.name === treeStream)
-    if (treeStream && known && known.count > 0) {
+    treeStreams = treeStreams.filter((name) => {
+        const known = rows.find((r) => r.name === name)
+        return known && known.count > 0
+    })
+    for (const name of treeStreams) {
+        const known = rows.find((r) => r.name === name)
+        // static edges are latched -- published once, at the very start, and
+        // never again, so a time window would drop them on a long recording
+        const isStatic = name.endsWith("_static")
         if (isMcap) {
-            const { channel } = streams.find((s) => s.name === treeStream)
+            const { channel } = streams.find((s) => s.name === name)
             const endNs = BigInt(Math.round((known.start + treeSeconds) * 1e9))
-            for await (const message of mcap.readMessages({ topics: [channel.topic], endTime: endNs })) {
+            const window = isStatic ? {} : { endTime: endNs }
+            for await (const message of mcap.readMessages({ topics: [channel.topic], ...window })) {
                 treeRows.push({ data: message.data })
             }
             if (channel.messageEncoding === "cdr") {
                 treeDecode = decodeCdrFrames
             }
+        } else if (isStatic) {
+            treeRows = treeRows.concat(db.prepare(
+                `SELECT b.data AS data FROM "${name}" AS s
+                 JOIN "${name}_blob" AS b ON b.id = s.id`,
+            ).all())
         } else {
-            treeRows = db.prepare(
-                `SELECT b.data AS data FROM "${treeStream}" AS s
-                 JOIN "${treeStream}_blob" AS b ON b.id = s.id
+            treeRows = treeRows.concat(db.prepare(
+                `SELECT b.data AS data FROM "${name}" AS s
+                 JOIN "${name}_blob" AS b ON b.id = s.id
                  WHERE s.ts >= ? AND s.ts <= ?`,
-            ).all(known.start, known.start + treeSeconds)
+            ).all(known.start, known.start + treeSeconds))
         }
-    } else {
-        treeStream = null
     }
+    treeStream = treeStreams.length > 0 ? treeStreams.join(" + ") : null
 }
 
 if (db) {
