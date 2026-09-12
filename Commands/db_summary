@@ -558,11 +558,12 @@ if (showTree && !asJson) {
             const { channel } = streams.find((s) => s.name === name)
             const endNs = BigInt(Math.round((known.start + treeSeconds) * 1e9))
             const window = isStatic ? {} : { endTime: endNs }
+            // the decoder travels with the row: tf and tf_static can be
+            // encoded differently in the same file, and one global decoder
+            // would read an LCM fingerprint as a CDR encapsulation header
+            const decode = channel.messageEncoding === "cdr" ? decodeCdrFrames : decodeFrames
             for await (const message of mcap.readMessages({ topics: [channel.topic], ...window })) {
-                treeRows.push({ data: message.data })
-            }
-            if (channel.messageEncoding === "cdr") {
-                treeDecode = decodeCdrFrames
+                treeRows.push({ data: message.data, decode })
             }
         } else if (isStatic) {
             treeRows = treeRows.concat(db.prepare(
@@ -670,7 +671,7 @@ const parentsOf = new Map()
 const allFrames = new Set()
 const childFrames = new Set()
 for (const row of treeRows) {
-    for (const frames of treeDecode(row.data)) {
+    for (const frames of (row.decode ?? treeDecode)(row.data)) {
     if (!childrenOf.has(frames.parent)) {
         childrenOf.set(frames.parent, new Set())
     }
@@ -692,12 +693,14 @@ const conflicted = [...parentsOf.entries()].filter(([_frame, seen]) => seen.size
 console.log(bold(`tf frames`) + dim(`  (${treeStream}, first ${treeSeconds}s, ${treeRows.length} msgs)`))
 
 const roots = [...allFrames].filter((frame) => !childFrames.has(frame)).sort()
-if (roots.length === 0) {
+if (allFrames.size === 0) {
     console.log(dim("(no tf frames found in this window)"))
     Deno.exit(0)
 }
 
+const printed = new Set()
 const renderChild = (frame, prefix, isLast, onPath) => {
+    printed.add(frame)
     const cycle = onPath.has(frame)
     const multiParent = (parentsOf.get(frame)?.size ?? 0) > 1
     const note = cycle
@@ -719,10 +722,33 @@ const renderChild = (frame, prefix, isLast, onPath) => {
 
 for (const root of roots) {
     console.log(bold(paint(root, 51)))
+    printed.add(root)
     const kids = [...(childrenOf.get(root) ?? [])].sort()
     kids.forEach((kid, index) => {
         renderChild(kid, "", index === kids.length - 1, new Set([root]))
     })
+}
+
+// Frames no root reaches are a cycle: every one of them is some frame's child,
+// so the root filter above cannot see them. Printing nothing here would hide
+// exactly the malformed tf this tool exists to surface.
+let stranded = [...allFrames].filter((frame) => !printed.has(frame)).sort()
+if (stranded.length > 0) {
+    console.log()
+    console.log(paint(
+        `${stranded.length} frame(s) no root reaches — a tf cycle, which tf does not allow:`,
+        196,
+    ))
+    while (stranded.length > 0) {
+        const entry = stranded[0]
+        console.log(bold(paint(entry, 51)))
+        printed.add(entry)
+        const kids = [...(childrenOf.get(entry) ?? [])].sort()
+        kids.forEach((kid, index) => {
+            renderChild(kid, "", index === kids.length - 1, new Set([entry]))
+        })
+        stranded = stranded.filter((frame) => !printed.has(frame))
+    }
 }
 
 if (conflicted.length > 0) {
