@@ -6,6 +6,10 @@
 #   memworld path/to/other.db    # or .mcap
 #   memworld --stop              # shut the server down
 #
+# ONE server at a time, whatever port it is on: starting a recording stops the one
+# already running even if the new one is going to a different --server-port, because
+# this script owns a single log and a single lock. Two at once is not a thing it does.
+#
 # The first run on a new recording builds a SigLIP image index and the voxel
 # replay streams into it (into <name>.derived.db for a read-only .mcap), which
 # takes a few minutes; after that it starts in seconds.
@@ -33,7 +37,8 @@ source "$venv/bin/activate"
 # started, not just the way this script starts it:
 #   memory-world-agent  is the blueprint the module's own README tells you to run, and it
 #                       serves the SAME module on the SAME default 8443.
-#   dimos --replay run  global options are accepted between `dimos` and `run`.
+#   dimos --replay run  global options sit between `dimos` and `run`, and
+#   run --config x BP    run's own options sit between `run` and the blueprint.
 # Missing either is not a near miss. `--stop` prints "stopped" over a server that is still
 # serving, and the next launch then binds nothing, gets 200 from the OLD server -- the
 # probe below cannot tell them apart -- and prints its URLs over the previous recording's
@@ -42,41 +47,47 @@ source "$venv/bin/activate"
 # `memory-world-agent-backup`, and it matched the quoted pattern inside a
 # `watch pgrep -f '.../dimos run memory-world-module'` left in another pane -- the
 # diagnostic command about memworld being the likeliest thing to carry these words.
-pattern='bin/dimos( [^ ]+)* run memory-world-(module|agent)( |$)'
+pattern='bin/dimos( [^ ]+)* run( [^ ]+)* memory-world-(module|agent)( |$)'
 
-# 0 = gone, 1 = still there, 2 = cannot tell. `pgrep` exits 1 for "no match" and
-# >1 for its own failures, and the difference matters: treating "cannot tell" as
-# "gone" is how a stop that did nothing reports success.
+# Which processes are actually this server. `pgrep -f` matches ARGV, and by the time the
+# kernel sees it the quotes are gone -- so `watch pgrep -f '.../dimos run memory-world-module'`
+# left in another pane has an argv ending exactly where a real launch's does, and NO pattern
+# can tell the two apart. A reviewer proved that against the anchor I had added believing it
+# did: with no server running at all, `--stop` printed "stopped" and killed the diagnostic.
+# The PROCESS can be told apart, though: the real one is python running dimos.
+server_pids() {
+    out=$(pgrep -f "$pattern" 2>/dev/null)
+    if [ $? -gt 1 ]; then return 2; fi   # pgrep itself failed: not "no match"
+    for candidate in $out; do
+        case "$(ps -o comm= -p "$candidate" 2>/dev/null)" in
+            *[Pp]ython*) printf '%s ' "$candidate" ;;
+        esac
+    done
+    return 0
+}
+
+# 0 = gone, 1 = still there, 2 = cannot tell. The difference matters: treating
+# "cannot tell" as "gone" is how a stop that did nothing reports success.
 server_state() {
-    if pgrep -f "$pattern" >/dev/null 2>&1; then
-        return 1
-    elif [ $? -eq 1 ]; then
-        return 0
-    fi
-    return 2
+    pids=$(server_pids) || return 2
+    if [ -n "$pids" ]; then return 1; fi
+    return 0
 }
 
 stop_server() {
     # Only this module. `dimos stop` is global — it kills every dimos module on
     # the machine, including other people's and other sessions' blueprints.
-    pkill -f "$pattern" 2>/dev/null || true
+    pids=$(server_pids 2>/dev/null) || true
+    if [ -n "$pids" ]; then kill $pids 2>/dev/null || true; fi
     # Wait for it to GO, rather than sleeping a guess. A flat `sleep 2` expires while
-    # the dying process still holds block-buffered stdout, and the `> "$log"` below
-    # truncates the file while that process keeps its old offset -- so its buffered tail
-    # lands past the new run's output and leaves a megabyte of NULs in between. `tail`
-    # then shows a dead run's traceback, `tail -f` shows nothing at all because the live
-    # process writes far below the end of the file, and the script tells the operator to
-    # read that log twice, including when the server never answered.
-    # Budget 135 s, because that is what the module can legitimately need: stop() spends
-    # join(3) + two join(60) + a 5 s store-lock acquire, and the world-cache builds it is
-    # waiting on (_build_image_poses, _build_trail) walk the whole image stream without
-    # checking _stopping. A restart issued while the previous one is still building is an
-    # ordinary thing to do, and a 10 s budget refused it. Measured on the 59 GB recording
-    # with the server idle: gone in 3.34 s, so this is a ceiling, not a wait.
-    # Against the CLOCK, not a count of iterations. 675 x `sleep 0.2` is 135 s of requested
-    # sleep, but each turn also forks `sleep` and `pgrep`, and macOS stretches short sleeps:
-    # measured end to end here it took 229 s to say "135s". A number this script prints has
-    # to be the number it waited.
+    # the dying process still holds block-buffered stdout, and a truncating redirect
+    # then leaves a megabyte of NULs between a dead run's tail and the live one's output.
+    # Against the CLOCK, not a count of iterations: 675 x `sleep 0.2` is 135 s of requested
+    # sleep, but each turn also forks, and macOS stretches short sleeps -- measured end to
+    # end it took 229 s to say "135s". Budget 135 s because that is what the module can
+    # legitimately need: stop() spends join(3) + two join(60) + a 5 s store-lock acquire,
+    # and the world-cache builds it waits on do not check _stopping. Measured on the 59 GB
+    # recording with the server idle: gone in 3.34 s, so this is a ceiling, not a wait.
     started=$(date +%s)
     deadline=$((started + 135))
     told=""
@@ -103,12 +114,31 @@ stop_server() {
     return 1
 }
 
+# lsof NAMES the holder, but bash can ask the port on its own, so a machine without
+# lsof still gets the guard rather than silently skipping it.
+port_is_taken() {
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
+        return $?
+    fi
+    if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+        exec 3<&- 3>&- 2>/dev/null || true
+        return 0
+    fi
+    return 1
+}
 lock=/tmp/memworld.lock
 
-# One launcher at a time. Two invocations can otherwise both finish stop_server
-# before either reaches `nohup`, and then both open $log with O_TRUNC at their own
-# offsets -- the same NUL-hole the stop wait was added to prevent, except no wait
-# can fix it because the second writer is not dying, it is starting.
+# One launcher at a time -- BEST EFFORT, and deliberately so. A mkdir lock that also
+# has to recover from an abandoned one cannot be made airtight in shell: a reviewer
+# walked three launchers through an interleaving where one moves another's fresh lock
+# aside and a third claims the vacated name, leaving two that believe they hold it.
+# That is survivable here because nothing downstream depends on the lock being perfect:
+# the log is ROTATED rather than truncated, so a second writer cannot hole the first's
+# file, and the port is checked before launching, so the loser of a race refuses instead
+# of binding beside the winner. The lock makes the ordinary case tidy; those two make
+# the bad case safe. Do not add a timing heuristic here to chase the last interleaving
+# -- it would break the common recovery, which is a lock left by a run killed seconds ago.
 lock_held=""
 
 release_lock() {
@@ -186,15 +216,63 @@ stop_server_or_die() {
         2) echo "memworld: cannot tell whether a server is running (pgrep failed)" >&2 ;;
         *) echo "memworld: a server is still running after 135s, so $log is being left alone." >&2
            echo "memworld: if you are sure it is wedged, kill its whole process GROUP --" >&2
-           echo "memworld:   kill -TERM -\$(ps -o pgid= -p $(pgrep -f "$pattern" | head -1) | tr -d ' ')" >&2
+           echo "memworld:   kill -TERM -\$(ps -o pgid= -p $(server_pids | awk '{print $1}') | tr -d ' ')" >&2
            echo "memworld: a plain kill -9 of the supervisor orphans the worker holding the port." >&2 ;;
     esac
     exit 1
 }
 
+# The ROUTE matters as much as the port: --client-route moves the viewer, and probing
+# /memory_world then gets a 404 from a perfectly healthy server -- which `curl -f` now
+# correctly refuses, turning a working launch into "did not answer in 4 minutes".
+field_of() {   # the canonical field this argument sets, or nothing
+    name=${1#--}
+    name=${name%%=*}
+    name=$(printf '%s' "$name" | tr '_' '-')
+    name=${name#modules.}
+    name=${name#memoryworldmodule.}
+    case "$name" in
+        server-port|client-route) printf '%s' "$name" ;;
+    esac
+}
+port=${MEMORYWORLDMODULE__SERVER_PORT:-8443}          # the environment sets these too
+route=${MEMORYWORLDMODULE__CLIENT_ROUTE:-/memory_world}
+for i in $(seq 2 $#); do
+    arg="${!i}"
+    field=$(field_of "$arg")
+    if [ -z "$field" ]; then continue; fi
+    case "$arg" in
+        *=*) value="${arg#*=}" ;;
+        *)
+            next=$((i + 1))
+            if [ "$next" -gt "$#" ]; then
+                echo "memworld: $arg needs a value" >&2
+                exit 1
+            fi
+            value="${!next}"
+            ;;
+    esac
+    case "$field" in
+        server-port) port="$value" ;;
+        client-route) route="$value" ;;
+    esac
+done
+case "$route" in /*) ;; *) route="/$route" ;; esac
+
 if [ "$recording" = "--stop" ]; then
     take_lock
     stop_server_or_die
+    # The same question the launch path asks. `stop_server_or_die`'s own header says it
+    # refuses to report a stop that did not happen -- but it only ever consulted the
+    # process pattern, which cannot see the forkserver worker that holds the socket, so
+    # `--stop` said "stopped" over a port that was still serving. Measured: supervisor
+    # killed with -9, worker still listening, exit 0 and "stopped".
+    if port_is_taken; then
+        echo "memworld: the supervisor is gone but port $port is still being served:" >&2
+        if command -v lsof >/dev/null 2>&1; then lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2; fi
+        echo "memworld: an orphaned worker outlives a supervisor killed with -9." >&2
+        exit 1
+    fi
     echo "memworld: stopped"
     exit 0
 fi
@@ -219,31 +297,6 @@ esac
 # `modules.<instance>.<field>` form as well -- and reading only three of them meant the
 # server came up on 9443 while this script probed 8443 and reported, after four minutes,
 # that a perfectly healthy server had never answered.
-port_flag() {   # the canonical name if this argument sets the port, else nothing
-    name=${1#--}
-    name=${name%%=*}
-    name=$(printf '%s' "$name" | tr '_' '-')
-    name=${name#modules.}
-    case "$name" in
-        server-port|memoryworldmodule.server-port) printf '%s' "$name" ;;
-    esac
-}
-port=${MEMORYWORLDMODULE__SERVER_PORT:-8443}   # the environment sets it too
-for i in $(seq 2 $#); do
-    arg="${!i}"
-    if [ -z "$(port_flag "$arg")" ]; then continue; fi
-    case "$arg" in
-        *=*) port="${arg#*=}" ;;
-        *)
-            next=$((i + 1))
-            if [ "$next" -gt "$#" ]; then
-                echo "memworld: $arg needs a port number" >&2
-                exit 1
-            fi
-            port="${!next}"
-            ;;
-    esac
-done
 case "$port" in
     ''|*[!0-9]*) echo "memworld: server port must be a number, got '$port'" >&2; exit 1 ;;
 esac
@@ -279,9 +332,13 @@ fi
 # itself used to suggest -- orphans it, and then the stop looks clean, the new server
 # fails to bind, and the probe below is answered by the OLD one. So ask the port itself,
 # which is the only thing that knows.
-if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+if port_is_taken; then
     echo "memworld: the stop looked clean but something still holds port $port:" >&2
-    lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2
+    else
+        echo "memworld:   (install lsof to be told which process)" >&2
+    fi
     echo "memworld: usually an orphaned worker of a server killed with -9. Kill those pids" >&2
     echo "memworld: and run this again; $log has been left alone." >&2
     exit 1
@@ -328,11 +385,11 @@ printf 'memworld: starting on %s' "$(basename "$recording")"
 for _ in $(seq 1 120); do
     # -f: without it curl calls a 404 a success, so ANY listener on the port -- an old
     # server, something else entirely -- ends this loop and prints the banner and URLs.
-    if curl -fsk -o /dev/null --max-time 2 "https://127.0.0.1:$port/memory_world"; then
+    if curl -fsk -o /dev/null --max-time 2 "https://127.0.0.1:$port$route"; then
         lan=$(ipconfig getifaddr en0 2>/dev/null || echo 127.0.0.1)
         echo
-        echo "  this machine  https://127.0.0.1:$port/memory_world?flat"
-        echo "  phone / Quest https://$lan:$port/memory_world       (self-signed cert: Advanced -> proceed)"
+        echo "  this machine  https://127.0.0.1:$port$route?flat"
+        echo "  phone / Quest https://$lan:$port$route       (self-signed cert: Advanced -> proceed)"
         echo "  ?flat skips WebXR, log $log, 'memworld --stop' to quit"
         exit 0
     fi
