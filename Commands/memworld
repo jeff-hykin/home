@@ -65,19 +65,29 @@ lock=/tmp/memworld.lock
 # can fix it because the second writer is not dying, it is starting.
 take_lock() {
     holder=""
-    for _ in $(seq 1 5); do
+    for attempt in $(seq 1 8); do
         if mkdir "$lock" 2>/dev/null; then
             echo $$ > "$lock/pid"
-            trap 'rm -f "$lock/pid"; rmdir "$lock" 2>/dev/null || true' EXIT
+            # INT and TERM as well as EXIT: Ctrl-C during the four-minute wait below,
+            # or a `timeout`, kills the shell without running a bare EXIT trap, and a
+            # lock nobody holds is worse than no lock at all.
+            trap 'rm -f "$lock/pid"; rmdir "$lock" 2>/dev/null || true' EXIT INT TERM
             return 0
         fi
         holder=$(cat "$lock/pid" 2>/dev/null || true)
-        if [ -z "$holder" ]; then
-            sleep 0.2            # holder is mid-mkdir, has not written its pid yet
-        elif kill -0 "$holder" 2>/dev/null; then
-            break                # a live launcher owns it
-        else
+        if [ -n "$holder" ]; then
+            if kill -0 "$holder" 2>/dev/null; then
+                break            # a live launcher owns it
+            fi
             rm -rf "$lock"       # it died without cleaning up
+        elif [ "$attempt" -ge 4 ]; then
+            # No pid after a second. Either someone was killed in the microseconds
+            # between mkdir and the write, or a stray directory is sitting there.
+            # Stealing a lock with no owner is safe; refusing to would wedge every
+            # future run with no way out but `rm -rf` by hand.
+            rm -rf "$lock"
+        else
+            sleep 0.3            # holder may be mid-mkdir; give it a moment
         fi
     done
     echo "memworld: another memworld is starting or stopping (pid ${holder:-?}, lock $lock)" >&2
