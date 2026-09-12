@@ -62,11 +62,13 @@ server_pids() {
         comm=$(ps -o comm= -p "$candidate" 2>/dev/null)
         rc=$?
         # 1 is "no such process" -- the candidate died between pgrep and here, and dropping
-        # it is right. Anything higher is `ps` itself failing or missing, and then believing
-        # it would make a LIVE server invisible and let --stop report a stop that never was.
+        # it is right. Anything higher is `ps` itself failing or missing, and there is no
+        # safe guess: excluding the candidate hides a live server, and INCLUDING it (which
+        # is what this did) kills whatever the pattern matched -- a `watch pgrep` in another
+        # pane -- on a machine that cannot say what it is. Say we cannot tell instead, which
+        # every caller already knows how to report.
         if [ "$rc" -gt 1 ]; then
-            printf '%s ' "$candidate"
-            continue
+            return 2
         fi
         case "$comm" in
             *[Pp]ython*|*[Pp]ypy*) printf '%s ' "$candidate" ;;
@@ -153,8 +155,14 @@ port_is_taken() {
         lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
         return $?
     fi
+    # The connect runs in a SUBSHELL, so its fd 3 dies with it and there is nothing here
+    # to close. The `exec 3<&- 3>&- 2>/dev/null` that used to sit here closed nothing and
+    # did something else entirely: `exec` with no command makes its redirections
+    # permanent, so it pointed THIS SCRIPT's stderr at /dev/null for the rest of the run.
+    # Every diagnostic below -- the orphaned-worker report, the reason for a refusal --
+    # vanished, and the launcher exited 1 in silence. It never fired here because lsof is
+    # always present on this machine, which is exactly why it survived nine rounds.
     if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
-        exec 3<&- 3>&- 2>/dev/null || true
         return 0
     fi
     return 1
@@ -230,13 +238,13 @@ take_lock() {
             if kill -0 "$holder" 2>/dev/null; then
                 break            # a live launcher owns it
             fi
-            steal_lock           # it died without cleaning up
+            steal_lock || true   # it died without cleaning up; a refusal just means retry
         elif [ "$attempt" -ge 4 ]; then
             # No pid after a second. Either someone was killed in the microseconds
             # between mkdir and the write, or a stray directory is sitting there.
             # Stealing a lock with no owner is safe; refusing to would wedge every
             # future run with no way out but `rm -rf` by hand.
-            steal_lock
+            steal_lock || true   # `return 1` here is normal: another racer won
         else
             sleep 0.3            # holder may be mid-mkdir; give it a moment
         fi
@@ -250,7 +258,7 @@ take_lock() {
 stop_server_or_die() {
     stop_server && return 0
     case $? in
-        2) echo "memworld: cannot tell whether a server is running (pgrep failed)" >&2 ;;
+        2) echo "memworld: cannot tell whether a server is running (pgrep or ps failed)" >&2 ;;
         *) echo "memworld: a server is still running after 135s, so $log is being left alone." >&2
            echo "memworld: if you are sure it is wedged, kill its whole process GROUP --" >&2
            echo "memworld:   kill -TERM -\$(ps -o pgid= -p $(server_pids | awk '{print $1}') | tr -d ' ')" >&2
@@ -458,8 +466,17 @@ done
 release_lock
 
 
-if [ -n "$config_given" ] && [ -z "$port_explicit" ]; then
-    echo "memworld: --config may set its own port; probing the default $port." >&2
+if [ -n "$config_given" ]; then
+    # Both halves. A config can move the ROUTE as well as the port, and probing
+    # "$port$route" when either came from the file gets a 404 from a perfectly healthy
+    # server -- which `curl -f` correctly refuses, so a working launch reports that it
+    # never answered. Only the port was warned about before.
+    if [ -z "$port_explicit" ]; then
+        echo "memworld: --config may set its own port; probing the default $port." >&2
+    fi
+    if [ "$route" = "/memory_world" ]; then
+        echo "memworld: --config may set its own client route; probing $route." >&2
+    fi
 fi
 printf 'memworld: starting on %s' "$(basename "$recording")"
 for _ in $(seq 1 120); do
@@ -477,7 +494,12 @@ for _ in $(seq 1 120); do
     # -f: without it curl calls a 404 a success, so ANY listener on the port -- an old
     # server, something else entirely -- ends this loop and prints the banner and URLs.
     if curl -fsk -o /dev/null --max-time 2 "https://127.0.0.1:$port$route"; then
-        lan=$(ipconfig getifaddr en0 2>/dev/null || echo 127.0.0.1)
+        # By path: ipconfig lives in /usr/sbin, and under a stock `PATH=/usr/bin:/bin` this
+        # fell back to 127.0.0.1 -- which on the headset means the headset, so the one URL
+        # printed FOR another device pointed at itself.
+        lan=$(/usr/sbin/ipconfig getifaddr en0 2>/dev/null \
+              || ipconfig getifaddr en0 2>/dev/null \
+              || echo 127.0.0.1)
         echo
         echo "  this machine  https://127.0.0.1:$port$route?flat"
         echo "  phone / Quest https://$lan:$port$route       (self-signed cert: Advanced -> proceed)"
