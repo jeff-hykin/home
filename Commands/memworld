@@ -29,7 +29,16 @@ source "$venv/bin/activate"
 # someone is running ABOUT memworld -- a `watch pgrep -f 'dimos run memory-world-module'`
 # left in another pane would otherwise be killed by every stop, and would wedge every
 # start. The real server always runs .venv/bin/dimos; only `python -m dimos` would miss.
-pattern='bin/dimos run memory-world-module'
+# `pgrep -f` takes an extended regex, and this has to match every way the module gets
+# started, not just the way this script starts it:
+#   memory-world-agent  is the blueprint the module's own README tells you to run, and it
+#                       serves the SAME module on the SAME default 8443.
+#   dimos --replay run  global options are accepted between `dimos` and `run`.
+# Missing either is not a near miss. `--stop` prints "stopped" over a server that is still
+# serving, and the next launch then binds nothing, gets 200 from the OLD server -- the
+# probe below cannot tell them apart -- and prints its URLs over the previous recording's
+# world. That failure is already written down in module.py's `start()`, seen in a live log.
+pattern='bin/dimos( [^ ]+)* run memory-world-(module|agent)'
 
 # 0 = gone, 1 = still there, 2 = cannot tell. `pgrep` exits 1 for "no match" and
 # >1 for its own failures, and the difference matters: treating "cannot tell" as
@@ -60,19 +69,30 @@ stop_server() {
     # checking _stopping. A restart issued while the previous one is still building is an
     # ordinary thing to do, and a 10 s budget refused it. Measured on the 59 GB recording
     # with the server idle: gone in 3.34 s, so this is a ceiling, not a wait.
+    # Against the CLOCK, not a count of iterations. 675 x `sleep 0.2` is 135 s of requested
+    # sleep, but each turn also forks `sleep` and `pgrep`, and macOS stretches short sleeps:
+    # measured end to end here it took 229 s to say "135s". A number this script prints has
+    # to be the number it waited.
+    started=$(date +%s)
+    deadline=$((started + 135))
     told=""
-    for i in $(seq 1 675); do
+    while :; do
         st=0; server_state || st=$?
         if [ "$st" -eq 0 ]; then
             if [ -n "$told" ]; then echo; fi
             return 0
         fi
         if [ "$st" -eq 2 ]; then return 2; fi   # cannot tell: say so rather than guess
-        if [ -z "$told" ] && [ "$i" -gt 25 ]; then
-            told=1
+        now=$(date +%s)
+        if [ "$now" -ge "$deadline" ]; then break; fi
+        if [ -z "$told" ] && [ $((now - started)) -ge 5 ]; then
+            told=$now
             printf 'memworld: waiting for the old server to finish shutting down'
         fi
-        if [ -n "$told" ] && [ $((i % 10)) -eq 0 ]; then printf .; fi
+        if [ -n "$told" ] && [ "$now" -gt "$told" ]; then
+            told=$now
+            printf .
+        fi
         sleep 0.2
     done
     if [ -n "$told" ]; then echo; fi
@@ -92,6 +112,23 @@ release_lock() {
     lock_held=""            # never delete a lock a later launcher now owns
     rm -f "$lock/pid"
     rmdir "$lock" 2>/dev/null || true
+}
+
+# Two launchers can read the same dead holder pid and both decide to clear the lock: the
+# first clears it and takes a NEW one, and the second's delete then removes THAT, leaving
+# both of them believing they hold it. So nothing is deleted on the strength of a pid read
+# earlier: the directory is MOVED first -- rename(2) is atomic, so exactly one racer gets
+# it -- and only then inspected, so what gets thrown away is always the thing that was
+# just examined. A holder that turns out to be alive is put straight back.
+steal_lock() {
+    dead="$lock.dead.$$"
+    mv "$lock" "$dead" 2>/dev/null || return 1
+    owner=$(cat "$dead/pid" 2>/dev/null || true)
+    if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
+        mv "$dead" "$lock" 2>/dev/null || rm -rf "$dead"
+        return 1
+    fi
+    rm -rf "$dead"
 }
 
 take_lock() {
@@ -115,13 +152,13 @@ take_lock() {
             if kill -0 "$holder" 2>/dev/null; then
                 break            # a live launcher owns it
             fi
-            rm -rf "$lock"       # it died without cleaning up
+            steal_lock           # it died without cleaning up
         elif [ "$attempt" -ge 4 ]; then
             # No pid after a second. Either someone was killed in the microseconds
             # between mkdir and the write, or a stray directory is sitting there.
             # Stealing a lock with no owner is safe; refusing to would wedge every
             # future run with no way out but `rm -rf` by hand.
-            rm -rf "$lock"
+            steal_lock
         else
             sleep 0.3            # holder may be mid-mkdir; give it a moment
         fi
@@ -152,20 +189,42 @@ if [ ! -f "$recording" ]; then
     echo "memworld: no recording at $recording" >&2
     exit 1
 fi
+# That check used YOUR directory; `cd "$repo"` below moves it. A relative argument -- which
+# the usage line advertises -- would then be forwarded unchanged and resolved somewhere else,
+# after the old server had already been stopped for it.
+case "$recording" in
+    /*) ;;
+    *) recording="$PWD/$recording" ;;
+esac
 
 # The port the module will actually serve on: "${@:2}" can override it, and probing
 # 8443 then waits on whatever is already there -- or on nothing, for two minutes.
 # Parsed BEFORE anything destructive: a bad flag must not cost the operator the
 # server that is currently up, and `--server-port` with no value would abort on
 # ${!next} after the running demo had already been killed and replaced.
-port=8443
+# dimos accepts seven spellings of this one option -- it maps `-` to `_`, and registers a
+# `modules.<instance>.<field>` form as well -- and reading only three of them meant the
+# server came up on 9443 while this script probed 8443 and reported, after four minutes,
+# that a perfectly healthy server had never answered.
+port_flag() {   # the canonical name if this argument sets the port, else nothing
+    name=${1#--}
+    name=${name%%=*}
+    name=$(printf '%s' "$name" | tr '_' '-')
+    name=${name#modules.}
+    case "$name" in
+        server-port|memoryworldmodule.server-port) printf '%s' "$name" ;;
+    esac
+}
+port=${MEMORYWORLDMODULE__SERVER_PORT:-8443}   # the environment sets it too
 for i in $(seq 2 $#); do
-    case "${!i}" in
-        --memoryworldmodule.server-port=*|--server-port=*) port="${!i#*=}" ;;
-        --memoryworldmodule.server-port|--server-port)
+    arg="${!i}"
+    if [ -z "$(port_flag "$arg")" ]; then continue; fi
+    case "$arg" in
+        *=*) port="${arg#*=}" ;;
+        *)
             next=$((i + 1))
             if [ "$next" -gt "$#" ]; then
-                echo "memworld: ${!i} needs a port number" >&2
+                echo "memworld: $arg needs a port number" >&2
                 exit 1
             fi
             port="${!next}"
@@ -175,6 +234,13 @@ done
 case "$port" in
     ''|*[!0-9]*) echo "memworld: server port must be a number, got '$port'" >&2; exit 1 ;;
 esac
+# Digits first, and few enough of them to compare: `[ 999999999999999999999999 -lt 1 ]`
+# does not return false, it FAILS with "integer expression expected", so neither half of
+# the range test below is ever true and the absurd port reaches the launch.
+if [ ${#port} -gt 5 ]; then
+    echo "memworld: server port out of range: $port" >&2
+    exit 1
+fi
 if [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
     echo "memworld: server port out of range: $port" >&2
     exit 1
@@ -194,6 +260,17 @@ extra=()
 if [ -d "$hyperspace_model" ]; then
     extra+=(--memoryworldmodule.hyperspace-model-name "$hyperspace_model")
 fi
+# Rotate rather than truncate. The process whose argv says `dimos run memory-world-module`
+# is a SUPERVISOR: measured with lsof on the live demo, the `:8443` listener and four of the
+# five holders of this log were forkserver workers the pattern cannot see, all sharing one
+# file offset. The ordinary stop is clean, because dimos's SIGTERM handler sweeps them by
+# DIMOS_RUN_ID before the main exits -- but a `kill -9`, which the message above suggests,
+# leaves them writing for up to 3.5 s while server_state says "gone" in 0.2 s. Truncating
+# under them is what puts a hole of NULs in the log (4218 bytes of it, in two seconds, in a
+# faithful reproduction). A survivor keeps writing into the rotated file; this one starts empty.
+rm -f "$log.prev"
+mv "$log" "$log.prev" 2>/dev/null || true
+
 nohup dimos run memory-world-module \
     --g.rerun-open none \
     --transport lcm \
@@ -202,14 +279,19 @@ nohup dimos run memory-world-module \
     ${extra[@]+"${extra[@]}"} \
     "${@:2}" \
     > "$log" 2>&1 &
+launched=$!
 
 # Hold the lock just long enough for that child to become visible to pgrep -- `nohup ... &`
 # returns before the exec, and a launcher that stopped at that instant would be told "no
 # server" and truncate $log underneath this one. Then release: holding it through the
 # readiness probe below would lock the operator out of `memworld --stop`, the very command
 # this script prints on success, for up to four minutes.
-for _ in $(seq 1 50); do
+for _ in $(seq 1 600); do
     if pgrep -f "$pattern" >/dev/null 2>&1; then break; fi
+    # Or until it is gone: `nohup` execs, so $launched IS the server. Waiting a flat five
+    # seconds released the lock whether or not the child had ever appeared, which is a
+    # release conditioned on the clock rather than on the thing being waited for.
+    if ! kill -0 "$launched" 2>/dev/null; then break; fi
     sleep 0.1
 done
 release_lock
