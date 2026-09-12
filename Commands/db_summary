@@ -22,6 +22,7 @@ let colorMode = "auto"
 let showTree = true
 let treeSeconds = 10
 let treeStream = null
+let htmlPath = undefined
 
 for (let i = 0; i < args.length; i++) {
     if (args[i] === "--no-empty") {
@@ -38,16 +39,21 @@ for (let i = 0; i < args.length; i++) {
         treeSeconds = Number(args[++i])
     } else if (args[i] === "--stream") {
         treeStream = args[++i]
+    } else if (args[i] === "--html") {
+        // an optional path: "--html out.html" writes a file, a bare "--html" writes to stdout
+        htmlPath = (args[i + 1] && !args[i + 1].startsWith("-")) ? args[++i] : null
     } else if (args[i] === "-h" || args[i] === "--help") {
         console.log(`db_summary — Per-stream counts, rates and gaps, plus the tf frame tree,
              for a dimos memory2 .db recording, or a ROS 2 / LCM .mcap
 
-Usage: db_summary <recording.db|recording.mcap> [--no-empty] [--json] [--color|--no-color]
-                                 [--no-tree] [--seconds N] [--stream NAME]
+Usage: db_summary <recording.db|recording.mcap> [--no-empty] [--json] [--html [FILE]]
+                                 [--color|--no-color] [--no-tree] [--seconds N] [--stream NAME]
 
 Options:
   --no-empty   Hide streams that have zero messages
   --json       Emit machine-readable JSON instead of a table
+  --html FILE  Write the same colored output as a standalone HTML page,
+               to FILE, or to stdout when no path follows
   --color      Force color even when piped
   --no-color   Disable color (also honors NO_COLOR)
   --no-tree    Skip the tf frame tree
@@ -84,15 +90,189 @@ if (!dbPath) {
     Deno.exit(1)
 }
 
-const useColor = colorMode === "always" ||
+const asHtml = htmlPath !== undefined
+if (asHtml && asJson) {
+    console.error("error: --html and --json are two different outputs; pick one")
+    Deno.exit(1)
+}
+
+// The page IS the terminal output, so it is drawn with color on whatever the tty says.
+const useColor = asHtml || colorMode === "always" ||
     (colorMode === "auto" && !Deno.env.get("NO_COLOR") && Deno.stdout.isTerminal())
+
+// --- HTML ---
+// The table is written once, in ANSI, and turned into a page at the end: the
+// alternative is a second set of print statements that drifts from the first.
+const captured = []
+if (asHtml) {
+    const log = console.log
+    console.log = (...parts) => captured.push(parts.join(" "))
+    globalThis.addEventListener("unload", () => {
+        const page = ansiPage(captured.join("\n"), `${dbPath} — db_summary`)
+        if (htmlPath) {
+            Deno.writeTextFileSync(htmlPath, page)
+            // stderr, so "--html out.html" still pipes nothing but the page
+            console.error(`wrote ${htmlPath}`)
+        } else {
+            log(page)
+        }
+    })
+}
+
+const xterm256 = () => {
+    const basic = [
+        "#000000", "#cd0000", "#00cd00", "#cdcd00", "#0000ee", "#cd00cd", "#00cdcd", "#e5e5e5",
+        "#7f7f7f", "#ff0000", "#00ff00", "#ffff00", "#5c5cff", "#ff00ff", "#00ffff", "#ffffff",
+    ]
+    const hex = (value) => value.toString(16).padStart(2, "0")
+    const out = [...basic]
+    for (const r of CUBE_STEPS) {
+        for (const g of CUBE_STEPS) {
+            for (const b of CUBE_STEPS) {
+                out.push(`#${hex(r)}${hex(g)}${hex(b)}`)
+            }
+        }
+    }
+    for (let i = 0; i < 24; i++) {
+        const grey = 8 + i * 10
+        out.push(`#${hex(grey)}${hex(grey)}${hex(grey)}`)
+    }
+    return out
+}
+
+const escapeHtml = (text) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+
+// SGR runs -> spans. Only the codes this script emits are handled, plus the
+// plain 30-37/40-47 ones, so a future paint() cannot silently lose its color.
+const ansiToHtml = (raw) => {
+    const palette = xterm256()
+    const blank = { fg: null, bg: null, bold: false, dim: false, underline: false }
+    let state = { ...blank }
+    const pieces = []
+    let plain = ""
+
+    const flush = () => {
+        if (plain === "") {
+            return
+        }
+        const style = []
+        if (state.fg !== null) {
+            style.push(`color:${state.fg}`)
+        }
+        if (state.bg !== null) {
+            style.push(`background:${state.bg}`)
+        }
+        if (state.bold) {
+            style.push("font-weight:700")
+        }
+        if (state.dim) {
+            style.push("opacity:.62")
+        }
+        if (state.underline) {
+            style.push("text-decoration:underline")
+        }
+        pieces.push(style.length ? `<span style="${style.join(";")}">${escapeHtml(plain)}</span>` : escapeHtml(plain))
+        plain = ""
+    }
+
+    const apply = (codes) => {
+        for (let i = 0; i < codes.length; i++) {
+            const code = codes[i]
+            const extended = (code === 38 || code === 48)
+            if (extended && codes[i + 1] === 2) {
+                const color = `rgb(${codes[i + 2]},${codes[i + 3]},${codes[i + 4]})`
+                if (code === 38) {
+                    state.fg = color
+                } else {
+                    state.bg = color
+                }
+                i += 4
+            } else if (extended && codes[i + 1] === 5) {
+                const color = palette[codes[i + 2]] ?? null
+                if (code === 38) {
+                    state.fg = color
+                } else {
+                    state.bg = color
+                }
+                i += 2
+            } else if (code === 0) {
+                state = { ...blank }
+            } else if (code === 1) {
+                state.bold = true
+            } else if (code === 2) {
+                state.dim = true
+            } else if (code === 4) {
+                state.underline = true
+            } else if (code === 22) {
+                state.bold = false
+                state.dim = false
+            } else if (code === 24) {
+                state.underline = false
+            } else if (code === 39) {
+                state.fg = null
+            } else if (code === 49) {
+                state.bg = null
+            } else if (code >= 30 && code <= 37) {
+                state.fg = palette[code - 30]
+            } else if (code >= 90 && code <= 97) {
+                state.fg = palette[code - 82]
+            } else if (code >= 40 && code <= 47) {
+                state.bg = palette[code - 40]
+            } else if (code >= 100 && code <= 107) {
+                state.bg = palette[code - 92]
+            }
+        }
+    }
+
+    const sgr = /\x1b\[([0-9;]*)m/g
+    let cursor = 0
+    let match
+    while ((match = sgr.exec(raw)) !== null) {
+        plain += raw.slice(cursor, match.index)
+        flush()
+        apply(match[1].split(";").filter((part) => part !== "").map(Number))
+        cursor = sgr.lastIndex
+    }
+    plain += raw.slice(cursor)
+    flush()
+    return pieces.join("")
+}
+
+// A standalone file: no charset meta and the em-dashes and box-drawing
+// characters in the tf tree come out as mojibake.
+const ansiPage = (raw, title) => `<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(title)}</title>
+<style>
+:root { --page: #f6f6f4; --ink: #1b1b1f; --muted: #6b6b76; --term-bg: #11121a; --term-ink: #e6e6ec; --edge: #dededa; color-scheme: light }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --page: #0f1014; --ink: #e9e9ee; --muted: #9a9aa6; --term-bg: #0a0b10; --edge: #26272f; color-scheme: dark }
+}
+:root[data-theme="dark"] { --page: #0f1014; --ink: #e9e9ee; --muted: #9a9aa6; --term-bg: #0a0b10; --edge: #26272f; color-scheme: dark }
+body { background: var(--page); color: var(--ink); font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 28px 20px 48px }
+main { max-width: 1180px; margin: 0 auto }
+h1 { font-size: 17px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 4px }
+p.sub { color: var(--muted); margin: 0 0 20px; font-size: 13px }
+.term { background: var(--term-bg); border: 1px solid var(--edge); border-radius: 10px; padding: 18px 20px; overflow-x: auto }
+pre { margin: 0; color: var(--term-ink); font: 12.5px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre }
+</style>
+<main>
+<h1>${escapeHtml(title)}</h1>
+<p class="sub">db_summary output, colors preserved</p>
+<div class="term"><pre>${ansiToHtml(raw)}</pre></div>
+</main>
+`
 
 const paint = (text, code) => useColor ? `\x1b[38;5;${code}m${text}\x1b[0m` : text
 const dim = (text) => useColor ? `\x1b[2m${text}\x1b[0m` : text
 const bold = (text) => useColor ? `\x1b[1m${text}\x1b[0m` : text
 
 const CUBE_STEPS = [0, 95, 135, 175, 215, 255]
-const truecolor = /truecolor|24bit/i.test(Deno.env.get("COLORTERM") ?? "")
+let truecolor = /truecolor|24bit/i.test(Deno.env.get("COLORTERM") ?? "")
+if (asHtml) {
+    truecolor = true
+}
 
 const hslToRgb = (hue, saturation, lightness) => {
     const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation
