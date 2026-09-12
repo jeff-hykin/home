@@ -97,10 +97,45 @@ def report(label, block):
     return numbers
 
 
+def read_root(device, numbers):
+    """List the root directory. PercentInUse is advisory and not every driver keeps it
+    current, so "0% in use" is a hint, not a verdict -- the directory is the verdict."""
+    sector_size = 1 << numbers["BytesPerSectorShift"]
+    per_cluster = 1 << numbers["SectorsPerClusterShift"]
+    first = numbers["FirstClusterOfRootDirectory"]
+    start = (numbers["ClusterHeapOffset"] + (first - 2) * per_cluster) * sector_size
+    device.seek(start)
+    block = device.read(per_cluster * sector_size)
+
+    entries = []
+    name = ""
+    pending = None
+    for at in range(0, len(block), 32):
+        kind = block[at]
+        if kind == 0x00:
+            break
+        if not kind & 0x80:          # in-use bit clear: a deleted entry
+            continue
+        if kind == 0x85:
+            if pending is not None:
+                entries.append(pending)
+            pending = {"name": "", "size": 0, "directory": bool(block[at + 4] & 0x10)}
+            name = ""
+        elif kind == 0xC0 and pending is not None:
+            pending["size"] = int.from_bytes(block[at + 24:at + 32], "little")
+        elif kind == 0xC1 and pending is not None:
+            name += block[at + 2:at + 32].decode("utf-16-le", "replace")
+            pending["name"] = name.rstrip("\x00")
+    if pending is not None:
+        entries.append(pending)
+    return entries, start
+
+
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != "--list"):
         sys.exit(__doc__)
     path = sys.argv[1]
+    listing = len(sys.argv) == 3
     try:
         with open(path, "rb") as device:
             head = device.read(SECTOR * 24)
@@ -124,6 +159,26 @@ def main():
         computed = boot_checksum(region)
         print(f"    {label:7} stored {stored:08X}  computed {computed:08X}  "
               + ("match" if stored == computed else "MISMATCH"))
+
+    if listing and (main_numbers or backup_numbers):
+        numbers = main_numbers or backup_numbers
+        print("\n  root directory")
+        try:
+            with open(path, "rb") as device:
+                entries, start = read_root(device, numbers)
+        except OSError as error:
+            print(f"    could not read it: {error}")
+        else:
+            print(f"    read from byte {start:,}")
+            if not entries:
+                print("    EMPTY -- no entries at all")
+            for entry in entries[:60]:
+                kind = "dir " if entry["directory"] else "file"
+                print(f"    {kind}  {entry['size'] / 1e9:9.3f} GB  {entry['name']}")
+            if len(entries) > 60:
+                print(f"    ... and {len(entries) - 60} more")
+            total = sum(e["size"] for e in entries)
+            print(f"    {len(entries)} entries, {total / 1e9:.2f} GB in the top level")
 
     print("\n  verdict")
     if main_numbers is not None and backup_numbers is not None:
