@@ -380,6 +380,61 @@ const summarise = (name, payload, count, times) => {
     }
 }
 
+// An mcap's summary section already stores every message's log time, in the
+// MessageIndex records that follow each chunk: (log_time, offset) pairs, 16
+// bytes each. Reading those is a few MB on a 60 GB file, where decompressing
+// every chunk to look at the same timestamps is the whole file. Counts come
+// from the Statistics record, so nothing here needs a payload.
+const MESSAGE_INDEX_OPCODE = 0x07
+const MESSAGE_INDEX_ENTRY_BYTES = 16
+
+// Returns Map<channelId, seconds[]>, or null when the file carries no message
+// indexes -- an unindexed or unchunked writer -- so the caller can fall back.
+const logTimesFromIndexes = async (readable, chunkIndexes) => {
+    const timesById = new Map()
+    if (chunkIndexes.length === 0) {
+        return null
+    }
+    for (const chunk of chunkIndexes) {
+        const offsets = [...chunk.messageIndexOffsets.values()]
+        if (offsets.length === 0 || chunk.messageIndexLength === 0n) {
+            return null
+        }
+        // the records sit together after the chunk, but trust the offsets
+        // rather than assuming they start exactly at chunkStartOffset+chunkLength
+        let start = offsets[0]
+        for (const offset of offsets) {
+            if (offset < start) {
+                start = offset
+            }
+        }
+        const block = await readable.read(start, chunk.messageIndexLength)
+        const view = new DataView(block.buffer, block.byteOffset, block.byteLength)
+        let pos = 0
+        while (pos + 9 <= block.byteLength) {
+            const opcode = view.getUint8(pos)
+            const recordLength = Number(view.getBigUint64(pos + 1, true))
+            pos += 9
+            if (opcode !== MESSAGE_INDEX_OPCODE) {
+                pos += recordLength
+                continue
+            }
+            const channelId = view.getUint16(pos, true)
+            const entriesEnd = pos + 6 + view.getUint32(pos + 2, true)
+            let times = timesById.get(channelId)
+            if (times === undefined) {
+                times = []
+                timesById.set(channelId, times)
+            }
+            for (let entry = pos + 6; entry + MESSAGE_INDEX_ENTRY_BYTES <= entriesEnd; entry += MESSAGE_INDEX_ENTRY_BYTES) {
+                times.push(Number(view.getBigUint64(entry, true)) / 1e9)
+            }
+            pos += recordLength
+        }
+    }
+    return timesById
+}
+
 let streams = []
 if (isMcap) {
     mcapFile = await Deno.open(dbPath, { read: true })
@@ -406,17 +461,21 @@ if (isMcap) {
     }
     mcap = await McapIndexedReader.Initialize({ readable, decompressHandlers })
     const channels = [...mcap.channelsById.values()].sort((a, b) => a.topic.localeCompare(b.topic))
-    // One pass over the whole file: every chunk is decompressed exactly once and
-    // only the log times are kept, so a 60 GB recording costs one sequential read.
-    const timesById = new Map(channels.map((channel) => [channel.id, []]))
-    for await (const message of mcap.readMessages()) {
-        timesById.get(message.channelId)?.push(Number(message.logTime) / 1e9)
+    // Read the log times out of the summary section. Only a file with no message
+    // indexes has to be walked, and then it costs one sequential decompressing pass.
+    let timesById = await logTimesFromIndexes(readable, mcap.chunkIndexes)
+    if (timesById === null) {
+        timesById = new Map(channels.map((channel) => [channel.id, []]))
+        for await (const message of mcap.readMessages()) {
+            timesById.get(message.channelId)?.push(Number(message.logTime) / 1e9)
+        }
     }
     for (const channel of channels) {
         const name = channel.topic.replace(/^\//, "")
         const schema = mcap.schemasById.get(channel.schemaId)
         const payload = schema ? `${schema.name} (${channel.messageEncoding})` : channel.messageEncoding
-        const times = timesById.get(channel.id)
+        // a channel with no messages is absent from the indexes entirely
+        const times = timesById.get(channel.id) ?? []
         times.sort((a, b) => a - b)
         const count = Number(mcap.statistics?.channelMessageCounts.get(channel.id) ?? times.length)
         rows.push(summarise(name, payload, count, times))
