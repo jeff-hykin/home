@@ -256,6 +256,12 @@ take_lock() {
 # Refuse to report a stop that did not happen, and never truncate the log or launch
 # beside a server that is still up.
 stop_server_or_die() {
+    # What was running BEFORE the stop, so the launch path can tell an orphaned worker of
+    # ours from somebody else's service that simply has the port. Saying "usually an
+    # orphaned worker, kill those pids" about an unrelated process is advice to kill the
+    # wrong thing, and the --stop path already gates its own version of that sentence on
+    # this same question.
+    stopped_something=$(server_pids 2>/dev/null) || true
     stop_server && return 0
     case $? in
         2) echo "memworld: cannot tell whether a server is running (pgrep or ps failed)" >&2 ;;
@@ -425,14 +431,24 @@ fi
 # fails to bind, and the probe below is answered by the OLD one. So ask the port itself,
 # which is the only thing that knows.
 if port_is_taken; then
-    echo "memworld: the stop looked clean but something still holds port $port:" >&2
+    if [ -n "$stopped_something" ]; then
+        echo "memworld: the stop looked clean but something still holds port $port:" >&2
+    else
+        echo "memworld: port $port is already in use, and no memworld server was running:" >&2
+    fi
     if command -v lsof >/dev/null 2>&1; then
         lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2
     else
         echo "memworld:   (install lsof to be told which process)" >&2
     fi
-    echo "memworld: usually an orphaned worker of a server killed with -9. Kill those pids" >&2
-    echo "memworld: and run this again; $log has been left alone." >&2
+    if [ -n "$stopped_something" ]; then
+        echo "memworld: usually an orphaned worker of a server killed with -9. Kill those pids" >&2
+        echo "memworld: and run this again; $log has been left alone." >&2
+    else
+        echo "memworld: that is somebody else's service, not ours. Pick another port with" >&2
+        echo "memworld:   memworld <recording> --memoryworldmodule.server-port <n>" >&2
+        echo "memworld: or stop whatever is listed above; $log has been left alone." >&2
+    fi
     exit 1
 fi
 
