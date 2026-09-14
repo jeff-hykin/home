@@ -686,6 +686,17 @@ def main():
                         metavar="TOPIC:X,Y,Z,QX,QY,QZ,QW",
                         help="right-multiply the pose on a nav_msgs/Odometry topic by the same "
                              "correction, rotating its twist with it (repeatable)")
+    parser.add_argument("--cut-at", type=float, metavar="SECONDS",
+                        help="cut the recording in two at this many seconds past its first "
+                             "message and write the pieces named by --head and --tail. The "
+                             "source is not touched. Chunks are moved whole, so the cut lands on "
+                             "the first chunk boundary at or after the time asked for, and a "
+                             "channel whose only messages are on the other side (a camera_info, "
+                             "published once at startup) has its last one carried over")
+    parser.add_argument("--head", type=Path, metavar="PATH",
+                        help="where to write everything before the cut")
+    parser.add_argument("--tail", type=Path, metavar="PATH",
+                        help="where to write everything from the cut onwards")
     parser.add_argument("--compact", action="store_true",
                         help="close the holes an earlier edit left: copy the live chunks into a "
                              "fresh dense file and rename it over this one. Nothing is decoded, "
@@ -708,10 +719,21 @@ def main():
         old, new = pair.split("=", 1)
         renames[old] = new
     deletes = set(arguments.delete)
+    if arguments.cut_at is None and (arguments.head or arguments.tail):
+        sys.exit("--head/--tail need --cut-at")
+    if arguments.cut_at is not None:
+        if not (arguments.head or arguments.tail):
+            sys.exit("--cut-at needs --head, --tail, or both")
+        if renames or deletes or arguments.post_mul_tf_edge or arguments.post_mul_odom \
+                or arguments.drop_tf_edge or arguments.compact:
+            sys.exit("--cut-at writes new files; run it on its own, then edit the pieces")
+        mcap = Mcap(arguments.recording)
+        split(mcap, arguments.recording, arguments.cut_at, arguments.head, arguments.tail)
+        return
     if not (renames or deletes or arguments.post_mul_tf_edge or arguments.post_mul_odom
             or arguments.drop_tf_edge or arguments.compact):
         sys.exit("nothing to do: pass --rename, --delete, --drop-tf-edge, --post-mul-tf-edge, "
-                 "--post-mul-odom or --compact")
+                 "--post-mul-odom, --compact or --cut-at")
     if renames.keys() & deletes:
         sys.exit("a topic cannot be both renamed and deleted")
 
@@ -913,6 +935,183 @@ def compact(mcap, path):
           f"({mcap.size - written:,} of holes and filler closed); {time.monotonic() - started:.0f}s")
 
 
+# ---------------------------------------------------------------- cutting in two
+
+def split_chunks(mcap, cut):
+    """The chunks either side of a cut, by the time their first message carries.
+    A chunk is never divided, so the cut lands on the first chunk boundary at or
+    after the time asked for -- about a megabyte of slack on a file written at any
+    normal rate. Every chunk ends up on exactly one side, so the two parts hold
+    every message between them and none twice."""
+    head, tail = [], []
+    for index in sorted(mcap.chunk_indexes, key=lambda i: i["chunk_start_offset"]):
+        (tail if index["message_start_time"] >= cut else head).append(index)
+    return head, tail
+
+
+def channels_in(indexes):
+    return {channel_id for index in indexes for channel_id, _ in index["message_index_offsets"]}
+
+
+def carried_over(mcap, keep, drop):
+    """The last message before the window on every channel the window never
+    mentions. A camera_info is published once, at startup, so a cut anywhere past
+    the first second hands someone a tail file with no intrinsics in it -- which
+    reads as a recorder bug rather than as the cut it is. The chunk index says
+    which chunks carry a channel, so this decompresses one chunk per missing
+    channel rather than scanning what was dropped."""
+    missing = channels_in(drop) - channels_in(keep)
+    carried = {}
+    for channel_id in sorted(missing):
+        holders = [index for index in drop
+                   if channel_id in {cid for cid, _ in index["message_index_offsets"]}]
+        last = max(holders, key=lambda index: index["message_end_time"])
+        _, _, _, blob = mcap.read_chunk(last)
+        latest = None
+        for opcode, body in walk_chunk(blob):
+            if opcode != OP_MESSAGE:
+                continue
+            found, _, stamp = struct.unpack_from("<HIQ", body, 0)
+            if found == channel_id and (latest is None or stamp >= latest[0]):
+                latest = (stamp, body)
+        if latest is not None:
+            carried[channel_id] = latest
+    return carried
+
+
+def write_prelude(out, carried, compression):
+    """One chunk holding the carried-over messages, at the front of the new file.
+    Their original log times are kept -- restamping them would put a lie in the
+    file to make its start time tidier."""
+    body = bytearray()
+    entries = {}
+    for channel_id, (stamp, message) in sorted(carried.items()):
+        entries[channel_id] = [(stamp, len(body))]
+        body.extend(record(OP_MESSAGE, message))
+    stamps = [stamp for stamp, _ in carried.values()]
+    chunk = encode_chunk(min(stamps), max(stamps), bytes(body), compression)
+    chunk_at = out.tell()
+    out.write(chunk)
+
+    message_indexes = bytearray()
+    offsets = []
+    for channel_id in sorted(entries):
+        offsets.append((channel_id, len(message_indexes)))
+        message_indexes.extend(encode_message_index(channel_id, entries[channel_id]))
+    index_at = out.tell()
+    out.write(message_indexes)
+    return {
+        "message_start_time": min(stamps),
+        "message_end_time": max(stamps),
+        "chunk_start_offset": chunk_at,
+        "chunk_length": len(chunk),
+        "message_index_offsets": [(cid, index_at + at) for cid, at in offsets],
+        "message_index_length": len(message_indexes),
+        "compression": compression,
+        "compressed_size": struct.unpack_from(
+            "<Q", chunk, RECORD_OVERHEAD + 8 + 8 + 8 + 4 + 4 + len(compression))[0],
+        "uncompressed_size": len(body),
+    }
+
+
+def count_message_index(blob):
+    """Messages per channel, read out of the message index records that follow a
+    chunk. Sixteen bytes per entry, so this is arithmetic rather than a scan of
+    the chunk itself."""
+    from collections import Counter
+    counts = Counter()
+    for opcode, body in walk_chunk(blob):
+        if opcode == OP_MESSAGE_INDEX:
+            channel_id, length = struct.unpack_from("<HI", body, 0)
+            counts[channel_id] += length // 16
+    return counts
+
+
+def extract(mcap, keep, carried, path):
+    """Write the kept chunks into a new file, byte for byte. Schemas and channels
+    are repeated in the data section because the ones the source declared may sit
+    inside a chunk that stayed behind, and a reader walking the file top to bottom
+    would then meet a message on a channel it has never heard of."""
+    from collections import Counter
+    if mcap.other_summary:
+        raise SystemExit("this file has attachments or metadata; their indexes would "
+                         "point at the old offsets. Refusing to cut it")
+    temp = path.with_name(path.name + ".writing")
+    started = time.monotonic()
+    with open(temp, "w+b") as out:
+        out.write(MAGIC)
+        out.write(mcap.header_record)
+        for _, raw in sorted(mcap.schema_records.items()):
+            out.write(raw)
+        used = channels_in(keep) | set(carried)
+        for channel_id, channel in sorted(mcap.channels.items()):
+            if channel_id in used:
+                out.write(channel.encode())
+
+        indexes = []
+        counts = Counter()
+        if carried:
+            compression = keep[0]["compression"] if keep else "zstd"
+            indexes.append(write_prelude(out, carried, compression))
+            counts.update({channel_id: 1 for channel_id in carried})
+        for index in keep:
+            fresh = dict(index)
+            fresh["chunk_start_offset"] = out.tell()
+            copy_span(mcap.file, out, index["chunk_start_offset"], index["chunk_length"])
+            if index["message_index_length"]:
+                old_start = min(at for _, at in index["message_index_offsets"])
+                new_start = out.tell()
+                blob = mcap.read_at(old_start, index["message_index_length"])
+                counts.update(count_message_index(blob))
+                out.write(blob)
+                fresh["message_index_offsets"] = [
+                    (cid, new_start + (at - old_start)) for cid, at in index["message_index_offsets"]]
+            indexes.append(fresh)
+
+        stats = dict(mcap.statistics or {"attachment_count": 0, "metadata_count": 0})
+        stats["channel_message_counts"] = dict(counts)
+        stats["chunk_count"] = len(indexes)
+        stats["message_start_time"] = min(index["message_start_time"] for index in indexes)
+        stats["message_end_time"] = max(index["message_end_time"] for index in indexes)
+        _write_tail(mcap, out.tell(), indexes, {}, set(), out=out, statistics=stats)
+        out.flush()
+        os.fsync(out.fileno())
+        written = out.tell()
+    os.replace(temp, path)
+    print(f"wrote {path.name}: {written:,} bytes, {len(indexes)} chunks, "
+          f"{sum(counts.values()):,} messages; {time.monotonic() - started:.0f}s")
+    return written, counts
+
+
+def split(mcap, source, seconds, head_path, tail_path):
+    """Cut the recording in two at `seconds` past its first message."""
+    origin = min(index["message_start_time"] for index in mcap.chunk_indexes)
+    finish = max(index["message_end_time"] for index in mcap.chunk_indexes)
+    cut = origin + int(seconds * 1e9)
+    head, tail = split_chunks(mcap, cut)
+    if not head or not tail:
+        sys.exit(f"a cut at {seconds}s leaves one side empty; the file spans "
+                 f"{(finish - origin) / 1e9:.1f}s")
+    landed = (tail[0]["message_start_time"] - origin) / 1e9
+    head_bytes = sum(mcap.chunk_span(index) for index in head)
+    tail_bytes = sum(mcap.chunk_span(index) for index in tail)
+    print(f"{source.name}: {(finish - origin) / 1e9:.1f}s, cut at {seconds}s "
+          f"(chunk boundary at {landed:.3f}s)")
+    print(f"  head {len(head)} chunks, ~{head_bytes / 1e9:.2f} GB"
+          f"{' -> ' + head_path.name if head_path else ' (not written)'}")
+    print(f"  tail {len(tail)} chunks, ~{tail_bytes / 1e9:.2f} GB"
+          f"{' -> ' + tail_path.name if tail_path else ' (not written)'}")
+    for path, keep, drop in ((head_path, head, tail), (tail_path, tail, head)):
+        if path is None:
+            continue
+        carried = carried_over(mcap, keep, drop)
+        for channel_id in sorted(carried):
+            print(f"  {path.name}: carrying over the last "
+                  f"{mcap.channels[channel_id].topic} before the cut")
+        extract(mcap, keep, carried, path)
+        verify(path)
+
+
 def free_regions(mcap):
     """The stretches of the data section no chunk index points at: filler left by
     an earlier edit, holes punched through it, or both."""
@@ -945,9 +1144,12 @@ def copy_span(source, destination, offset, length, block=8 << 20):
         length -= len(chunk)
 
 
-def _write_tail(mcap, write_at, indexes, renames, deleted_ids, out=None):
+def _write_tail(mcap, write_at, indexes, renames, deleted_ids, out=None, statistics=None):
     """DataEnd, a fresh summary describing the new layout, the summary offsets and
-    the footer. Written in one go at the end of the rewritten chunks."""
+    the footer. Written in one go at the end of the rewritten chunks.
+
+    `statistics` replaces the source file's, for a file that holds a different set
+    of messages than the one it was cut from."""
     target = out or mcap.file
     target.seek(write_at)
     target.write(record(OP_DATA_END, struct.pack("<I", 0)))
@@ -989,8 +1191,9 @@ def _write_tail(mcap, write_at, indexes, renames, deleted_ids, out=None):
     for raw in mcap.other_summary:
         blob.extend(raw)
 
-    if mcap.statistics is not None:
-        stats = dict(mcap.statistics)
+    base = mcap.statistics if statistics is None else statistics
+    if base is not None:
+        stats = dict(base)
         counts = {cid: n for cid, n in stats["channel_message_counts"].items()
                   if cid not in deleted_ids}
         stats["channel_message_counts"] = counts
