@@ -686,6 +686,11 @@ def main():
                         metavar="TOPIC:X,Y,Z,QX,QY,QZ,QW",
                         help="right-multiply the pose on a nav_msgs/Odometry topic by the same "
                              "correction, rotating its twist with it (repeatable)")
+    parser.add_argument("--compact", action="store_true",
+                        help="close the holes an earlier edit left: copy the live chunks into a "
+                             "fresh dense file and rename it over this one. Nothing is decoded, "
+                             "only relocated, but it is a full sequential copy and needs room "
+                             "for both files. Runs on its own, after any other change")
     parser.add_argument("--reclaim", action="store_true",
                         help="punch a hole through the space the old chunks occupied so the "
                              "filesystem gives it back. Without this the file keeps its size")
@@ -704,9 +709,9 @@ def main():
         renames[old] = new
     deletes = set(arguments.delete)
     if not (renames or deletes or arguments.post_mul_tf_edge or arguments.post_mul_odom
-            or arguments.drop_tf_edge):
-        sys.exit("nothing to do: pass --rename, --delete, --drop-tf-edge, --post-mul-tf-edge "
-                 "or --post-mul-odom")
+            or arguments.drop_tf_edge or arguments.compact):
+        sys.exit("nothing to do: pass --rename, --delete, --drop-tf-edge, --post-mul-tf-edge, "
+                 "--post-mul-odom or --compact")
     if renames.keys() & deletes:
         sys.exit("a topic cannot be both renamed and deleted")
 
@@ -740,6 +745,22 @@ def main():
         if not matches:
             sys.exit(f"no topic named {topic!r} in this file")
         odom_corrections[matches[0].id] = pose
+
+    if arguments.compact and not (renames or deletes or arguments.post_mul_tf_edge
+                                  or arguments.post_mul_odom or arguments.drop_tf_edge):
+        print(f"{arguments.recording.name}: {mcap.size:,} bytes, {len(mcap.chunk_indexes)} chunks, "
+              f"{len(mcap.channels)} channels")
+        free = free_regions(mcap)
+        print(f"  {len(free)} gap(s), {sum(length for _, length in free):,} bytes, would be closed")
+        if arguments.dry_run:
+            print("dry run: nothing written")
+            return
+        holders = other_readers(arguments.recording)
+        if holders and not arguments.force:
+            sys.exit(f"{', '.join(holders)} has this file open; stop it, or pass --force")
+        compact(mcap, arguments.recording)
+        verify(arguments.recording)
+        return
 
     deleted_ids, touched = plan_edit(mcap, renames, deletes)
     reposed = set(tf_corrections) | set(odom_corrections) | set(tf_drops)
@@ -834,14 +855,103 @@ def main():
           f"{'reclaimed {:,} bytes'.format(reclaimed) if arguments.reclaim else 'old chunks blanked (pass --reclaim to free the space)'}; "
           f"{time.monotonic() - started:.0f}s")
     verify(arguments.recording)
+    if arguments.compact:
+        compact(Mcap(arguments.recording), arguments.recording)
+        verify(arguments.recording)
 
 
-def _write_tail(mcap, write_at, indexes, renames, deleted_ids):
+def compact(mcap, path):
+    """Copy the live chunks into a fresh dense file and rename it over the old one.
+
+    An edit leaves the space its old chunks occupied behind as filler, and
+    `--reclaim` turns that filler into holes. Both are invisible to a reader, but
+    the file keeps its original length, so `ls -l` reports more than `du` and a
+    copy made by anything that does not understand holes (`cp`, `scp`) writes the
+    zeros out for real. This closes them, at the cost of a full sequential copy.
+
+    The chunks are moved byte for byte -- nothing is decompressed, re-encoded or
+    re-indexed, only relocated -- so it is disk-speed, and the only thing that
+    changes is where each chunk sits and the summary that says so."""
+    gaps = free_regions(mcap)
+    for offset, length in gaps:
+        head = mcap.read_at(offset, 1)
+        if not head or head[0] != OP_FILLER:
+            raise SystemExit(
+                f"{path.name}: {length:,} bytes at {offset:,} are a {hex(head[0]) if head else 'missing'} "
+                f"record, not filler. Compacting would drop it; refusing to guess")
+    if not gaps:
+        print("  nothing to compact: the data section is already dense")
+        return
+
+    temp = path.with_name(path.name + ".compacting")
+    started = time.monotonic()
+    with open(temp, "w+b") as out:
+        out.write(MAGIC)
+        out.write(mcap.header_record)
+        indexes = []
+        for index in sorted(mcap.chunk_indexes, key=lambda i: i["chunk_start_offset"]):
+            fresh = dict(index)
+            fresh["chunk_start_offset"] = out.tell()
+            copy_span(mcap.file, out, index["chunk_start_offset"], index["chunk_length"])
+            if index["message_index_length"]:
+                # The message indexes sit after the chunk on every file seen so
+                # far, but the offsets are the authority, so they are followed
+                # rather than assumed.
+                old_start = min(at for _, at in index["message_index_offsets"])
+                new_start = out.tell()
+                copy_span(mcap.file, out, old_start, index["message_index_length"])
+                fresh["message_index_offsets"] = [
+                    (cid, new_start + (at - old_start)) for cid, at in index["message_index_offsets"]]
+            indexes.append(fresh)
+        _write_tail(mcap, out.tell(), indexes, {}, set(), out=out)
+        out.flush()
+        os.fsync(out.fileno())
+        written = out.tell()
+    mcap.file.close()
+    os.replace(temp, path)
+    print(f"compacted {mcap.size:,} -> {written:,} bytes "
+          f"({mcap.size - written:,} of holes and filler closed); {time.monotonic() - started:.0f}s")
+
+
+def free_regions(mcap):
+    """The stretches of the data section no chunk index points at: filler left by
+    an earlier edit, holes punched through it, or both."""
+    spans = []
+    for index in mcap.chunk_indexes:
+        start = index["chunk_start_offset"]
+        end = start + index["chunk_length"]
+        for _, at in index["message_index_offsets"]:
+            end = max(end, at)
+        spans.append((start, max(end, start + mcap.chunk_span(index))))
+    spans.sort()
+    gaps = []
+    at = 8 + len(mcap.header_record)
+    for start, end in spans:
+        if start > at:
+            gaps.append((at, start - at))
+        at = max(at, end)
+    if mcap.data_end_offset > at:
+        gaps.append((at, mcap.data_end_offset - at))
+    return gaps
+
+
+def copy_span(source, destination, offset, length, block=8 << 20):
+    source.seek(offset)
+    while length:
+        chunk = source.read(min(block, length))
+        if not chunk:
+            raise SystemExit(f"the file ends inside a chunk at {offset:,}")
+        destination.write(chunk)
+        length -= len(chunk)
+
+
+def _write_tail(mcap, write_at, indexes, renames, deleted_ids, out=None):
     """DataEnd, a fresh summary describing the new layout, the summary offsets and
     the footer. Written in one go at the end of the rewritten chunks."""
-    mcap.file.seek(write_at)
-    mcap.file.write(record(OP_DATA_END, struct.pack("<I", 0)))
-    summary_start = mcap.file.tell()
+    target = out or mcap.file
+    target.seek(write_at)
+    target.write(record(OP_DATA_END, struct.pack("<I", 0)))
+    summary_start = target.tell()
 
     groups = []
     blob = bytearray()
@@ -892,15 +1002,15 @@ def _write_tail(mcap, write_at, indexes, renames, deleted_ids):
         blob.extend(raw)
         groups.append((OP_STATISTICS, stats_start, len(raw)))
 
-    mcap.file.write(blob)
-    summary_offset_start = mcap.file.tell()
+    target.write(blob)
+    summary_offset_start = target.tell()
     offsets = bytearray()
     for opcode, start, length in groups:
         offsets.extend(record(OP_SUMMARY_OFFSET, struct.pack("<BQQ", opcode, start, length)))
-    mcap.file.write(offsets)
-    mcap.file.write(record(OP_FOOTER, struct.pack("<QQI", summary_start, summary_offset_start, 0)))
-    mcap.file.write(MAGIC)
-    mcap.file.truncate()
+    target.write(offsets)
+    target.write(record(OP_FOOTER, struct.pack("<QQI", summary_start, summary_offset_start, 0)))
+    target.write(MAGIC)
+    target.truncate()
 
 
 def verify(path):
