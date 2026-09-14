@@ -504,6 +504,58 @@ def repose_tf_message(data, corrections):
     return bytes(out)
 
 
+def drop_tf_edges(data, edges):
+    """Remove named edges from a tf2_msgs/TFMessage, re-encoding what is left.
+
+    This is how a frame with two parents gets down to one. Appending cannot
+    remove, so a static edge published by the recorder and then superseded by a
+    urdf leaves the file publishing both for ever, with nothing saying which is
+    meant -- a consumer's tf tree then slerps between two answers.
+
+    Unlike `repose_tf_message` this changes the message's length, which is fine:
+    the chunk is rebuilt around it and every message index offset recomputed. A
+    message left with no transforms at all is kept as an empty TFMessage rather
+    than dropped, so the channel's message count -- which `verify` checks against
+    the new summary -- does not move. The whole message is decoded and re-encoded
+    rather than spliced, because CDR pads relative to the start of the body and
+    removing one transform shifts the alignment of every later one."""
+    cursor = CdrCursor(data)
+    kept = []
+    removed = 0
+    for _ in range(cursor.u32()):
+        cursor.align(4)
+        stamp = struct.unpack_from("<iI", cursor.data, cursor.at)
+        cursor.skip(8)
+        parent = cursor.text()
+        child = cursor.text()
+        _, pose = cursor.doubles(7)
+        if (parent, child) in edges:
+            removed += 1
+        else:
+            kept.append((stamp, parent, child, pose))
+    if not removed:
+        return bytes(data), 0
+
+    out = bytearray(data[:4])   # the encapsulation header; offsets align past it
+
+    def align(width):
+        while (len(out) - 4) % width:
+            out.append(0)
+
+    out.extend(struct.pack("<I", len(kept)))
+    for (sec, nsec), parent, child, pose in kept:
+        align(4)
+        out.extend(struct.pack("<iI", sec, nsec))
+        for text in (parent, child):
+            raw = text.encode("utf-8") + b"\0"
+            align(4)
+            out.extend(struct.pack("<I", len(raw)))
+            out.extend(raw)
+        align(8)
+        out.extend(struct.pack("<7d", *pose))
+    return bytes(out), removed
+
+
 def repose_odometry(data, correction):
     """Right-multiply a nav_msgs/Odometry pose. The twist is expressed in the
     child frame, so moving that frame rotates the velocities as well -- leaving
@@ -525,13 +577,16 @@ def repose_odometry(data, correction):
 
 # ---------------------------------------------------------------- the edit
 
-def rewrite_chunk(blob, renames, deleted_ids, tf_corrections=None, odom_corrections=None):
+def rewrite_chunk(blob, renames, deleted_ids, tf_corrections=None, odom_corrections=None,
+                  tf_drops=None):
     """Return the chunk's records with deleted channels and their messages gone
     and renamed channels renamed, plus the per-channel message index entries the
-    new layout needs. Offsets in a message index are relative to the start of
-    the decompressed chunk, so they have to be recomputed here, not adjusted."""
+    new layout needs, plus how many tf edges were dropped. Offsets in a message
+    index are relative to the start of the decompressed chunk, so they have to be
+    recomputed here, not adjusted."""
     out = bytearray()
     entries = {}
+    dropped = 0
     for opcode, body in walk_chunk(blob):
         if opcode == OP_CHANNEL:
             channel = Channel.parse(body)
@@ -546,12 +601,16 @@ def rewrite_chunk(blob, renames, deleted_ids, tf_corrections=None, odom_correcti
             if channel_id in deleted_ids:
                 continue
             entries.setdefault(channel_id, []).append((log_time, len(out)))
+            if tf_drops and channel_id in tf_drops:
+                payload, gone = drop_tf_edges(body[22:], tf_drops[channel_id])
+                body = body[:22] + payload
+                dropped += gone
             if tf_corrections and channel_id in tf_corrections:
                 body = body[:22] + repose_tf_message(body[22:], tf_corrections[channel_id])
             elif odom_corrections and channel_id in odom_corrections:
                 body = body[:22] + repose_odometry(body[22:], odom_corrections[channel_id])
         out.extend(record(opcode, body))
-    return out, entries
+    return out, entries, dropped
 
 
 def pose_argument(text, what):
@@ -618,6 +677,11 @@ def main():
                              "tf2_msgs/TFMessage (repeatable). This is how a moving edge follows a "
                              "corrected static one: a pose solved against a sensor stays true, but "
                              "the frame it is reported in has moved")
+    parser.add_argument("--drop-tf-edge", action="append", default=[], metavar="PARENT:CHILD",
+                        help="remove this edge wherever it is published on a tf2_msgs/TFMessage "
+                             "(repeatable). Use it when a frame ended up with two parents: "
+                             "appending cannot remove, so a recorder edge superseded by a urdf "
+                             "keeps being published alongside the new one")
     parser.add_argument("--post-mul-odom", action="append", default=[],
                         metavar="TOPIC:X,Y,Z,QX,QY,QZ,QW",
                         help="right-multiply the pose on a nav_msgs/Odometry topic by the same "
@@ -639,8 +703,10 @@ def main():
         old, new = pair.split("=", 1)
         renames[old] = new
     deletes = set(arguments.delete)
-    if not renames and not deletes and not arguments.post_mul_tf_edge and not arguments.post_mul_odom:
-        sys.exit("nothing to do: pass --rename, --delete, --post-mul-tf-edge or --post-mul-odom")
+    if not (renames or deletes or arguments.post_mul_tf_edge or arguments.post_mul_odom
+            or arguments.drop_tf_edge):
+        sys.exit("nothing to do: pass --rename, --delete, --drop-tf-edge, --post-mul-tf-edge "
+                 "or --post-mul-odom")
     if renames.keys() & deletes:
         sys.exit("a topic cannot be both renamed and deleted")
 
@@ -657,6 +723,16 @@ def main():
         for channel in mcap.channels.values():
             if mcap.schemas.get(channel.schema_id) == "tf2_msgs/msg/TFMessage":
                 tf_corrections.setdefault(channel.id, {})[(parent, child)] = pose
+    # Dropping an edge is keyed the same way a correction is: the edge is gone
+    # wherever it is published, not just on one topic.
+    tf_drops = {}
+    for text in arguments.drop_tf_edge:
+        if text.count(":") != 1:
+            sys.exit(f"--drop-tf-edge wants PARENT:CHILD, got {text!r}")
+        parent, child = text.split(":")
+        for channel in mcap.channels.values():
+            if mcap.schemas.get(channel.schema_id) == "tf2_msgs/msg/TFMessage":
+                tf_drops.setdefault(channel.id, set()).add((parent, child))
     odom_corrections = {}
     for text in arguments.post_mul_odom:
         topic, pose = pose_argument(text, "post-mul-odom")
@@ -666,7 +742,7 @@ def main():
         odom_corrections[matches[0].id] = pose
 
     deleted_ids, touched = plan_edit(mcap, renames, deletes)
-    reposed = set(tf_corrections) | set(odom_corrections)
+    reposed = set(tf_corrections) | set(odom_corrections) | set(tf_drops)
     if reposed:
         touched = sorted(set(touched) | {
             position for position, index in enumerate(mcap.chunk_indexes)
@@ -680,6 +756,8 @@ def main():
         channel = next(c for c in mcap.channels.values() if c.topic == topic)
         count = (mcap.statistics or {}).get("channel_message_counts", {}).get(channel.id, 0)
         print(f"  delete {topic} ({count:,} messages)")
+    for text in arguments.drop_tf_edge:
+        print(f"  drop tf edge {text}")
     for text in arguments.post_mul_tf_edge:
         print(f"  move tf edge {text.rsplit(':', 1)[0]}")
     for text in arguments.post_mul_odom:
@@ -698,10 +776,13 @@ def main():
     new_indexes = {}
     freed = []
     rewritten_bytes = 0
+    dropped_edges = 0
     for position in touched:
         index = mcap.chunk_indexes[position]
         start, end, compression, blob = mcap.read_chunk(index)
-        records, entries = rewrite_chunk(blob, renames, deleted_ids, tf_corrections, odom_corrections)
+        records, entries, gone = rewrite_chunk(
+            blob, renames, deleted_ids, tf_corrections, odom_corrections, tf_drops)
+        dropped_edges += gone
         chunk = encode_chunk(start, end, bytes(records), compression)
         message_indexes = bytearray()
         offsets = []
@@ -744,6 +825,11 @@ def main():
     os.fsync(mcap.file.fileno())
     mcap.file.close()
 
+    if arguments.drop_tf_edge:
+        # Zero here means the edge was never published, which is worth saying
+        # plainly: the file is unchanged and the name was probably a typo.
+        print(f"dropped {dropped_edges:,} transform(s) naming "
+              f"{', '.join(arguments.drop_tf_edge)}")
     print(f"rewrote {len(touched)} chunk(s), {rewritten_bytes:,} bytes; "
           f"{'reclaimed {:,} bytes'.format(reclaimed) if arguments.reclaim else 'old chunks blanked (pass --reclaim to free the space)'}; "
           f"{time.monotonic() - started:.0f}s")
