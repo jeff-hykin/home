@@ -866,6 +866,19 @@ def main():
         records, entries, gone = rewrite_chunk(
             blob, renames, deleted_ids, tf_corrections, odom_corrections, tf_drops)
         dropped_edges += gone
+        if not entries:
+            # Every message in this chunk belonged to a deleted topic. Keeping the
+            # empty chunk leaves a chunk index with no message indexes but the
+            # original non-zero times, and @mcap/core -- Foxglove's own reader --
+            # refuses the whole file on that ("Encountered a chunk index without
+            # message indexes and non-zero start and end times"), while this
+            # tool's own verifier still says the summary and data agree. So the
+            # chunk goes rather than being written out holding nothing.
+            new_indexes[position] = None
+            freed.append((index["chunk_start_offset"], mcap.chunk_span(index)))
+            print(f"  chunk {position}: {index['chunk_length']:,} -> dropped, it is now empty",
+                  flush=True)
+            continue
         chunk = encode_chunk(start, end, bytes(records), compression)
         message_indexes = bytearray()
         offsets = []
@@ -894,6 +907,7 @@ def main():
         print(f"  chunk {position}: {index['chunk_length']:,} -> {len(chunk):,} bytes", flush=True)
 
     indexes = [new_indexes.get(position, index) for position, index in enumerate(mcap.chunk_indexes)]
+    indexes = [index for index in indexes if index is not None]
     _write_tail(mcap, write_at, indexes, renames, deleted_ids)
 
     # Only now that the summary points somewhere else is it safe to blank the old
@@ -935,12 +949,7 @@ def compact(mcap, path):
     re-indexed, only relocated -- so it is disk-speed, and the only thing that
     changes is where each chunk sits and the summary that says so."""
     gaps = free_regions(mcap)
-    for offset, length in gaps:
-        head = mcap.read_at(offset, 1)
-        if not head or head[0] != OP_FILLER:
-            raise SystemExit(
-                f"{path.name}: {length:,} bytes at {offset:,} are a {hex(head[0]) if head else 'missing'} "
-                f"record, not filler. Compacting would drop it; refusing to guess")
+    carried = carry_from_gaps(mcap, gaps, path)
     if not gaps:
         print("  nothing to compact: the data section is already dense")
         return
@@ -950,6 +959,11 @@ def compact(mcap, path):
     with open(temp, "w+b") as out:
         out.write(MAGIC)
         out.write(mcap.header_record)
+        # The schema and channel records that live in the data section ahead of the
+        # chunks, kept in their original order. A summary-reading reader would find
+        # them in the summary either way; a streaming one would not.
+        for offset, length in carried:
+            copy_span(mcap.file, out, offset, length)
         indexes = []
         for index in sorted(mcap.chunk_indexes, key=lambda i: i["chunk_start_offset"]):
             fresh = dict(index)
@@ -1172,6 +1186,45 @@ def free_regions(mcap):
     if mcap.data_end_offset > at:
         gaps.append((at, mcap.data_end_offset - at))
     return gaps
+
+
+def carry_from_gaps(mcap, gaps, path):
+    """The records inside the "free" regions that are NOT filler and must survive.
+
+    `free_regions` calls every stretch no chunk index points at free, and that is
+    not the same as unused: lite_record writes its schema and channel records at
+    the top level, ahead of the first chunk. Normally the first chunk stays where
+    it was and no gap ever reaches them -- but delete a topic that appears in every
+    chunk and all of them are rewritten at the end of the file, which leaves the
+    whole original data section, schemas included, looking free. `compact` copies
+    only chunks and their message indexes, so without this it would drop them.
+
+    Message indexes are skipped here because `compact` already re-copies each one
+    beside its chunk. Anything else -- an attachment, a metadata record -- is
+    refused rather than guessed at: those are pointed to by offsets in the summary
+    that this function has no way to move.
+    """
+    carried = []
+    for start, length in gaps:
+        at, end = start, start + length
+        while at < end:
+            head = mcap.read_at(at, RECORD_OVERHEAD)
+            if not head or len(head) < RECORD_OVERHEAD:
+                raise SystemExit(f"{path.name}: the file ends inside the gap at {at:,}")
+            opcode, size = head[0], struct.unpack_from("<Q", head, 1)[0]
+            span = RECORD_OVERHEAD + size
+            if at + span > end:
+                raise SystemExit(
+                    f"{path.name}: a {hex(opcode)} record at {at:,} runs past the gap it is in; "
+                    f"refusing to guess")
+            if opcode == OP_SCHEMA or opcode == OP_CHANNEL:
+                carried.append((at, span))
+            elif opcode not in (OP_FILLER, OP_MESSAGE_INDEX):
+                raise SystemExit(
+                    f"{path.name}: {size:,} bytes at {at:,} are a {hex(opcode)} record, neither "
+                    f"filler nor something compaction knows how to move; refusing to guess")
+            at += span
+    return carried
 
 
 def copy_span(source, destination, offset, length, block=8 << 20):
