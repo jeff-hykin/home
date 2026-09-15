@@ -488,8 +488,15 @@ class CdrCursor:
 
 
 def repose_tf_message(data, corrections):
-    """Right-multiply named edges of a tf2_msgs/TFMessage. Same length out as in:
-    only float64s change, so the message can go straight back where it came from."""
+    """Multiply named edges of a tf2_msgs/TFMessage. Same length out as in: only
+    float64s change, so the message can go straight back where it came from.
+
+    Each edge carries a list of (side, pose) applied in the order given. The side
+    matters and is not a matter of taste: a mount that was measured wrong is an
+    error on the CHILD side and composes on the right, while a world frame whose
+    idea of up is wrong -- gravity-align picking the wrong initial attitude -- is
+    an error on the PARENT side and composes on the left. Using one for the other
+    lands the correction in the wrong place by the whole angle involved."""
     out = bytearray(data)
     cursor = CdrCursor(out)
     for _ in range(cursor.u32()):
@@ -498,9 +505,9 @@ def repose_tf_message(data, corrections):
         parent = cursor.text()
         child = cursor.text()
         at, values = cursor.doubles(7)
-        correction = corrections.get((parent, child))
-        if correction is not None:
-            struct.pack_into("<7d", out, at, *compose(values, correction))
+        for side, correction in corrections.get((parent, child), ()):
+            values = compose(correction, values) if side == "pre" else compose(values, correction)
+        struct.pack_into("<7d", out, at, *values)
     return bytes(out)
 
 
@@ -556,22 +563,31 @@ def drop_tf_edges(data, edges):
     return bytes(out), removed
 
 
-def repose_odometry(data, correction):
-    """Right-multiply a nav_msgs/Odometry pose. The twist is expressed in the
-    child frame, so moving that frame rotates the velocities as well -- leaving
-    them alone would put the rig's speed along the old axes."""
+def repose_odometry(data, corrections):
+    """Multiply a nav_msgs/Odometry pose, each correction on the side it is given.
+
+    The twist is expressed in the CHILD frame, which is why the two sides treat it
+    differently: a right-multiplication moves that child frame and so rotates the
+    velocities with it -- leaving them alone would put the rig's speed along the old
+    axes -- while a left-multiplication rotates the parent (world) frame and leaves
+    the child frame, and therefore the twist, exactly where it was."""
     out = bytearray(data)
     cursor = CdrCursor(out)
     cursor.skip(8)   # header.stamp
     cursor.text()    # header.frame_id
     cursor.text()    # child_frame_id
     at, pose = cursor.doubles(7)
-    struct.pack_into("<7d", out, at, *compose(pose, correction))
     cursor.doubles(36)                      # pose covariance
     twist_at, twist = cursor.doubles(6)
-    turn = correction[3:]
-    struct.pack_into("<6d", out, twist_at,
-                     *unrotate(turn, twist[:3]), *unrotate(turn, twist[3:]))
+    for side, correction in corrections:
+        if side == "pre":
+            pose = compose(correction, pose)
+        else:
+            pose = compose(pose, correction)
+            turn = correction[3:]
+            twist = (*unrotate(turn, twist[:3]), *unrotate(turn, twist[3:]))
+    struct.pack_into("<7d", out, at, *pose)
+    struct.pack_into("<6d", out, twist_at, *twist)
     return bytes(out)
 
 
@@ -682,10 +698,24 @@ def main():
                              "(repeatable). Use it when a frame ended up with two parents: "
                              "appending cannot remove, so a recorder edge superseded by a urdf "
                              "keeps being published alongside the new one")
+    parser.add_argument("--pre-mul-tf-edge", action="append", default=[],
+                        metavar="PARENT:CHILD:X,Y,Z,QX,QY,QZ,QW",
+                        help="LEFT-multiply this transform, wherever it appears on a "
+                             "tf2_msgs/TFMessage (repeatable). This is the other side from "
+                             "--post-mul-tf-edge, and the difference is which end is wrong: a "
+                             "mis-measured mount is an error on the child and composes on the "
+                             "right, while an odom frame whose idea of up is wrong -- Point-LIO's "
+                             "gravity-align settling on the wrong initial attitude -- is an error "
+                             "on the parent and composes on the left")
     parser.add_argument("--post-mul-odom", action="append", default=[],
                         metavar="TOPIC:X,Y,Z,QX,QY,QZ,QW",
                         help="right-multiply the pose on a nav_msgs/Odometry topic by the same "
                              "correction, rotating its twist with it (repeatable)")
+    parser.add_argument("--pre-mul-odom", action="append", default=[],
+                        metavar="TOPIC:X,Y,Z,QX,QY,QZ,QW",
+                        help="left-multiply the pose on a nav_msgs/Odometry topic (repeatable). "
+                             "The twist is NOT rotated: it is expressed in the child frame, which "
+                             "a parent-side correction does not move")
     parser.add_argument("--cut-at", type=float, metavar="SECONDS",
                         help="cut the recording in two at this many seconds past its first "
                              "message and write the pieces named by --head and --tail. The "
@@ -725,15 +755,17 @@ def main():
         if not (arguments.head or arguments.tail):
             sys.exit("--cut-at needs --head, --tail, or both")
         if renames or deletes or arguments.post_mul_tf_edge or arguments.post_mul_odom \
+                or arguments.pre_mul_tf_edge or arguments.pre_mul_odom \
                 or arguments.drop_tf_edge or arguments.compact:
             sys.exit("--cut-at writes new files; run it on its own, then edit the pieces")
         mcap = Mcap(arguments.recording)
         split(mcap, arguments.recording, arguments.cut_at, arguments.head, arguments.tail)
         return
     if not (renames or deletes or arguments.post_mul_tf_edge or arguments.post_mul_odom
+            or arguments.pre_mul_tf_edge or arguments.pre_mul_odom
             or arguments.drop_tf_edge or arguments.compact):
         sys.exit("nothing to do: pass --rename, --delete, --drop-tf-edge, --post-mul-tf-edge, "
-                 "--post-mul-odom, --compact or --cut-at")
+                 "--pre-mul-tf-edge, --post-mul-odom, --pre-mul-odom, --compact or --cut-at")
     if renames.keys() & deletes:
         sys.exit("a topic cannot be both renamed and deleted")
 
@@ -742,14 +774,16 @@ def main():
     # A tf correction applies to an edge wherever it is published, so it is keyed by
     # every TFMessage channel; an odometry correction names one topic.
     tf_corrections = {}
-    for text in arguments.post_mul_tf_edge:
-        edge, pose = pose_argument(text, "post-mul-tf-edge")
-        if edge.count(":") != 1:
-            sys.exit(f"--post-mul-tf-edge wants PARENT:CHILD:..., got {text!r}")
-        parent, child = edge.split(":")
-        for channel in mcap.channels.values():
-            if mcap.schemas.get(channel.schema_id) == "tf2_msgs/msg/TFMessage":
-                tf_corrections.setdefault(channel.id, {})[(parent, child)] = pose
+    for side, texts in (("post", arguments.post_mul_tf_edge), ("pre", arguments.pre_mul_tf_edge)):
+        for text in texts:
+            edge, pose = pose_argument(text, f"{side}-mul-tf-edge")
+            if edge.count(":") != 1:
+                sys.exit(f"--{side}-mul-tf-edge wants PARENT:CHILD:..., got {text!r}")
+            parent, child = edge.split(":")
+            for channel in mcap.channels.values():
+                if mcap.schemas.get(channel.schema_id) == "tf2_msgs/msg/TFMessage":
+                    per_edge = tf_corrections.setdefault(channel.id, {})
+                    per_edge.setdefault((parent, child), []).append((side, pose))
     # Dropping an edge is keyed the same way a correction is: the edge is gone
     # wherever it is published, not just on one topic.
     tf_drops = {}
@@ -761,15 +795,17 @@ def main():
             if mcap.schemas.get(channel.schema_id) == "tf2_msgs/msg/TFMessage":
                 tf_drops.setdefault(channel.id, set()).add((parent, child))
     odom_corrections = {}
-    for text in arguments.post_mul_odom:
-        topic, pose = pose_argument(text, "post-mul-odom")
-        matches = [c for c in mcap.channels.values() if c.topic == topic]
-        if not matches:
-            sys.exit(f"no topic named {topic!r} in this file")
-        odom_corrections[matches[0].id] = pose
+    for side, texts in (("post", arguments.post_mul_odom), ("pre", arguments.pre_mul_odom)):
+        for text in texts:
+            topic, pose = pose_argument(text, f"{side}-mul-odom")
+            matches = [c for c in mcap.channels.values() if c.topic == topic]
+            if not matches:
+                sys.exit(f"no topic named {topic!r} in this file")
+            odom_corrections.setdefault(matches[0].id, []).append((side, pose))
 
     if arguments.compact and not (renames or deletes or arguments.post_mul_tf_edge
-                                  or arguments.post_mul_odom or arguments.drop_tf_edge):
+                                  or arguments.post_mul_odom or arguments.pre_mul_tf_edge
+                                  or arguments.pre_mul_odom or arguments.drop_tf_edge):
         print(f"{arguments.recording.name}: {mcap.size:,} bytes, {len(mcap.chunk_indexes)} chunks, "
               f"{len(mcap.channels)} channels")
         free = free_regions(mcap)
@@ -802,9 +838,13 @@ def main():
     for text in arguments.drop_tf_edge:
         print(f"  drop tf edge {text}")
     for text in arguments.post_mul_tf_edge:
-        print(f"  move tf edge {text.rsplit(':', 1)[0]}")
+        print(f"  move tf edge {text.rsplit(':', 1)[0]} (right)")
+    for text in arguments.pre_mul_tf_edge:
+        print(f"  move tf edge {text.rsplit(':', 1)[0]} (left)")
     for text in arguments.post_mul_odom:
-        print(f"  move odometry on {text.rsplit(':', 1)[0]}")
+        print(f"  move odometry on {text.rsplit(':', 1)[0]} (right)")
+    for text in arguments.pre_mul_odom:
+        print(f"  move odometry on {text.rsplit(':', 1)[0]} (left)")
     print(f"  {len(touched)} of {len(mcap.chunk_indexes)} chunks have to be rewritten")
     if arguments.dry_run:
         print("dry run: nothing written")
