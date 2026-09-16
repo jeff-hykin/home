@@ -2,15 +2,15 @@
 # This lives in dtk now: https://github.com/jeff-hykin/dtk -> tools/
 # Kept here so the old name still works; it is the same program either way.
 #
-#   dtk to_video --help
+#   dtk mcap_lcm_to_cdr --help
 if command -v dtk >/dev/null 2>&1
 then
-    exec dtk to_video "$@"
+    exec dtk mcap_lcm_to_cdr "$@"
 fi
 if [ -x "$HOME/.deno/bin/dtk" ]
 then
-    exec "$HOME/.deno/bin/dtk" to_video "$@"
+    exec "$HOME/.deno/bin/dtk" mcap_lcm_to_cdr "$@"
 fi
-echo "to_vid: dtk is not installed. Install it with:" >&2
+echo "mcap_lcm_to_cdr: dtk is not installed. Install it with:" >&2
 echo "  curl -fsSL https://raw.githubusercontent.com/jeff-hykin/dtk/master/install.sh | sh" >&2
 exit 127

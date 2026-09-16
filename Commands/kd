@@ -1,81 +1,16 @@
 #!/bin/sh
-# Kill all dimos application and Unity processes
-
-echo "Looking for dimos and Unity processes..."
-
-# Process patterns
-dimos_pattern='dimos run |dimos-viewer|dimos[0-9]*/.venv/bin/python3|repos/dimos/.venv/bin/python3'
-# Native modules run either from a nix output (result/bin/) or a cargo build
-# (rust/target/release/). Matching the directory rather than a list of binary names
-# keeps new modules covered; the old list missed mls_planner and left three orphaned
-# copies holding 220 GB each after a killed run.
-native_pattern='/(result/bin|rust/target/release)/[A-Za-z0-9_-]+'
-unity_pattern='Model\.x86_64|Unity|unity_envs'
-gazebo_pattern='gzserver|gzclient|ign-gazebo|ignition-gazebo|gz sim '
-ros_pattern='ros-navigation-autonomy-stack|/opt/ros/|ros2|roscore|rosmaster|roslaunch|rosout|joy_node|teleop_twist_joy|ros2_daemon'
-# tcpdumps launched by anything dimos-related (orphaned when parent crashes,
-# since fastlio2 spawns tcpdump with start_new_session=True).
-tcpdump_pattern='tcpdump.*dimos|dimos.*tcpdump'
-all_pattern="$dimos_pattern|$native_pattern|$unity_pattern|$gazebo_pattern|$ros_pattern|$tcpdump_pattern"
-
-find_pids() {
-    ps aux | grep -E "$1" | grep -v grep | grep -v "claude" | awk '{print $2}'
-}
-
-all_pids=$(find_pids "$all_pattern" | xargs)
-
-if [ -z "$all_pids" ]; then
-    echo "No dimos or Unity processes found."
-else
-    echo "Killing PIDs: $all_pids"
-    kill -9 $all_pids 2>/dev/null
-
-    # Verify
-    sleep 0.5
-    remaining=$(find_pids "$all_pattern" | xargs)
-
-    if [ -z "$remaining" ]; then
-        echo "All dimos and Unity processes killed."
-    else
-        # AppArmor's tcpdump profile rejects signals from the vscode-labeled
-        # shell, so plain kill -9 EPERMs even as root. Re-issue from an
-        # unconfined label, which tcpdump's profile accepts.
-        echo "Some processes still running: $remaining"
-        echo "Retrying via aa-exec unconfined..."
-        florp aa-exec -p unconfined -- kill -9 $remaining 2>/dev/null
-        sleep 0.5
-        still=$(find_pids "$all_pattern" | xargs)
-        if [ -z "$still" ]; then
-            echo "All dimos and Unity processes killed."
-        else
-            echo "Still running after retry: $still"
-        fi
-    fi
+# This lives in dtk now: https://github.com/jeff-hykin/dtk -> tools/
+# Kept here so the old name still works; it is the same program either way.
+#
+#   dtk fk --help
+if command -v dtk >/dev/null 2>&1
+then
+    exec dtk fk "$@"
 fi
-
-# Kill anything using these ports (but never kill Blender, which hosts the MCP on 9876).
-# 7446 = zenoh RPC multicast; stray peers here wedge the next run's set_transport.
-for port in 7446 7779 9090 3030 9876 9877 10000; do
-    for pid in $(lsof -ti :$port 2>/dev/null); do
-        pcmd=$(ps -p "$pid" -o command= 2>/dev/null)
-        if printf '%s' "$pcmd" | grep -qi blender; then
-            echo "Skipping Blender (MCP) on port $port: pid $pid"
-            continue
-        fi
-        echo "Killing pid $pid on port $port"
-        kill -9 "$pid" 2>/dev/null
-    done
-done
-
-# Kill docker containers related to dimos or nav stack
-if command -v docker >/dev/null 2>&1; then
-    dimos_containers=$(docker ps -q --filter "name=dimos" --filter "name=ognav" --filter "name=rosnav" --filter "name=nav_stack" 2>/dev/null | sort -u)
-    if [ -n "$dimos_containers" ]; then
-        echo "Stopping docker containers..."
-        echo "$dimos_containers" | xargs docker kill 2>/dev/null
-        echo "$dimos_containers" | xargs docker rm -f 2>/dev/null
-        echo "Docker containers stopped."
-    else
-        echo "No dimos Docker containers running."
-    fi
+if [ -x "$HOME/.deno/bin/dtk" ]
+then
+    exec "$HOME/.deno/bin/dtk" fk "$@"
 fi
+echo "kd: dtk is not installed. Install it with:" >&2
+echo "  curl -fsSL https://raw.githubusercontent.com/jeff-hykin/dtk/master/install.sh | sh" >&2
+exit 127

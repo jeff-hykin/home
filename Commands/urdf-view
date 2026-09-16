@@ -1,93 +1,16 @@
-#!/usr/bin/env -S deno run --allow-read --allow-net --allow-run --allow-env
-
-// urdf-view — open a URDF in the browser and view/edit its frames (no meshes; basis vectors only)
-//
-// Usage: urdf-view <robot.urdf> [--port N] [--no-open]
-//
-// The browser app renders an axis triad for every link frame, draws the
-// kinematic connections, lets you click a frame to highlight its neighbors,
-// drag a single basis vector to move that frame along that axis, and download
-// a modified URDF (only <origin> attributes change; everything else is preserved).
-
-const args = [...Deno.args]
-let urdfPath = null
-let port = 8723
-let open = true
-
-for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--port") {
-        port = parseInt(args[++i])
-    } else if (args[i] === "--no-open") {
-        open = false
-    } else if (args[i] === "-h" || args[i] === "--help") {
-        console.log(`urdf-view — view & edit URDF frames in the browser
-
-Usage: urdf-view <robot.urdf> [--port N] [--no-open]
-
-Controls:
-  mouse drag        orbit
-  scroll            zoom
-  WASD              move camera in space
-  IJKL              change viewing angle
-  click frame       highlight connected frames
-  drag a basis arrow move that frame along only that axis
-  Download button   save modified URDF`)
-        Deno.exit(0)
-    } else if (!urdfPath) {
-        urdfPath = args[i]
-    }
-}
-
-if (!urdfPath) {
-    console.error("error: no URDF file given\n  usage: urdf-view <robot.urdf> [--port N] [--no-open]")
-    Deno.exit(1)
-}
-
-const urdfText = await Deno.readTextFile(urdfPath)
-const webDir = new URL("./urdf_view_files/", import.meta.url).pathname
-
-const contentTypes = {
-    ".html": "text/html",
-    ".js": "text/javascript",
-    ".css": "text/css",
-    ".xml": "application/xml",
-}
-
-function typeFor(path) {
-    const dot = path.lastIndexOf(".")
-    return contentTypes[path.slice(dot)] ?? "application/octet-stream"
-}
-
-const server = Deno.serve({ port, onListen: () => {} }, async (request) => {
-    const url = new URL(request.url)
-    let path = url.pathname
-
-    if (path === "/urdf.xml") {
-        return new Response(urdfText, { headers: { "content-type": "application/xml" } })
-    }
-    if (path === "/") {
-        path = "/index.html"
-    }
-
-    const filePath = webDir + path.replace(/^\//, "")
-    try {
-        const body = await Deno.readFile(filePath)
-        return new Response(body, { headers: { "content-type": typeFor(path) } })
-    } catch {
-        return new Response("not found", { status: 404 })
-    }
-})
-
-const address = `http://localhost:${port}/`
-console.log(`urdf-view serving ${urdfPath}\n  ${address}`)
-
-if (open) {
-    const opener = Deno.build.os === "darwin" ? "open" : "xdg-open"
-    try {
-        await new Deno.Command(opener, { args: [address] }).output()
-    } catch {
-        console.log("  (could not auto-open browser; open the URL above manually)")
-    }
-}
-
-await server.finished
+#!/bin/sh
+# This lives in dtk now: https://github.com/jeff-hykin/dtk -> tools/
+# Kept here so the old name still works; it is the same program either way.
+#
+#   dtk urdf_edit --help
+if command -v dtk >/dev/null 2>&1
+then
+    exec dtk urdf_edit "$@"
+fi
+if [ -x "$HOME/.deno/bin/dtk" ]
+then
+    exec "$HOME/.deno/bin/dtk" urdf_edit "$@"
+fi
+echo "urdf-view: dtk is not installed. Install it with:" >&2
+echo "  curl -fsSL https://raw.githubusercontent.com/jeff-hykin/dtk/master/install.sh | sh" >&2
+exit 127
